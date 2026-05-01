@@ -1,0 +1,289 @@
+import React, { useMemo, useState } from "react";
+import { MapPin, CheckCircle2, AlertCircle, ClipboardList } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+const initialForm = {
+  jobNumber: "",
+  date: "",
+  city: "",
+  truckNumber: "",
+  address: "",
+  unit: "",
+  crewLead: "",
+  sprayer: "",
+  helper1: "",
+  helper2: "",
+  startTime: "",
+  finishTime: "",
+  aMeterStart: "",
+  aMeterFinish: "",
+  bMeterStart: "",
+  bMeterFinish: "",
+  method: "",
+  di: "",
+  workAreaLength: "",
+  workAreaWidth: "",
+  generatorRunTime: "",
+  estimatedSets: "",
+  lift: "",
+  clicks: "",
+  gpsLatitude: "",
+  gpsLongitude: "",
+  locationConfirmed: false,
+  notes: "",
+};
+
+const requiredFields = [
+  ["jobNumber", "Job #"],
+  ["date", "Date"],
+  ["city", "City"],
+  ["truckNumber", "Truck #"],
+  ["address", "Address / Location"],
+  ["crewLead", "Crew Lead"],
+  ["startTime", "Start Time"],
+  ["finishTime", "Finish Time"],
+  ["aMeterStart", "A Meter Start"],
+  ["aMeterFinish", "A Meter Finish"],
+  ["bMeterStart", "B Meter Start"],
+  ["bMeterFinish", "B Meter Finish"],
+  ["method", "Method"],
+  ["generatorRunTime", "Generator Run Time"],
+  ["lift", "Lift"],
+  ["clicks", "Clicks"],
+  ["gpsLatitude", "GPS Latitude"],
+  ["gpsLongitude", "GPS Longitude"],
+];
+
+function Field({ label, name, value, onChange, type = "text", required = false, placeholder = "" }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-semibold text-slate-700">
+        {label} {required && <span className="text-red-600">*</span>}
+      </span>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+      />
+    </label>
+  );
+}
+
+export default function KKECrewProfileForm() {
+  const [form, setForm] = useState(initialForm);
+  const [submitted, setSubmitted] = useState(false);
+  const [locationStatus, setLocationStatus] = useState("");
+
+  const totalHours = useMemo(() => {
+    if (!form.startTime || !form.finishTime) return "";
+    const [sh, sm] = form.startTime.split(":").map(Number);
+    const [fh, fm] = form.finishTime.split(":").map(Number);
+    let start = sh * 60 + sm;
+    let finish = fh * 60 + fm;
+    if (finish < start) finish += 24 * 60;
+    return ((finish - start) / 60).toFixed(2);
+  }, [form.startTime, form.finishTime]);
+
+  const actualSets = useMemo(() => {
+    const aStart = parseFloat(form.aMeterStart);
+    const aFinish = parseFloat(form.aMeterFinish);
+    if (Number.isNaN(aStart) || Number.isNaN(aFinish)) return "";
+    const gallonsUsed = Math.max(aFinish - aStart, 0);
+    return (gallonsUsed / 50).toFixed(2);
+  }, [form.aMeterStart, form.aMeterFinish]);
+
+  const missingFields = requiredFields.filter(([key]) => !String(form[key]).trim()).map(([, label]) => label);
+  const canSubmit = missingFields.length === 0 && form.locationConfirmed;
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const getLocation = () => {
+    setLocationStatus("Getting current location...");
+    if (!navigator.geolocation) {
+      setLocationStatus("GPS is not supported on this device. Enter coordinates manually.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((prev) => ({
+          ...prev,
+          gpsLatitude: position.coords.latitude.toFixed(6),
+          gpsLongitude: position.coords.longitude.toFixed(6),
+          locationConfirmed: true,
+        }));
+        setLocationStatus("GPS pin captured and confirmed.");
+      },
+      () => {
+        setLocationStatus("Could not capture GPS. Make sure location permissions are turned on.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setSubmitted(true);
+    if (!canSubmit) return;
+
+    const payload = {
+      ...form,
+      totalHours,
+      actualSets,
+      submittedAt: new Date().toISOString(),
+    };
+
+    console.log("KKE Crew Profile Submitted", payload);
+    alert("Form submitted successfully. This is where it will send to your spreadsheet/database.");
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 px-4 py-6">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-4xl font-black tracking-tight text-slate-900">KKE</div>
+              <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">Concrete Lifting</div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-blue-900">
+              <ClipboardList className="h-6 w-6" />
+              <div>
+                <h1 className="text-xl font-bold">Crew Profile Sheet</h1>
+                <p className="text-sm">Required field form with GPS pin confirmation</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Job Information</h2>
+              <div className="grid gap-4 md:grid-cols-4">
+                <Field label="Job #" name="jobNumber" value={form.jobNumber} onChange={handleChange} required />
+                <Field label="Date" name="date" value={form.date} onChange={handleChange} type="date" required />
+                <Field label="City" name="city" value={form.city} onChange={handleChange} required />
+                <Field label="Truck #" name="truckNumber" value={form.truckNumber} onChange={handleChange} required />
+                <div className="md:col-span-3">
+                  <Field label="Address / Location" name="address" value={form.address} onChange={handleChange} required />
+                </div>
+                <Field label="Unit" name="unit" value={form.unit} onChange={handleChange} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Crew & Time</h2>
+              <div className="grid gap-4 md:grid-cols-4">
+                <Field label="Crew Lead" name="crewLead" value={form.crewLead} onChange={handleChange} required />
+                <Field label="Sprayer" name="sprayer" value={form.sprayer} onChange={handleChange} />
+                <Field label="Helper 1" name="helper1" value={form.helper1} onChange={handleChange} />
+                <Field label="Helper 2" name="helper2" value={form.helper2} onChange={handleChange} />
+                <Field label="Start Time" name="startTime" value={form.startTime} onChange={handleChange} type="time" required />
+                <Field label="Finish Time" name="finishTime" value={form.finishTime} onChange={handleChange} type="time" required />
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-sm font-semibold text-slate-600">Total Hours</div>
+                  <div className="text-2xl font-bold text-slate-900">{totalHours || "—"}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Production</h2>
+              <div className="grid gap-4 md:grid-cols-4">
+                <Field label="A Meter Start" name="aMeterStart" value={form.aMeterStart} onChange={handleChange} type="number" required />
+                <Field label="A Meter Finish" name="aMeterFinish" value={form.aMeterFinish} onChange={handleChange} type="number" required />
+                <Field label="B Meter Start" name="bMeterStart" value={form.bMeterStart} onChange={handleChange} type="number" required />
+                <Field label="B Meter Finish" name="bMeterFinish" value={form.bMeterFinish} onChange={handleChange} type="number" required />
+                <Field label="Estimated Sets" name="estimatedSets" value={form.estimatedSets} onChange={handleChange} type="number" />
+                <Field label="Lift" name="lift" value={form.lift} onChange={handleChange} required placeholder="Example: 1.5 in" />
+                <Field label="Clicks" name="clicks" value={form.clicks} onChange={handleChange} type="number" required />
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-sm font-semibold text-slate-600">Actual Sets</div>
+                  <div className="text-2xl font-bold text-slate-900">{actualSets || "—"}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Job Details</h2>
+              <div className="grid gap-4 md:grid-cols-4">
+                <Field label="Method" name="method" value={form.method} onChange={handleChange} required />
+                <Field label="DI" name="di" value={form.di} onChange={handleChange} />
+                <Field label="Work Area Length" name="workAreaLength" value={form.workAreaLength} onChange={handleChange} />
+                <Field label="Work Area Width" name="workAreaWidth" value={form.workAreaWidth} onChange={handleChange} />
+                <Field label="Generator Run Time" name="generatorRunTime" value={form.generatorRunTime} onChange={handleChange} required />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">GPS Job Site Pin</h2>
+                  <p className="text-sm text-slate-600">Crew must capture or enter the job site location before submitting.</p>
+                </div>
+                <Button type="button" onClick={getLocation} className="rounded-xl bg-blue-800 px-4 py-3 text-white hover:bg-blue-900">
+                  <MapPin className="mr-2 h-4 w-4" /> Drop Pin
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field label="GPS Latitude" name="gpsLatitude" value={form.gpsLatitude} onChange={handleChange} required />
+                <Field label="GPS Longitude" name="gpsLongitude" value={form.gpsLongitude} onChange={handleChange} required />
+                <label className="flex items-center gap-3 rounded-xl border border-slate-300 bg-slate-50 px-3 py-3">
+                  <input type="checkbox" name="locationConfirmed" checked={form.locationConfirmed} onChange={handleChange} className="h-5 w-5" />
+                  <span className="text-sm font-semibold text-slate-700">Location confirmed</span>
+                </label>
+              </div>
+              {locationStatus && <p className="mt-3 text-sm font-semibold text-slate-700">{locationStatus}</p>}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-slate-700">Notes About Job</span>
+                <textarea
+                  name="notes"
+                  value={form.notes}
+                  onChange={handleChange}
+                  rows={5}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+            </CardContent>
+          </Card>
+
+          {submitted && !canSubmit && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
+              <div className="mb-2 flex items-center gap-2 font-bold">
+                <AlertCircle className="h-5 w-5" /> Missing required items
+              </div>
+              <p className="text-sm">Complete these before submitting: {missingFields.join(", ")}{!form.locationConfirmed ? ", Location confirmed" : ""}</p>
+            </div>
+          )}
+
+          <div className="sticky bottom-0 rounded-2xl bg-white p-4 shadow-lg">
+            <Button type="submit" className="w-full rounded-xl bg-blue-800 py-4 text-lg font-bold text-white hover:bg-blue-900">
+              <CheckCircle2 className="mr-2 h-5 w-5" /> Submit Crew Profile Sheet
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
