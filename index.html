@@ -33,51 +33,121 @@
     }
 
     .header {
-      background: white;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fbff 52%, #eaf4ff 100%);
+      border-radius: 22px;
+      padding: 0;
+      margin-bottom: 18px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.12);
+      border: 1px solid rgba(0, 87, 168, 0.18);
+    }
+
+    .header::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(0,87,168,0.08), rgba(255,255,255,0)),
+        repeating-linear-gradient(135deg, rgba(0,87,168,0.035) 0, rgba(0,87,168,0.035) 1px, transparent 1px, transparent 12px);
+      pointer-events: none;
+    }
+
+    .header-topline {
+      position: relative;
+      height: 10px;
+      background: linear-gradient(90deg, #003f7d, var(--kke-blue), #0b75d1);
+    }
+
+    .header-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 22px;
+      align-items: stretch;
+      padding: 20px;
+    }
+
+    .brand-panel {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(0,87,168,0.16);
       border-radius: 18px;
       padding: 18px;
-      margin-bottom: 16px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
+      justify-content: center;
+      min-height: 120px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
     }
 
     .logo {
       display: flex;
       align-items: center;
+      justify-content: center;
+      width: 100%;
     }
 
     .logo img {
       max-width: 260px;
+      max-height: 95px;
+      width: 100%;
       height: auto;
-    }
-
-    .logo-sub {
-      font-size: 13px;
-      letter-spacing: 2px;
-      color: var(--gray);
-      font-weight: bold;
-      text-transform: uppercase;
+      object-fit: contain;
     }
 
     .title-box {
-      background: #eef6ff;
-      color: #003f7d;
-      border-radius: 16px;
-      padding: 14px 18px;
+      background: rgba(0, 87, 168, 0.96);
+      color: white;
+      border-radius: 18px;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 120px;
+      box-shadow: 0 8px 20px rgba(0,87,168,0.22);
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.78);
     }
 
     .title-box h1 {
       margin: 0;
-      font-size: 22px;
+      font-size: 30px;
+      line-height: 1.05;
+      letter-spacing: -0.5px;
     }
 
     .title-box p {
-      margin: 4px 0 0;
-      font-size: 14px;
+      margin: 8px 0 0;
+      font-size: 15px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .header-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      color: white;
+      white-space: nowrap;
     }
 
     .card {
@@ -291,8 +361,38 @@
         grid-column: span 1;
       }
 
-      .logo {
-        font-size: 34px;
+      .header-inner {
+        grid-template-columns: 1fr;
+        padding: 14px;
+        gap: 12px;
+      }
+
+      .brand-panel {
+        min-height: 86px;
+        padding: 12px;
+      }
+
+      .logo img {
+        max-width: 230px;
+        max-height: 72px;
+      }
+
+      .title-box {
+        min-height: auto;
+        padding: 16px;
+      }
+
+      .title-box h1 {
+        font-size: 24px;
+      }
+
+      .header-badges {
+        gap: 6px;
+      }
+
+      .badge {
+        font-size: 11px;
+        padding: 6px 9px;
       }
     }
   </style>
@@ -300,14 +400,26 @@
 <body>
   <div class="page">
     <div class="header">
-      <div>
-        <div class="logo">
-          <img src="logo.png" alt="KKE Concrete Lifting Logo">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <div class="logo">
+            <img src="logo.png" alt="KKE Concrete Lifting Logo">
+          </div>
         </div>
-      </div>
-      <div class="title-box">
-        <h1>Crew Profile Sheet</h1>
-        <p>Required field form with GPS pin confirmation</p>
+        <div class="title-box">
+          <div>
+            <p class="eyebrow">Field Operations Report</p>
+            <h1>Crew Profile Sheet</h1>
+            <p>Road profile, production, GPS confirmation, and job-site accountability.</p>
+          </div>
+          <div class="header-badges">
+            <span class="badge">Required Fields</span>
+            <span class="badge">GPS Pin</span>
+            <span class="badge">Before / After Profile</span>
+            <span class="badge">Production Tracking</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -571,4 +683,3 @@
   </script>
 </body>
 </html>
-
