@@ -1,685 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KKE Crew Profile Sheet</title>
-  <style>
-    :root {
-      --kke-blue: #0057a8;
-      --dark: #111827;
-      --gray: #6b7280;
-      --light: #f3f4f6;
-      --border: #d1d5db;
-      --danger: #b91c1c;
-      --success: #166534;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KKE Crew Profile Sheet</title>
 
-    * {
-      box-sizing: border-box;
-    }
+<style>
+:root {
+  --kke-blue: #0057a8;
+  --dark: #111827;
+  --light: #f3f4f6;
+  --border: #d1d5db;
+}
 
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: var(--light);
-      color: var(--dark);
-    }
+body {
+  margin:0;
+  font-family:Arial, Helvetica, sans-serif;
+  background:var(--light);
+}
 
-    .page {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 18px;
-    }
+.page {
+  max-width:1000px;
+  margin:auto;
+  padding:16px;
+}
 
-    .header {
-      position: relative;
-      overflow: hidden;
-      background: linear-gradient(135deg, #ffffff 0%, #f8fbff 52%, #eaf4ff 100%);
-      border-radius: 22px;
-      padding: 0;
-      margin-bottom: 18px;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.12);
-      border: 1px solid rgba(0, 87, 168, 0.18);
-    }
+.header {
+  background:white;
+  border-radius:18px;
+  overflow:hidden;
+  margin-bottom:16px;
+}
 
-    .header::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(90deg, rgba(0,87,168,0.08), rgba(255,255,255,0)),
-        repeating-linear-gradient(135deg, rgba(0,87,168,0.035) 0, rgba(0,87,168,0.035) 1px, transparent 1px, transparent 12px);
-      pointer-events: none;
-    }
+.header-inner {
+  display:grid;
+  grid-template-columns:300px 1fr;
+  gap:16px;
+  padding:16px;
+}
 
-    .header-topline {
-      position: relative;
-      height: 10px;
-      background: linear-gradient(90deg, #003f7d, var(--kke-blue), #0b75d1);
-    }
+/* 🔥 UPDATED LOGO SECTION */
+.brand-panel {
+  background:white;
+  border:1px solid rgba(0,87,168,0.16);
+  border-radius:18px;
+  padding:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:160px;
+}
 
-    .header-inner {
-      position: relative;
-      display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 22px;
-      align-items: stretch;
-      padding: 20px;
-    }
+.logo {
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
 
-    .brand-panel {
-      background: rgba(255,255,255,0.92);
-      border: 1px solid rgba(0,87,168,0.16);
-      border-radius: 18px;
-      padding: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 120px;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
-    }
+.logo img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
 
-    .logo {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-    }
+/* TITLE */
+.title-box {
+  background:var(--kke-blue);
+  color:white;
+  border-radius:18px;
+  padding:20px;
+}
 
-    .logo img {
-      max-width: 260px;
-      max-height: 95px;
-      width: 100%;
-      height: auto;
-      object-fit: contain;
-    }
+.card {
+  background:white;
+  border-radius:18px;
+  padding:16px;
+  margin-bottom:16px;
+}
 
-    .title-box {
-      background: rgba(0, 87, 168, 0.96);
-      color: white;
-      border-radius: 18px;
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      min-height: 120px;
-      box-shadow: 0 8px 20px rgba(0,87,168,0.22);
-    }
+.grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+}
 
-    .eyebrow {
-      margin: 0 0 6px;
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.78);
-    }
+label {
+  font-weight:700;
+  font-size:14px;
+}
 
-    .title-box h1 {
-      margin: 0;
-      font-size: 30px;
-      line-height: 1.05;
-      letter-spacing: -0.5px;
-    }
+input, select, textarea {
+  width:100%;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  margin-top:6px;
+}
 
-    .title-box p {
-      margin: 8px 0 0;
-      font-size: 15px;
-      color: rgba(255,255,255,0.9);
-    }
+button {
+  padding:14px;
+  background:var(--kke-blue);
+  color:white;
+  border:none;
+  border-radius:12px;
+  font-weight:800;
+}
 
-    .header-badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 16px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.14);
-      border: 1px solid rgba(255,255,255,0.22);
-      padding: 7px 10px;
-      font-size: 12px;
-      font-weight: 800;
-      color: white;
-      white-space: nowrap;
-    }
-
-    .card {
-      background: white;
-      border-radius: 18px;
-      padding: 18px;
-      margin-bottom: 16px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-    }
-
-    h2 {
-      margin: 0 0 14px;
-      font-size: 20px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-    }
-
-    .span-2 { grid-column: span 2; }
-    .span-3 { grid-column: span 3; }
-    .span-4 { grid-column: span 4; }
-
-    label {
-      display: block;
-      font-weight: 700;
-      font-size: 14px;
-      color: #374151;
-    }
-
-    .required {
-      color: var(--danger);
-    }
-
-    input, select, textarea {
-      width: 100%;
-      margin-top: 6px;
-      padding: 13px;
-      font-size: 16px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      outline: none;
-      background: white;
-    }
-
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--kke-blue);
-      box-shadow: 0 0 0 3px rgba(0, 87, 168, 0.12);
-    }
-
-    .calc-box {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 14px;
-      min-height: 76px;
-    }
-
-    .calc-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--gray);
-    }
-
-    .calc-value {
-      font-size: 28px;
-      font-weight: 900;
-      margin-top: 4px;
-    }
-
-    .pin-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
-    }
-
-    button {
-      border: none;
-      border-radius: 14px;
-      padding: 14px 18px;
-      font-size: 16px;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    .pin-btn {
-      background: var(--kke-blue);
-      color: white;
-    }
-
-    .submit-bar {
-      position: sticky;
-      bottom: 0;
-      background: white;
-      padding: 14px;
-      border-radius: 18px 18px 0 0;
-      box-shadow: 0 -6px 18px rgba(0,0,0,0.12);
-    }
-
-    .submit-btn {
-      width: 100%;
-      background: var(--kke-blue);
-      color: white;
-      font-size: 18px;
-      padding: 17px;
-    }
-
-    .message {
-      display: none;
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 16px;
-      font-weight: 700;
-    }
-
-    .error {
-      background: #fef2f2;
-      color: var(--danger);
-      border: 1px solid #fecaca;
-    }
-
-    .success {
-      background: #f0fdf4;
-      color: var(--success);
-      border: 1px solid #bbf7d0;
-    }
-
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: #f9fafb;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 13px;
-      margin-top: 6px;
-    }
-
-    .check-row input {
-      width: 22px;
-      height: 22px;
-      margin: 0;
-    }
-
-    .profile-controls {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 14px;
-    }
-
-    .profile-table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-    }
-
-    .profile-table {
-      width: 100%;
-      min-width: 850px;
-      border-collapse: collapse;
-      background: white;
-    }
-
-    .profile-table th {
-      background: #eef6ff;
-      color: #003f7d;
-      font-size: 13px;
-      padding: 10px;
-      border: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .profile-table td {
-      border: 1px solid var(--border);
-      padding: 7px;
-      text-align: center;
-    }
-
-    .profile-table input {
-      margin: 0;
-      padding: 9px;
-      font-size: 15px;
-      border-radius: 8px;
-    }
-
-    .station-cell {
-      font-weight: 900;
-      background: #f9fafb;
-      white-space: nowrap;
-    }
-
-    .small-note {
-      margin-top: 10px;
-      font-size: 13px;
-      color: var(--gray);
-      font-weight: 700;
-    }
-
-    @media (max-width: 800px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .span-2, .span-3, .span-4 {
-        grid-column: span 1;
-      }
-
-      .header-inner {
-        grid-template-columns: 1fr;
-        padding: 14px;
-        gap: 12px;
-      }
-
-      .brand-panel {
-        min-height: 86px;
-        padding: 12px;
-      }
-
-      .logo img {
-        max-width: 230px;
-        max-height: 72px;
-      }
-
-      .title-box {
-        min-height: auto;
-        padding: 16px;
-      }
-
-      .title-box h1 {
-        font-size: 24px;
-      }
-
-      .header-badges {
-        gap: 6px;
-      }
-
-      .badge {
-        font-size: 11px;
-        padding: 6px 9px;
-      }
-    }
-  </style>
+/* MOBILE */
+@media(max-width:800px){
+  .grid {grid-template-columns:1fr;}
+  .header-inner {grid-template-columns:1fr;}
+  .brand-panel {min-height:120px;}
+}
+</style>
 </head>
+
 <body>
-  <div class="page">
-    <div class="header">
-      <div class="header-topline"></div>
-      <div class="header-inner">
-        <div class="brand-panel">
-          <div class="logo">
-            <img src="logo.png" alt="KKE Concrete Lifting Logo">
-          </div>
-        </div>
-        <div class="title-box">
-          <div>
-            <p class="eyebrow">Field Operations Report</p>
-            <h1>Crew Profile Sheet</h1>
-            <p>Road profile, production, GPS confirmation, and job-site accountability.</p>
-          </div>
-          <div class="header-badges">
-            <span class="badge">Required Fields</span>
-            <span class="badge">GPS Pin</span>
-            <span class="badge">Before / After Profile</span>
-            <span class="badge">Production Tracking</span>
-          </div>
-        </div>
+
+<div class="page">
+
+<div class="header">
+  <div class="header-inner">
+
+    <div class="brand-panel">
+      <div class="logo">
+        <img src="logo.png">
       </div>
     </div>
 
-    <form id="crewForm">
-      <div class="card">
-        <h2>Job Information</h2>
-        <div class="grid">
-          <label>Job # <span class="required">*</span><input name="jobNumber" required></label>
-          <label>Date <span class="required">*</span><input name="date" type="date" required></label>
-          <label>City <span class="required">*</span><input name="city" required></label>
-          <label>Truck # <span class="required">*</span><input name="truckNumber" required></label>
-          <label class="span-3">Address / Location <span class="required">*</span><input name="address" required></label>
-          <label>Unit<input name="unit"></label>
-        </div>
-      </div>
+    <div class="title-box">
+      <h1>Crew Profile Sheet</h1>
+      <p>Field Operations Report</p>
+    </div>
 
-      <div class="card">
-        <h2>Crew & Time</h2>
-        <div class="grid">
-          <label>Crew Lead <span class="required">*</span><input name="crewLead" required></label>
-          <label>Sprayer<input name="sprayer"></label>
-          <label>Helper 1<input name="helper1"></label>
-          <label>Helper 2<input name="helper2"></label>
-          <label>Start Time <span class="required">*</span><input name="startTime" id="startTime" type="time" required></label>
-          <label>Finish Time <span class="required">*</span><input name="finishTime" id="finishTime" type="time" required></label>
-          <div class="calc-box">
-            <div class="calc-label">Total Hours</div>
-            <div class="calc-value" id="totalHours">—</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Production</h2>
-        <div class="grid">
-          <label>A Meter Start <span class="required">*</span><input name="aMeterStart" id="aMeterStart" type="number" step="0.01" required></label>
-          <label>A Meter Finish <span class="required">*</span><input name="aMeterFinish" id="aMeterFinish" type="number" step="0.01" required></label>
-          <label>B Meter Start <span class="required">*</span><input name="bMeterStart" type="number" step="0.01" required></label>
-          <label>B Meter Finish <span class="required">*</span><input name="bMeterFinish" type="number" step="0.01" required></label>
-          <label>Estimated Sets<input name="estimatedSets" type="number" step="0.01"></label>
-          <label>Lift <span class="required">*</span><input name="lift" placeholder="Example: 1.5 in" required></label>
-          <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
-          <div class="calc-box">
-            <div class="calc-label">Actual Sets</div>
-            <div class="calc-value" id="actualSets">—</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Job Details</h2>
-        <div class="grid">
-          <label>Method <span class="required">*</span><input name="method" required></label>
-          <label>DI<input name="di"></label>
-          <label>Work Area Length<input name="workAreaLength"></label>
-          <label>Work Area Width<input name="workAreaWidth"></label>
-          <label>Generator Run Time <span class="required">*</span><input name="generatorRunTime" required></label>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="pin-row">
-          <div>
-            <h2>GPS Job Site Pin</h2>
-            <p>Crew must capture or enter the job site location before submitting.</p>
-          </div>
-          <button class="pin-btn" type="button" onclick="dropPin()">📍 Drop Pin</button>
-        </div>
-        <div class="grid">
-          <label>GPS Latitude <span class="required">*</span><input name="gpsLatitude" id="gpsLatitude" required></label>
-          <label>GPS Longitude <span class="required">*</span><input name="gpsLongitude" id="gpsLongitude" required></label>
-          <label>
-            Location Confirmed <span class="required">*</span>
-            <div class="check-row">
-              <input type="checkbox" name="locationConfirmed" id="locationConfirmed">
-              <span>I confirm this is the job site location</span>
-            </div>
-          </label>
-        </div>
-        <p id="locationStatus"></p>
-      </div>
-
-      <div class="card">
-        <h2>Road Profile Before / After Lift</h2>
-        <p class="small-note">Use this section like the back page of the paper form. Enter readings every 10 feet. For a 400-foot lift, set total length to 400 and click “Build Profile Rows.”</p>
-
-        <div class="profile-controls">
-          <label>Total Lift Length, ft <span class="required">*</span><input name="profileLength" id="profileLength" type="number" value="400" min="10" step="10" required></label>
-          <label>Check Interval, ft <span class="required">*</span><input name="profileInterval" id="profileInterval" type="number" value="10" min="1" required></label>
-          <label>Direction 1<input name="profileDirection1" id="profileDirection1" placeholder="Example: Northbound"></label>
-          <label>Direction 2<input name="profileDirection2" id="profileDirection2" placeholder="Example: Southbound"></label>
-        </div>
-
-        <button class="pin-btn" type="button" onclick="buildProfileRows()">Build Profile Rows</button>
-
-        <div class="profile-table-wrap" style="margin-top:14px;">
-          <table class="profile-table">
-            <thead>
-              <tr>
-                <th rowspan="2">Station</th>
-                <th colspan="3">Direction 1</th>
-                <th colspan="3">Direction 2</th>
-              </tr>
-              <tr>
-                <th>Before</th>
-                <th>After</th>
-                <th>Lifted, in</th>
-                <th>Before</th>
-                <th>After</th>
-                <th>Lifted, in</th>
-              </tr>
-            </thead>
-            <tbody id="profileRows"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Notes About Job</h2>
-        <textarea name="notes" rows="5"></textarea>
-      </div>
-
-      <div id="errorMessage" class="message error"></div>
-      <div id="successMessage" class="message success">Form submitted successfully.</div>
-
-      <div class="submit-bar">
-        <button class="submit-btn" type="submit">Submit Crew Profile Sheet</button>
-      </div>
-    </form>
   </div>
+</div>
 
-  <script>
-    const form = document.getElementById('crewForm');
-    const startTime = document.getElementById('startTime');
-    const finishTime = document.getElementById('finishTime');
-    const totalHours = document.getElementById('totalHours');
-    const aMeterStart = document.getElementById('aMeterStart');
-    const aMeterFinish = document.getElementById('aMeterFinish');
-    const actualSets = document.getElementById('actualSets');
-    const errorMessage = document.getElementById('errorMessage');
-    const successMessage = document.getElementById('successMessage');
+<form id="crewForm">
 
-    function calculateHours() {
-      if (!startTime.value || !finishTime.value) {
-        totalHours.textContent = '—';
-        return;
-      }
-      const [sh, sm] = startTime.value.split(':').map(Number);
-      const [fh, fm] = finishTime.value.split(':').map(Number);
-      let start = sh * 60 + sm;
-      let finish = fh * 60 + fm;
-      if (finish < start) finish += 24 * 60;
-      totalHours.textContent = ((finish - start) / 60).toFixed(2);
-    }
+<div class="card">
+<h2>Job Info</h2>
+<div class="grid">
+<label>Job #<input required></label>
+<label>Date<input type="date" required></label>
+<label>City<input required></label>
+<label>Truck #<input required></label>
+</div>
+</div>
 
-    function calculateSets() {
-      const start = parseFloat(aMeterStart.value);
-      const finish = parseFloat(aMeterFinish.value);
-      if (isNaN(start) || isNaN(finish)) {
-        actualSets.textContent = '—';
-        return;
-      }
-      const gallons = Math.max(finish - start, 0);
-      actualSets.textContent = (gallons / 50).toFixed(2);
-    }
+<div class="card">
+<h2>Crew</h2>
+<div class="grid">
+<label>Crew Lead<input required></label>
+<label>Sprayer<input></label>
+<label>Helper 1<input></label>
+<label>Helper 2<input></label>
+</div>
+</div>
 
-    function buildProfileRows() {
-      const length = parseInt(document.getElementById('profileLength').value, 10);
-      const interval = parseInt(document.getElementById('profileInterval').value, 10);
-      const tbody = document.getElementById('profileRows');
-      tbody.innerHTML = '';
+<div class="card">
+<h2>Production</h2>
+<div class="grid">
 
-      if (!length || !interval || length < interval) {
-        alert('Enter a valid lift length and check interval.');
-        return;
-      }
+<!-- 🔥 DEFAULT 0 -->
+<label>A Meter Start<input type="number" value="0"></label>
+<label>A Meter Finish<input type="number"></label>
+<label>B Meter Start<input type="number" value="0"></label>
+<label>B Meter Finish<input type="number"></label>
 
-      for (let station = 0; station <= length; station += interval) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="station-cell">${station} ft</td>
-          <td><input name="d1Before_${station}" inputmode="decimal"></td>
-          <td><input name="d1After_${station}" inputmode="decimal"></td>
-          <td><input name="d1Lifted_${station}" inputmode="decimal"></td>
-          <td><input name="d2Before_${station}" inputmode="decimal"></td>
-          <td><input name="d2After_${station}" inputmode="decimal"></td>
-          <td><input name="d2Lifted_${station}" inputmode="decimal"></td>
-        `;
-        tbody.appendChild(row);
-      }
-    }
+<label>Estimated Sets<input></label>
 
-    function dropPin() {
-      const status = document.getElementById('locationStatus');
-      status.textContent = 'Getting current location...';
+<!-- 🔥 DROPDOWN -->
+<label>Method
+<select>
+<option>Method</option>
+<option>DI</option>
+</select>
+</label>
 
-      if (!navigator.geolocation) {
-        status.textContent = 'GPS is not supported on this device. Enter coordinates manually.';
-        return;
-      }
+<label>Lift<input required></label>
+<label>Clicks<input required></label>
 
-      navigator.geolocation.getCurrentPosition(
-        function(position) {
-          document.getElementById('gpsLatitude').value = position.coords.latitude.toFixed(6);
-          document.getElementById('gpsLongitude').value = position.coords.longitude.toFixed(6);
-          document.getElementById('locationConfirmed').checked = true;
-          status.textContent = 'GPS pin captured and confirmed.';
-        },
-        function() {
-          status.textContent = 'Could not capture GPS. Make sure location permissions are turned on.';
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    }
+</div>
+</div>
 
-    buildProfileRows();
+<div class="card">
+<h2>GPS</h2>
+<div class="grid">
+<label>Latitude<input id="lat"></label>
+<label>Longitude<input id="lng"></label>
+</div>
 
-    startTime.addEventListener('input', calculateHours);
-    finishTime.addEventListener('input', calculateHours);
-    aMeterStart.addEventListener('input', calculateSets);
-    aMeterFinish.addEventListener('input', calculateSets);
+<button type="button" onclick="dropPin()">Drop Pin</button>
+</div>
 
-    form.addEventListener('submit', function(event) {
-      event.preventDefault();
-      errorMessage.style.display = 'none';
-      successMessage.style.display = 'none';
+<div class="card">
+<h2>Notes</h2>
+<textarea rows="4"></textarea>
+</div>
 
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-      }
+<button type="submit">Submit</button>
 
-      if (!document.getElementById('locationConfirmed').checked) {
-        errorMessage.textContent = 'Location must be confirmed before submitting.';
-        errorMessage.style.display = 'block';
-        return;
-      }
+</form>
 
-      const data = Object.fromEntries(new FormData(form).entries());
-      data.roadProfile = [];
-      document.querySelectorAll('#profileRows tr').forEach(function(row) {
-        const station = row.children[0].textContent;
-        data.roadProfile.push({
-          station: station,
-          direction1Before: row.children[1].querySelector('input').value,
-          direction1After: row.children[2].querySelector('input').value,
-          direction1Lifted: row.children[3].querySelector('input').value,
-          direction2Before: row.children[4].querySelector('input').value,
-          direction2After: row.children[5].querySelector('input').value,
-          direction2Lifted: row.children[6].querySelector('input').value
-        });
-      });
-      data.totalHours = totalHours.textContent;
-      data.actualSets = actualSets.textContent;
-      data.submittedAt = new Date().toISOString();
+</div>
 
-      console.log('KKE Crew Profile Submitted:', data);
-      successMessage.style.display = 'block';
-      alert('Form submitted successfully. Next step is connecting this to Google Sheets.');
-    });
-  </script>
+<script>
+
+function dropPin(){
+navigator.geolocation.getCurrentPosition(pos=>{
+document.getElementById('lat').value=pos.coords.latitude;
+document.getElementById('lng').value=pos.coords.longitude;
+});
+}
+
+/* 🔥 GOOGLE SHEETS HOOK (PUT YOUR URL HERE) */
+const SCRIPT_URL = "PASTE_YOUR_GOOGLE_SCRIPT_URL_HERE";
+
+document.getElementById("crewForm").addEventListener("submit", e=>{
+e.preventDefault();
+
+const data = Object.fromEntries(new FormData(e.target));
+
+fetch(SCRIPT_URL,{
+method:"POST",
+body:JSON.stringify(data)
+})
+.then(()=>alert("Submitted to Google Sheets"))
+.catch(()=>alert("Error submitting"));
+
+});
+
+</script>
+
 </body>
 </html>
