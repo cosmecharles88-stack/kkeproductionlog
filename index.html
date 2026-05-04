@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -7,6 +7,7 @@
   <style>
     :root {
       --kke-blue: #0057a8;
+      --kke-dark-blue: #003f7d;
       --dark: #111827;
       --gray: #6b7280;
       --light: #f3f4f6;
@@ -15,23 +16,54 @@
       --success: #166534;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--light);
       color: var(--dark);
+      padding-bottom: 80px;
     }
 
     .page {
       max-width: 1000px;
       margin: 0 auto;
-      padding: 18px;
+      padding: 16px;
     }
 
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      background: #e5e7eb;
+      padding: 4px;
+      border-radius: 12px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--gray);
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: white;
+      color: var(--kke-blue);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Header */
     .header {
       position: relative;
       overflow: hidden;
@@ -39,647 +71,530 @@
       border-radius: 22px;
       padding: 0;
       margin-bottom: 18px;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.12);
-      border: 1px solid rgba(0, 87, 168, 0.18);
-    }
-
-    .header::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(90deg, rgba(0,87,168,0.08), rgba(255,255,255,0)),
-        repeating-linear-gradient(135deg, rgba(0,87,168,0.035) 0, rgba(0,87,168,0.035) 1px, transparent 1px, transparent 12px);
-      pointer-events: none;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+      border: 1px solid rgba(0, 87, 168, 0.12);
     }
 
     .header-topline {
       position: relative;
-      height: 10px;
-      background: linear-gradient(90deg, #003f7d, var(--kke-blue), #0b75d1);
+      height: 8px;
+      background: linear-gradient(90deg, var(--kke-dark-blue), var(--kke-blue), #0b75d1);
     }
 
     .header-inner {
       position: relative;
       display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 22px;
+      grid-template-columns: 260px 1fr;
+      gap: 20px;
       align-items: stretch;
       padding: 20px;
     }
 
     .brand-panel {
       background: rgba(255,255,255,0.92);
-      border: 1px solid rgba(0,87,168,0.16);
-      border-radius: 18px;
-      padding: 18px;
+      border: 1px solid rgba(0,87,168,0.12);
+      border-radius: 16px;
+      padding: 15px;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 120px;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
     }
 
-    .logo {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-    }
-
-    .logo img {
-      max-width: 260px;
-      max-height: 95px;
-      width: 100%;
-      height: auto;
-      object-fit: contain;
+    .logo-placeholder {
+      font-weight: 900;
+      font-size: 24px;
+      color: var(--kke-blue);
+      letter-spacing: -1px;
     }
 
     .title-box {
-      background: rgba(0, 87, 168, 0.96);
+      background: var(--kke-blue);
       color: white;
-      border-radius: 18px;
-      padding: 20px 22px;
+      border-radius: 16px;
+      padding: 18px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      min-height: 120px;
-      box-shadow: 0 8px 20px rgba(0,87,168,0.22);
+      justify-content: center;
     }
 
     .eyebrow {
-      margin: 0 0 6px;
-      font-size: 12px;
+      margin: 0 0 4px;
+      font-size: 11px;
       font-weight: 900;
-      letter-spacing: 2px;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.78);
+      color: rgba(255,255,255,0.7);
     }
 
-    .title-box h1 {
-      margin: 0;
-      font-size: 30px;
-      line-height: 1.05;
-      letter-spacing: -0.5px;
-    }
+    .title-box h1 { margin: 0; font-size: 26px; }
 
-    .title-box p {
-      margin: 8px 0 0;
-      font-size: 15px;
-      color: rgba(255,255,255,0.9);
-    }
-
-    .header-badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 16px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.14);
-      border: 1px solid rgba(255,255,255,0.22);
-      padding: 7px 10px;
-      font-size: 12px;
-      font-weight: 800;
-      color: white;
-      white-space: nowrap;
-    }
-
+    /* Cards */
     .card {
       background: white;
       border-radius: 18px;
-      padding: 18px;
+      padding: 20px;
       margin-bottom: 16px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      border: 1px solid #edf2f7;
     }
 
-    h2 {
-      margin: 0 0 14px;
-      font-size: 20px;
-    }
+    h2 { margin: 0 0 16px; font-size: 18px; color: var(--kke-dark-blue); border-left: 4px solid var(--kke-blue); padding-left: 10px; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-    }
-
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .span-2 { grid-column: span 2; }
     .span-3 { grid-column: span 3; }
     .span-4 { grid-column: span 4; }
 
-    label {
-      display: block;
-      font-weight: 700;
-      font-size: 14px;
-      color: #374151;
-    }
-
-    .required {
-      color: var(--danger);
-    }
+    label { display: block; font-weight: 700; font-size: 13px; color: #4b5563; }
+    .required { color: var(--danger); }
 
     input, select, textarea {
       width: 100%;
       margin-top: 6px;
-      padding: 13px;
+      padding: 12px;
       font-size: 16px;
       border: 1px solid var(--border);
-      border-radius: 12px;
-      outline: none;
-      background: white;
+      border-radius: 10px;
+      background: #fafafa;
     }
 
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--kke-blue);
-      box-shadow: 0 0 0 3px rgba(0, 87, 168, 0.12);
-    }
+    input:focus, select:focus { border-color: var(--kke-blue); outline: none; background: white; }
 
     .calc-box {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 14px;
-      min-height: 76px;
-    }
-
-    .calc-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--gray);
-    }
-
-    .calc-value {
-      font-size: 28px;
-      font-weight: 900;
-      margin-top: 4px;
-    }
-
-    .pin-row {
+      background: #f0f7ff;
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      padding: 12px;
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
+      flex-direction: column;
+      justify-content: center;
     }
 
-    button {
+    .calc-label { font-size: 11px; font-weight: 800; color: var(--kke-blue); text-transform: uppercase; }
+    .calc-value { font-size: 24px; font-weight: 900; color: var(--kke-dark-blue); }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 20px;
       border: none;
-      border-radius: 14px;
-      padding: 14px 18px;
-      font-size: 16px;
+      border-radius: 10px;
       font-weight: 800;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.2s;
     }
 
-    .pin-btn {
-      background: var(--kke-blue);
-      color: white;
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--kke-blue); color: white; }
+    .btn-outline { background: white; border: 2px solid var(--kke-blue); color: var(--kke-blue); }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin-top: 15px; }
+    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    th { background: #f8fafc; padding: 10px; font-size: 12px; border: 1px solid var(--border); }
+    td { padding: 5px; border: 1px solid var(--border); }
+    .station-cell { font-weight: 800; background: #f1f5f9; text-align: center; }
+
+    /* Messages */
+    .message-box {
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      display: none;
+      font-weight: 600;
     }
 
     .submit-bar {
-      position: sticky;
-      bottom: 0;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
       background: white;
-      padding: 14px;
-      border-radius: 18px 18px 0 0;
-      box-shadow: 0 -6px 18px rgba(0,0,0,0.12);
+      padding: 12px 20px;
+      box-shadow: 0 -10px 25px rgba(0,0,0,0.1);
+      z-index: 100;
     }
 
-    .submit-btn {
-      width: 100%;
-      background: var(--kke-blue);
-      color: white;
-      font-size: 18px;
-      padding: 17px;
-    }
-
-    .message {
-      display: none;
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 16px;
-      font-weight: 700;
-    }
-
-    .error {
-      background: #fef2f2;
-      color: var(--danger);
-      border: 1px solid #fecaca;
-    }
-
-    .success {
-      background: #f0fdf4;
-      color: var(--success);
-      border: 1px solid #bbf7d0;
-    }
-
-    .check-row {
+    /* History List */
+    .history-item {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      background: #f9fafb;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 13px;
-      margin-top: 6px;
     }
 
-    .check-row input {
-      width: 22px;
-      height: 22px;
-      margin: 0;
-    }
-
-    .profile-controls {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 14px;
-    }
-
-    .profile-table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-    }
-
-    .profile-table {
-      width: 100%;
-      min-width: 850px;
-      border-collapse: collapse;
-      background: white;
-    }
-
-    .profile-table th {
-      background: #eef6ff;
-      color: #003f7d;
-      font-size: 13px;
-      padding: 10px;
-      border: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .profile-table td {
-      border: 1px solid var(--border);
-      padding: 7px;
-      text-align: center;
-    }
-
-    .profile-table input {
-      margin: 0;
-      padding: 9px;
-      font-size: 15px;
-      border-radius: 8px;
-    }
-
-    .station-cell {
-      font-weight: 900;
-      background: #f9fafb;
-      white-space: nowrap;
-    }
-
-    .small-note {
-      margin-top: 10px;
-      font-size: 13px;
-      color: var(--gray);
-      font-weight: 700;
-    }
-
-    @media (max-width: 800px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .span-2, .span-3, .span-4 {
-        grid-column: span 1;
-      }
-
-      .header-inner {
-        grid-template-columns: 1fr;
-        padding: 14px;
-        gap: 12px;
-      }
-
-      .brand-panel {
-        min-height: 86px;
-        padding: 12px;
-      }
-
-      .logo img {
-        max-width: 230px;
-        max-height: 72px;
-      }
-
-      .title-box {
-        min-height: auto;
-        padding: 16px;
-      }
-
-      .title-box h1 {
-        font-size: 24px;
-      }
-
-      .header-badges {
-        gap: 6px;
-      }
-
-      .badge {
-        font-size: 11px;
-        padding: 6px 9px;
-      }
+    @media (max-width: 768px) {
+      .header-inner { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .span-2, .span-3, .span-4 { grid-column: span 1; }
     }
   </style>
 </head>
 <body>
-  <div class="page">
+
+<div class="page">
+  <!-- Navigation Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('new-form')">New Report</button>
+    <button class="tab-btn" onclick="switchTab('history')">History</button>
+  </div>
+
+  <!-- Main Form Tab -->
+  <div id="new-form" class="tab-content active">
     <div class="header">
       <div class="header-topline"></div>
       <div class="header-inner">
         <div class="brand-panel">
-          <div class="logo">
-            <img src="logo.png" alt="KKE Concrete Lifting Logo">
-          </div>
+          <div class="logo-placeholder">KKE CONCRETE</div>
         </div>
         <div class="title-box">
-          <div>
-            <p class="eyebrow">Field Operations Report</p>
-            <h1>Crew Profile Sheet</h1>
-            <p>Road profile, production, GPS confirmation, and job-site accountability.</p>
-          </div>
-          <div class="header-badges">
-            <span class="badge">Required Fields</span>
-            <span class="badge">GPS Pin</span>
-            <span class="badge">Before / After Profile</span>
-            <span class="badge">Production Tracking</span>
-          </div>
+          <p class="eyebrow">Production & Profile</p>
+          <h1>Crew Profile Sheet</h1>
         </div>
       </div>
     </div>
+
+    <div id="statusMessage" class="message-box"></div>
 
     <form id="crewForm">
       <div class="card">
         <h2>Job Information</h2>
         <div class="grid">
-          <label>Job # <span class="required">*</span><input name="jobNumber" required></label>
-          <label>Date <span class="required">*</span><input name="date" type="date" required></label>
-          <label>City <span class="required">*</span><input name="city" required></label>
-          <label>Truck # <span class="required">*</span><input name="truckNumber" required></label>
+          <label>Job # <span class="required">*</span><input name="jobNumber" required placeholder="e.g. 2405"></label>
+          <label>Date <span class="required">*</span><input name="date" type="date" required id="formDate"></label>
+          <label>City <span class="required">*</span>
+            <select name="city" required>
+              <option value="" disabled selected>Select City</option>
+              <option value="Celina">Celina</option>
+              <option value="The Colony">The Colony</option>
+              <option value="Coppel">Coppel</option>
+              <option value="Frisco">Frisco</option>
+              <option value="Frisco Parks Department">Frisco Parks Department</option>
+              <option value="Garland">Garland</option>
+              <option value="Highland Village">Highland Village</option>
+              <option value="Mckinney">Mckinney</option>
+              <option value="Prosper">Prosper</option>
+              <option value="Richardson">Richardson</option>
+              <option value="Sachse">Sachse</option>
+              <option value="Saginaw">Saginaw</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label>Truck # <span class="required">*</span>
+            <select name="truckNumber" required>
+              <option value="" disabled selected>Select Truck</option>
+              <option value="102">102</option>
+              <option value="106">106</option>
+              <option value="107">107</option>
+              <option value="118">118</option>
+              <option value="203">203</option>
+            </select>
+          </label>
           <label class="span-3">Address / Location <span class="required">*</span><input name="address" required></label>
-          <label>Unit<input name="unit"></label>
         </div>
       </div>
 
       <div class="card">
         <h2>Crew & Time</h2>
         <div class="grid">
-          <label>Crew Lead <span class="required">*</span><input name="crewLead" required></label>
-          <label>Sprayer<input name="sprayer"></label>
+          <label>Truck Boss <span class="required">*</span><input name="crewLead" required></label>
           <label>Helper 1<input name="helper1"></label>
           <label>Helper 2<input name="helper2"></label>
+          <label>Helper 3<input name="helper3"></label>
+          <label>Helper 4<input name="helper4"></label>
           <label>Start Time <span class="required">*</span><input name="startTime" id="startTime" type="time" required></label>
           <label>Finish Time <span class="required">*</span><input name="finishTime" id="finishTime" type="time" required></label>
           <div class="calc-box">
             <div class="calc-label">Total Hours</div>
-            <div class="calc-value" id="totalHours">—</div>
+            <div class="calc-value" id="totalHoursDisplay">—</div>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Production</h2>
+        <h2>Production Data</h2>
         <div class="grid">
           <label>A Meter Start <span class="required">*</span><input name="aMeterStart" id="aMeterStart" type="number" step="0.01" required></label>
           <label>A Meter Finish <span class="required">*</span><input name="aMeterFinish" id="aMeterFinish" type="number" step="0.01" required></label>
           <label>B Meter Start <span class="required">*</span><input name="bMeterStart" type="number" step="0.01" required></label>
           <label>B Meter Finish <span class="required">*</span><input name="bMeterFinish" type="number" step="0.01" required></label>
-          <label>Estimated Sets<input name="estimatedSets" type="number" step="0.01"></label>
-          <label>Lift <span class="required">*</span><input name="lift" placeholder="Example: 1.5 in" required></label>
           <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
-          <div class="calc-box">
-            <div class="calc-label">Actual Sets</div>
-            <div class="calc-value" id="actualSets">—</div>
+          <label>Lift Height <input name="lift" placeholder="e.g. 1.5 in"></label>
+          <label class="span-2">Gen Run Time <input name="generatorRunTime"></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin:0;">Job Site GPS</h2>
+          <button class="btn btn-outline" type="button" onclick="dropPin()">📍 Capture Location</button>
+        </div>
+        <div class="grid">
+          <label>Latitude <input name="gpsLatitude" id="gpsLatitude" readonly></label>
+          <label>Longitude <input name="gpsLongitude" id="gpsLongitude" readonly></label>
+          <div class="span-2" style="display:flex; align-items:center; gap:10px; padding-top:20px;">
+             <input type="checkbox" name="locationConfirmed" id="locationConfirmed" style="width:20px; height:20px; margin:0;">
+             <label for="locationConfirmed">I confirm GPS location is correct</label>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Job Details</h2>
+        <h2>Road Profile</h2>
         <div class="grid">
-          <label>Method <span class="required">*</span><input name="method" required></label>
-          <label>DI<input name="di"></label>
-          <label>Work Area Length<input name="workAreaLength"></label>
-          <label>Work Area Width<input name="workAreaWidth"></label>
-          <label>Generator Run Time <span class="required">*</span><input name="generatorRunTime" required></label>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="pin-row">
-          <div>
-            <h2>GPS Job Site Pin</h2>
-            <p>Crew must capture or enter the job site location before submitting.</p>
+          <label>Total Length (ft)<input id="profileLength" type="number" value="100"></label>
+          <label>Interval (ft)<input id="profileInterval" type="number" value="10"></label>
+          <div class="span-2" style="padding-top:22px;">
+            <button class="btn btn-outline" type="button" onclick="generateProfileRows()">Build Table Rows</button>
           </div>
-          <button class="pin-btn" type="button" onclick="dropPin()">📍 Drop Pin</button>
         </div>
-        <div class="grid">
-          <label>GPS Latitude <span class="required">*</span><input name="gpsLatitude" id="gpsLatitude" required></label>
-          <label>GPS Longitude <span class="required">*</span><input name="gpsLongitude" id="gpsLongitude" required></label>
-          <label>
-            Location Confirmed <span class="required">*</span>
-            <div class="check-row">
-              <input type="checkbox" name="locationConfirmed" id="locationConfirmed">
-              <span>I confirm this is the job site location</span>
-            </div>
-          </label>
-        </div>
-        <p id="locationStatus"></p>
-      </div>
-
-      <div class="card">
-        <h2>Road Profile Before / After Lift</h2>
-        <p class="small-note">Use this section like the back page of the paper form. Enter readings every 10 feet. For a 400-foot lift, set total length to 400 and click “Build Profile Rows.”</p>
-
-        <div class="profile-controls">
-          <label>Total Lift Length, ft <span class="required">*</span><input name="profileLength" id="profileLength" type="number" value="400" min="10" step="10" required></label>
-          <label>Check Interval, ft <span class="required">*</span><input name="profileInterval" id="profileInterval" type="number" value="10" min="1" required></label>
-          <label>Direction 1<input name="profileDirection1" id="profileDirection1" placeholder="Example: Northbound"></label>
-          <label>Direction 2<input name="profileDirection2" id="profileDirection2" placeholder="Example: Southbound"></label>
-        </div>
-
-        <button class="pin-btn" type="button" onclick="buildProfileRows()">Build Profile Rows</button>
-
-        <div class="profile-table-wrap" style="margin-top:14px;">
-          <table class="profile-table">
+        
+        <div class="table-wrap">
+          <table>
             <thead>
               <tr>
                 <th rowspan="2">Station</th>
-                <th colspan="3">Direction 1</th>
-                <th colspan="3">Direction 2</th>
+                <th colspan="2">North/East Bound</th>
+                <th colspan="2">South/West Bound</th>
               </tr>
               <tr>
-                <th>Before</th>
-                <th>After</th>
-                <th>Lifted, in</th>
-                <th>Before</th>
-                <th>After</th>
-                <th>Lifted, in</th>
+                <th>Before</th><th>After</th>
+                <th>Before</th><th>After</th>
               </tr>
             </thead>
-            <tbody id="profileRows"></tbody>
+            <tbody id="profileRows">
+              <!-- Rows added via JS -->
+            </tbody>
           </table>
         </div>
       </div>
 
       <div class="card">
-        <h2>Notes About Job</h2>
-        <textarea name="notes" rows="5"></textarea>
+        <h2>Job Notes</h2>
+        <textarea name="notes" rows="4" placeholder="Mention any utilities, traffic control, or site issues..."></textarea>
       </div>
 
-      <div id="errorMessage" class="message error"></div>
-      <div id="successMessage" class="message success">Form submitted successfully.</div>
-
       <div class="submit-bar">
-        <button class="submit-btn" type="submit">Submit Crew Profile Sheet</button>
+        <button class="btn btn-primary" type="submit" id="submitBtn" style="width:100%; justify-content:center; font-size:18px; padding:15px;">
+          Save & Submit Report
+        </button>
       </div>
     </form>
   </div>
 
-  <script>
-    const form = document.getElementById('crewForm');
-    const startTime = document.getElementById('startTime');
-    const finishTime = document.getElementById('finishTime');
-    const totalHours = document.getElementById('totalHours');
-    const aMeterStart = document.getElementById('aMeterStart');
-    const aMeterFinish = document.getElementById('aMeterFinish');
-    const actualSets = document.getElementById('actualSets');
-    const errorMessage = document.getElementById('errorMessage');
-    const successMessage = document.getElementById('successMessage');
+  <!-- History Tab -->
+  <div id="history" class="tab-content">
+    <div class="card">
+      <h2>Recent Reports</h2>
+      <div id="historyList">Loading reports...</div>
+    </div>
+  </div>
+</div>
 
-    function calculateHours() {
-      if (!startTime.value || !finishTime.value) {
-        totalHours.textContent = '—';
-        return;
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  // --- CONFIG ---
+  const firebaseConfig = JSON.parse(__firebase_config);
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-default';
+
+  let currentUser = null;
+
+  // --- INITIALIZATION ---
+  async function init() {
+    try {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
       }
-      const [sh, sm] = startTime.value.split(':').map(Number);
-      const [fh, fm] = finishTime.value.split(':').map(Number);
-      let start = sh * 60 + sm;
-      let finish = fh * 60 + fm;
-      if (finish < start) finish += 24 * 60;
-      totalHours.textContent = ((finish - start) / 60).toFixed(2);
+    } catch (err) {
+      console.error("Auth error", err);
     }
+  }
 
-    function calculateSets() {
-      const start = parseFloat(aMeterStart.value);
-      const finish = parseFloat(aMeterFinish.value);
-      if (isNaN(start) || isNaN(finish)) {
-        actualSets.textContent = '—';
-        return;
-      }
-      const gallons = Math.max(finish - start, 0);
-      actualSets.textContent = (gallons / 50).toFixed(2);
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      loadHistory();
     }
+  });
 
-    function buildProfileRows() {
-      const length = parseInt(document.getElementById('profileLength').value, 10);
-      const interval = parseInt(document.getElementById('profileInterval').value, 10);
-      const tbody = document.getElementById('profileRows');
-      tbody.innerHTML = '';
+  // Set default date
+  document.getElementById('formDate').valueAsDate = new Date();
 
-      if (!length || !interval || length < interval) {
-        alert('Enter a valid lift length and check interval.');
-        return;
-      }
+  // --- UI LOGIC ---
+  window.switchTab = (tabId) => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`[onclick="switchTab('${tabId}')"]`).classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  };
 
-      for (let station = 0; station <= length; station += interval) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="station-cell">${station} ft</td>
-          <td><input name="d1Before_${station}" inputmode="decimal"></td>
-          <td><input name="d1After_${station}" inputmode="decimal"></td>
-          <td><input name="d1Lifted_${station}" inputmode="decimal"></td>
-          <td><input name="d2Before_${station}" inputmode="decimal"></td>
-          <td><input name="d2After_${station}" inputmode="decimal"></td>
-          <td><input name="d2Lifted_${station}" inputmode="decimal"></td>
-        `;
-        tbody.appendChild(row);
-      }
+  function showMessage(text, type = 'success') {
+    const box = document.getElementById('statusMessage');
+    box.textContent = text;
+    box.style.display = 'block';
+    box.style.backgroundColor = type === 'success' ? '#f0fdf4' : '#fef2f2';
+    box.style.color = type === 'success' ? '#166534' : '#b91c1c';
+    box.style.border = `1px solid ${type === 'success' ? '#bbf7d0' : '#fecaca'}`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if(type === 'success') setTimeout(() => box.style.display = 'none', 5000);
+  }
+
+  // --- CALCULATIONS ---
+  const calcInputs = ['startTime', 'finishTime'];
+  calcInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', runCalcs);
+  });
+
+  function runCalcs() {
+    // Hours
+    const s = document.getElementById('startTime').value;
+    const f = document.getElementById('finishTime').value;
+    if (s && f) {
+      const [sh, sm] = s.split(':').map(Number);
+      const [fh, fm] = f.split(':').map(Number);
+      let diff = (fh * 60 + fm) - (sh * 60 + sm);
+      if (diff < 0) diff += 1440;
+      document.getElementById('totalHoursDisplay').textContent = (diff / 60).toFixed(2);
     }
+  }
 
-    function dropPin() {
-      const status = document.getElementById('locationStatus');
-      status.textContent = 'Getting current location...';
+  // --- GPS ---
+  window.dropPin = () => {
+    if (!navigator.geolocation) return showMessage("Geolocation not supported", "error");
+    
+    showMessage("Pinning location...", "success");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        document.getElementById('gpsLatitude').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('gpsLongitude').value = pos.coords.longitude.toFixed(6);
+        document.getElementById('locationConfirmed').checked = true;
+        showMessage("Location pinned successfully", "success");
+      },
+      (err) => showMessage("Location access denied. Please enable GPS.", "error"),
+      { enableHighAccuracy: true }
+    );
+  };
 
-      if (!navigator.geolocation) {
-        status.textContent = 'GPS is not supported on this device. Enter coordinates manually.';
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        function(position) {
-          document.getElementById('gpsLatitude').value = position.coords.latitude.toFixed(6);
-          document.getElementById('gpsLongitude').value = position.coords.longitude.toFixed(6);
-          document.getElementById('locationConfirmed').checked = true;
-          status.textContent = 'GPS pin captured and confirmed.';
-        },
-        function() {
-          status.textContent = 'Could not capture GPS. Make sure location permissions are turned on.';
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
+  // --- PROFILE TABLE ---
+  window.generateProfileRows = () => {
+    const len = parseInt(document.getElementById('profileLength').value) || 100;
+    const step = parseInt(document.getElementById('profileInterval').value) || 10;
+    const body = document.getElementById('profileRows');
+    body.innerHTML = '';
+    
+    for (let i = 0; i <= len; i += step) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td class="station-cell">${i} ft</td>
+        <td><input type="number" step="0.01" data-station="${i}" data-dir="d1" data-type="before"></td>
+        <td><input type="number" step="0.01" data-station="${i}" data-dir="d1" data-type="after"></td>
+        <td><input type="number" step="0.01" data-station="${i}" data-dir="d2" data-type="before"></td>
+        <td><input type="number" step="0.01" data-station="${i}" data-dir="d2" data-type="after"></td>
+      `;
+      body.appendChild(row);
     }
+  };
+  generateProfileRows(); // Init on load
 
-    buildProfileRows();
+  // --- SUBMIT ---
+  document.getElementById('crewForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentUser) return showMessage("Connecting to secure server... try again in a moment.", "error");
+    if (!document.getElementById('locationConfirmed').checked) return showMessage("Please confirm the GPS location.", "error");
 
-    startTime.addEventListener('input', calculateHours);
-    finishTime.addEventListener('input', calculateHours);
-    aMeterStart.addEventListener('input', calculateSets);
-    aMeterFinish.addEventListener('input', calculateSets);
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Uploading Report...";
 
-    form.addEventListener('submit', function(event) {
-      event.preventDefault();
-      errorMessage.style.display = 'none';
-      successMessage.style.display = 'none';
-
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-      }
-
-      if (!document.getElementById('locationConfirmed').checked) {
-        errorMessage.textContent = 'Location must be confirmed before submitting.';
-        errorMessage.style.display = 'block';
-        return;
-      }
-
-      const data = Object.fromEntries(new FormData(form).entries());
-      data.roadProfile = [];
-      document.querySelectorAll('#profileRows tr').forEach(function(row) {
-        const station = row.children[0].textContent;
-        data.roadProfile.push({
-          station: station,
-          direction1Before: row.children[1].querySelector('input').value,
-          direction1After: row.children[2].querySelector('input').value,
-          direction1Lifted: row.children[3].querySelector('input').value,
-          direction2Before: row.children[4].querySelector('input').value,
-          direction2After: row.children[5].querySelector('input').value,
-          direction2Lifted: row.children[6].querySelector('input').value
-        });
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+    
+    // Add calc results
+    data.totalHours = document.getElementById('totalHoursDisplay').textContent;
+    
+    // Scrape profile data
+    const profileData = [];
+    document.querySelectorAll('#profileRows tr').forEach(tr => {
+      const inputs = tr.querySelectorAll('input');
+      profileData.push({
+        station: tr.querySelector('.station-cell').textContent,
+        d1Before: inputs[0].value,
+        d1After: inputs[1].value,
+        d2Before: inputs[2].value,
+        d2After: inputs[3].value
       });
-      data.totalHours = totalHours.textContent;
-      data.actualSets = actualSets.textContent;
-      data.submittedAt = new Date().toISOString();
-
-      console.log('KKE Crew Profile Submitted:', data);
-      successMessage.style.display = 'block';
-      alert('Form submitted successfully. Next step is connecting this to Google Sheets.');
     });
-  </script>
+    data.profile = profileData;
+    data.timestamp = serverTimestamp();
+    data.userId = currentUser.uid;
+
+    try {
+      const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+      await addDoc(collRef, data);
+      
+      showMessage("Report saved to cloud successfully!");
+      e.target.reset();
+      generateProfileRows();
+      document.getElementById('totalHoursDisplay').textContent = "—";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Save & Submit Report";
+      switchTab('history');
+    } catch (err) {
+      console.error(err);
+      showMessage("Error saving to cloud. Check connection.", "error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Save & Submit Report";
+    }
+  });
+
+  // --- HISTORY ---
+  function loadHistory() {
+    if (!currentUser) return;
+    const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+    
+    onSnapshot(collRef, (snapshot) => {
+      const list = document.getElementById('historyList');
+      if (snapshot.empty) {
+        list.innerHTML = `<p style="color:var(--gray)">No reports found.</p>`;
+        return;
+      }
+
+      let docs = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+      docs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
+      list.innerHTML = docs.map(doc => `
+        <div class="history-item">
+          <div>
+            <div style="font-weight:900; color:var(--kke-blue)">Job #${doc.jobNumber} - ${doc.city}</div>
+            <div style="font-size:12px; color:var(--gray)">${doc.date} | Lead: ${doc.crewLead}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">${doc.totalHours} Hrs</div>
+            <div style="font-size:11px; color:var(--gray)">Truck: ${doc.truckNumber}</div>
+          </div>
+        </div>
+      `).join('');
+    }, (err) => {
+      console.error(err);
+      document.getElementById('historyList').innerHTML = "Error loading history.";
+    });
+  }
+
+  init();
+</script>
+
 </body>
 </html>
