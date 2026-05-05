@@ -23,7 +23,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--light);
       color: var(--dark);
-      padding-bottom: 80px;
+      padding-bottom: 100px;
     }
 
     .page {
@@ -44,7 +44,7 @@
 
     .tab-btn {
       flex: 1;
-      padding: 10px;
+      padding: 12px;
       border: none;
       background: transparent;
       border-radius: 8px;
@@ -126,7 +126,7 @@
       color: rgba(255,255,255,0.7);
     }
 
-    .title-box h1 { margin: 0; font-size: 26px; }
+    .title-box h1 { margin: 0; font-size: 26px; line-height: 1.1; }
 
     /* Cards */
     .card {
@@ -158,7 +158,7 @@
       background: #fafafa;
     }
 
-    input:focus, select:focus { border-color: var(--kke-blue); outline: none; background: white; }
+    input:focus, select:focus { border-color: var(--kke-blue); outline: none; background: white; box-shadow: 0 0 0 3px rgba(0, 87, 168, 0.1); }
 
     .calc-box {
       background: #f0f7ff;
@@ -183,19 +183,21 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      transition: opacity 0.2s;
+      transition: all 0.2s;
+      justify-content: center;
     }
 
     .btn:active { transform: scale(0.98); }
     .btn-primary { background: var(--kke-blue); color: white; }
+    .btn-primary:disabled { background: var(--gray); cursor: not-allowed; }
     .btn-outline { background: white; border: 2px solid var(--kke-blue); color: var(--kke-blue); }
 
     /* Table */
     .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin-top: 15px; }
     table { width: 100%; border-collapse: collapse; min-width: 800px; }
-    th { background: #f8fafc; padding: 10px; font-size: 12px; border: 1px solid var(--border); }
-    td { padding: 5px; border: 1px solid var(--border); }
-    .station-cell { font-weight: 800; background: #f1f5f9; text-align: center; }
+    th { background: #f8fafc; padding: 12px; font-size: 12px; border: 1px solid var(--border); color: var(--kke-dark-blue); }
+    td { padding: 6px; border: 1px solid var(--border); }
+    .station-cell { font-weight: 800; background: #f1f5f9; text-align: center; font-size: 14px; }
 
     /* Messages */
     .message-box {
@@ -210,7 +212,7 @@
       position: fixed;
       bottom: 0; left: 0; right: 0;
       background: white;
-      padding: 12px 20px;
+      padding: 16px 20px;
       box-shadow: 0 -10px 25px rgba(0,0,0,0.1);
       z-index: 100;
     }
@@ -225,12 +227,14 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
 
     @media (max-width: 768px) {
-      .header-inner { grid-template-columns: 1fr; }
+      .header-inner { grid-template-columns: 1fr; gap: 12px; }
       .grid { grid-template-columns: 1fr; }
       .span-2, .span-3, .span-4 { grid-column: span 1; }
+      .brand-panel { padding: 10px; }
     }
   </style>
 </head>
@@ -239,8 +243,8 @@
 <div class="page">
   <!-- Navigation Tabs -->
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('new-form')">New Report</button>
-    <button class="tab-btn" onclick="switchTab('history')">History</button>
+    <button id="tabNew" class="tab-btn active">New Report</button>
+    <button id="tabHistory" class="tab-btn">History</button>
   </div>
 
   <!-- Main Form Tab -->
@@ -330,14 +334,14 @@
       <div class="card">
         <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h2 style="margin:0;">Job Site GPS</h2>
-          <button class="btn btn-outline" type="button" onclick="dropPin()">📍 Capture Location</button>
+          <button class="btn btn-outline" type="button" id="btnGPS">📍 Capture Location</button>
         </div>
         <div class="grid">
           <label>Latitude <span class="required">*</span><input name="gpsLatitude" id="gpsLatitude" required readonly placeholder="Capture location..."></label>
           <label>Longitude <span class="required">*</span><input name="gpsLongitude" id="gpsLongitude" required readonly placeholder="Capture location..."></label>
           <div class="span-2" style="display:flex; align-items:center; gap:10px; padding-top:20px;">
              <input type="checkbox" name="locationConfirmed" id="locationConfirmed" style="width:20px; height:20px; margin:0;">
-             <label for="locationConfirmed">I confirm GPS location is correct</label>
+             <label for="locationConfirmed" style="cursor:pointer">I confirm GPS location is correct</label>
           </div>
         </div>
       </div>
@@ -345,10 +349,10 @@
       <div class="card">
         <h2>Road Profile</h2>
         <div class="grid">
-          <label>Total Length (ft)<input id="profileLength" type="number" value="100"></label>
-          <label>Interval (ft)<input id="profileInterval" type="number" value="10"></label>
+          <label>Total Length (ft)<input id="profileLength" type="number" value="100" step="10"></label>
+          <label>Interval (ft)<input id="profileInterval" type="number" value="10" step="1"></label>
           <div class="span-2" style="padding-top:22px;">
-            <button class="btn btn-outline" type="button" onclick="generateProfileRows()">Build Table Rows</button>
+            <button class="btn btn-outline" type="button" id="btnBuildRows">Build Table Rows</button>
           </div>
         </div>
         
@@ -378,7 +382,7 @@
       </div>
 
       <div class="submit-bar">
-        <button class="btn btn-primary" type="submit" id="submitBtn" style="width:100%; justify-content:center; font-size:18px; padding:15px;">
+        <button class="btn btn-primary" type="submit" id="submitBtn" style="width:100%;">
           Save & Submit Report
         </button>
       </div>
@@ -399,17 +403,25 @@
   import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // --- CONFIG ---
-  const firebaseConfig = JSON.parse(__firebase_config);
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+  // --- SAFE INITIALIZATION ---
+  let db, auth;
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-default';
+  
+  try {
+    const configData = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+    if (configData) {
+      const app = initializeApp(configData);
+      auth = getAuth(app);
+      db = getFirestore(app);
+    }
+  } catch (err) {
+    console.error("Firebase connection failed. Report saving will be unavailable.", err);
+  }
 
   let currentUser = null;
 
-  // --- INITIALIZATION ---
-  async function init() {
+  async function initAuth() {
+    if (!auth) return;
     try {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         await signInWithCustomToken(auth, __initial_auth_token);
@@ -421,23 +433,26 @@
     }
   }
 
-  onAuthStateChanged(auth, (user) => {
-    currentUser = user;
-    if (user) {
-      loadHistory();
-    }
-  });
+  if (auth) {
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      if (user) loadHistory();
+    });
+    initAuth();
+  }
 
-  // Set default date
+  // --- UI SETUP ---
   document.getElementById('formDate').valueAsDate = new Date();
 
-  // --- UI LOGIC ---
-  window.switchTab = (tabId) => {
+  const switchTab = (tabId) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelector(`[onclick="switchTab('${tabId}')"]`).classList.add('active');
+    document.getElementById(tabId === 'new-form' ? 'tabNew' : 'tabHistory').classList.add('active');
     document.getElementById(tabId).classList.add('active');
   };
+
+  document.getElementById('tabNew').addEventListener('click', () => switchTab('new-form'));
+  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
 
   function showMessage(text, type = 'success') {
     const box = document.getElementById('statusMessage');
@@ -451,14 +466,7 @@
   }
 
   // --- CALCULATIONS ---
-  const calcInputs = ['startTime', 'finishTime'];
-  calcInputs.forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('input', runCalcs);
-  });
-
-  function runCalcs() {
-    // Hours
+  const runCalcs = () => {
     const s = document.getElementById('startTime').value;
     const f = document.getElementById('finishTime').value;
     if (s && f) {
@@ -468,12 +476,14 @@
       if (diff < 0) diff += 1440;
       document.getElementById('totalHoursDisplay').textContent = (diff / 60).toFixed(2);
     }
-  }
+  };
+
+  document.getElementById('startTime').addEventListener('input', runCalcs);
+  document.getElementById('finishTime').addEventListener('input', runCalcs);
 
   // --- GPS ---
-  window.dropPin = () => {
+  document.getElementById('btnGPS').addEventListener('click', () => {
     if (!navigator.geolocation) return showMessage("Geolocation not supported", "error");
-    
     showMessage("Pinning location...", "success");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -485,33 +495,39 @@
       (err) => showMessage("Location access denied. Please enable GPS.", "error"),
       { enableHighAccuracy: true }
     );
-  };
+  });
 
-  // --- PROFILE TABLE ---
-  window.generateProfileRows = () => {
+  // --- ROAD PROFILE TABLE GENERATION ---
+  const generateProfileRows = () => {
     const len = parseInt(document.getElementById('profileLength').value) || 100;
     const step = parseInt(document.getElementById('profileInterval').value) || 10;
     const body = document.getElementById('profileRows');
+    
+    if (!body) return;
     body.innerHTML = '';
     
     for (let i = 0; i <= len; i += step) {
       const row = document.createElement('tr');
       row.innerHTML = `
         <td class="station-cell">${i} ft</td>
-        <td><input type="number" step="0.01" data-station="${i}" data-dir="d1" data-type="before"></td>
-        <td><input type="number" step="0.01" data-station="${i}" data-dir="d1" data-type="after"></td>
-        <td><input type="number" step="0.01" data-station="${i}" data-dir="d2" data-type="before"></td>
-        <td><input type="number" step="0.01" data-station="${i}" data-dir="d2" data-type="after"></td>
+        <td><input type="number" step="0.01" placeholder="Before"></td>
+        <td><input type="number" step="0.01" placeholder="After"></td>
+        <td><input type="number" step="0.01" placeholder="Before"></td>
+        <td><input type="number" step="0.01" placeholder="After"></td>
       `;
       body.appendChild(row);
     }
   };
-  generateProfileRows(); // Init on load
 
-  // --- SUBMIT ---
+  document.getElementById('btnBuildRows').addEventListener('click', generateProfileRows);
+  // Build initial table rows immediately
+  generateProfileRows();
+
+  // --- FORM SUBMISSION ---
   document.getElementById('crewForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!currentUser) return showMessage("Connecting to secure server... try again in a moment.", "error");
+    if (!db) return showMessage("Database not connected. Please check your Firebase configuration.", "error");
+    if (!currentUser) return showMessage("Signing in securely...", "error");
     if (!document.getElementById('locationConfirmed').checked) return showMessage("Please confirm the GPS location.", "error");
 
     const submitBtn = document.getElementById('submitBtn');
@@ -520,8 +536,6 @@
 
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
-    
-    // Add calc results
     data.totalHours = document.getElementById('totalHoursDisplay').textContent;
     
     // Scrape profile data
@@ -546,6 +560,7 @@
       
       showMessage("Report saved to cloud successfully!");
       e.target.reset();
+      document.getElementById('formDate').valueAsDate = new Date();
       generateProfileRows();
       document.getElementById('totalHoursDisplay').textContent = "—";
       submitBtn.disabled = false;
@@ -553,21 +568,21 @@
       switchTab('history');
     } catch (err) {
       console.error(err);
-      showMessage("Error saving to cloud. Check connection.", "error");
+      showMessage("Error saving to cloud. Ensure your database rules allow writing.", "error");
       submitBtn.disabled = false;
       submitBtn.textContent = "Save & Submit Report";
     }
   });
 
-  // --- HISTORY ---
+  // --- HISTORY VIEW ---
   function loadHistory() {
-    if (!currentUser) return;
+    if (!db || !currentUser) return;
     const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
     
     onSnapshot(collRef, (snapshot) => {
       const list = document.getElementById('historyList');
       if (snapshot.empty) {
-        list.innerHTML = `<p style="color:var(--gray)">No reports found.</p>`;
+        list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No reports found in cloud.</p>`;
         return;
       }
 
@@ -577,22 +592,20 @@
       list.innerHTML = docs.map(doc => `
         <div class="history-item">
           <div>
-            <div style="font-weight:900; color:var(--kke-blue)">${doc.city} - ${doc.address}</div>
-            <div style="font-size:12px; color:var(--gray)">${doc.date} | Lead: ${doc.crewLead}</div>
+            <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">${doc.city} - ${doc.address}</div>
+            <div style="font-size:13px; color:var(--gray); margin-top:2px;">${doc.date} | Lead: ${doc.crewLead}</div>
           </div>
           <div style="text-align:right">
-            <div style="font-weight:700">${doc.totalHours} Hrs</div>
+            <div style="font-weight:700; font-size:18px;">${doc.totalHours} Hrs</div>
             <div style="font-size:11px; color:var(--gray)">Truck: ${doc.truckNumber}</div>
           </div>
         </div>
       `).join('');
     }, (err) => {
       console.error(err);
-      document.getElementById('historyList').innerHTML = "Error loading history.";
+      document.getElementById('historyList').innerHTML = "Error loading history from cloud.";
     });
   }
-
-  init();
 </script>
 
 </body>
