@@ -26,10 +26,34 @@
       padding-bottom: 100px;
     }
 
+    /* Auth Overlay */
+    #auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.98);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: white;
+      padding: 40px;
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 100%;
+    }
+
     .page {
       max-width: 1000px;
       margin: 0 auto;
       padding: 16px;
+      display: none; /* Hidden until auth */
     }
 
     /* Tabs */
@@ -240,11 +264,24 @@
 </head>
 <body>
 
-<div class="page">
+<!-- Login Screen -->
+<div id="auth-overlay">
+  <div class="login-card">
+    <h1 style="color: var(--kke-blue); margin-bottom: 10px;">KKE Concrete</h1>
+    <p style="color: var(--gray); margin-bottom: 30px;">Field Operations Portal</p>
+    <button id="btnGoogleLogin" class="btn btn-primary" style="width: 100%; padding: 15px;">
+      Sign in with Google
+    </button>
+    <p id="authError" style="color: var(--danger); font-size: 12px; margin-top: 15px;"></p>
+  </div>
+</div>
+
+<div class="page" id="main-content">
   <!-- Navigation Tabs -->
   <div class="tabs">
     <button id="tabNew" class="tab-btn active">New Report</button>
     <button id="tabHistory" class="tab-btn">History</button>
+    <button id="btnLogout" class="tab-btn" style="color: var(--danger); flex: 0.4;">Logout</button>
   </div>
 
   <!-- Main Form Tab -->
@@ -400,16 +437,56 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // --- UI LOGIC (Always available even if DB fails) ---
-  
-  // Set default date
+  // --- FIREBASE CONFIG ---
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+      apiKey: "AIzaSyA0D2DxYi-ouBVavw_uWbp8YPuvq1wNFnI",
+      authDomain: "kke-crew-profile-sheet.firebaseapp.com",
+      projectId: "kke-crew-profile-sheet",
+      storageBucket: "kke-crew-profile-sheet.firebasestorage.app",
+      messagingSenderId: "154350100370",
+      appId: "1:154350100370:web:baa9e7c9d433ecf93d6b4b"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-sheet-main';
+
+  // --- AUTH LOGIC ---
+  const authOverlay = document.getElementById('auth-overlay');
+  const mainContent = document.getElementById('main-content');
+  const loginError = document.getElementById('authError');
+
+  document.getElementById('btnGoogleLogin').addEventListener('click', async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error(err);
+      loginError.textContent = "Sign-in failed: " + err.message;
+    }
+  });
+
+  document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      authOverlay.style.display = 'none';
+      mainContent.style.display = 'block';
+      loadHistory();
+    } else {
+      authOverlay.style.display = 'flex';
+      mainContent.style.display = 'none';
+    }
+  });
+
+  // --- UI LOGIC ---
   const dateInput = document.getElementById('formDate');
   if (dateInput) dateInput.valueAsDate = new Date();
 
-  // Tab switching
   const switchTab = (tabId) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -420,11 +497,8 @@
     if (content) content.classList.add('active');
   };
 
-  const btnNew = document.getElementById('tabNew');
-  if (btnNew) btnNew.addEventListener('click', () => switchTab('new-form'));
-  
-  const btnHistoryTab = document.getElementById('tabHistory');
-  if (btnHistoryTab) btnHistoryTab.addEventListener('click', () => switchTab('history'));
+  document.getElementById('tabNew').addEventListener('click', () => switchTab('new-form'));
+  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
 
   function showMessage(text, type = 'success') {
     const box = document.getElementById('statusMessage');
@@ -438,7 +512,7 @@
     if(type === 'success') setTimeout(() => box.style.display = 'none', 5000);
   }
 
-  // Time Calculations
+  // Calculations
   const runCalcs = () => {
     const startVal = document.getElementById('startTime')?.value;
     const finishVal = document.getElementById('finishTime')?.value;
@@ -481,15 +555,11 @@
     const body = document.getElementById('profileRows');
     
     if (!body || !lenInput || !stepInput) return;
-    
     const len = parseInt(lenInput.value) || 0;
     let step = parseInt(stepInput.value) || 10;
-    
-    // Safety check to prevent infinite loops
     if (step <= 0) step = 10;
     
     body.innerHTML = '';
-    
     for (let i = 0; i <= len; i += step) {
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -504,54 +574,12 @@
   };
 
   document.getElementById('btnBuildRows')?.addEventListener('click', generateProfileRows);
-  
-  // Initial build
   generateProfileRows();
 
-  // --- DATABASE LOGIC (Wrapped in safety checks) ---
-  
-  let db, auth;
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-default';
-  
-  try {
-    const configData = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-    if (configData) {
-      const firebaseApp = initializeApp(configData);
-      auth = getAuth(firebaseApp);
-      db = getFirestore(firebaseApp);
-    }
-  } catch (err) {
-    console.warn("Database initialization skipped or failed.", err);
-  }
-
-  let currentUser = null;
-
-  async function initAuth() {
-    if (!auth) return;
-    try {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    } catch (err) {
-      console.warn("Auth process failed.", err);
-    }
-  }
-
-  if (auth) {
-    onAuthStateChanged(auth, (user) => {
-      currentUser = user;
-      if (user) loadHistory();
-    });
-    initAuth();
-  }
-
-  // Submit Handler
+  // --- SUBMISSION ---
   document.getElementById('crewForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!db) return showMessage("Database not connected. Form cannot be saved to cloud.", "error");
-    if (!currentUser) return showMessage("Not signed in. Attempting sign-in...", "error");
+    if (!auth.currentUser) return showMessage("You must be logged in to submit.", "error");
     if (!document.getElementById('locationConfirmed')?.checked) return showMessage("Please confirm the GPS location.", "error");
 
     const submitBtn = document.getElementById('submitBtn');
@@ -577,7 +605,8 @@
     });
     data.profile = profileData;
     data.timestamp = serverTimestamp();
-    data.userId = currentUser.uid;
+    data.userId = auth.currentUser.uid;
+    data.submittedBy = auth.currentUser.email;
 
     try {
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
@@ -602,14 +631,14 @@
   });
 
   function loadHistory() {
-    if (!db || !currentUser) return;
+    if (!auth.currentUser) return;
     const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
     
     onSnapshot(collRef, (snapshot) => {
       const list = document.getElementById('historyList');
       if (!list) return;
       if (snapshot.empty) {
-        list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No reports found in cloud.</p>`;
+        list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No reports found.</p>`;
         return;
       }
 
@@ -624,7 +653,7 @@
           </div>
           <div style="text-align:right">
             <div style="font-weight:700; font-size:18px;">${doc.totalHours || '0'} Hrs</div>
-            <div style="font-size:11px; color:var(--gray)">Truck: ${doc.truckNumber || 'N/A'}</div>
+            <div style="font-size:11px; color:var(--gray)">By: ${doc.submittedBy || 'N/A'}</div>
           </div>
         </div>
       `).join('');
