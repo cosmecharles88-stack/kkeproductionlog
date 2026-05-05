@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -264,8 +264,7 @@
       <div class="card">
         <h2>Job Information</h2>
         <div class="grid">
-          <label>Job # <span class="required">*</span><input name="jobNumber" required placeholder="e.g. 2405"></label>
-          <label>Date <span class="required">*</span><input name="date" type="date" required id="formDate"></label>
+          <label class="span-2">Date <span class="required">*</span><input name="date" type="date" required id="formDate"></label>
           <label>City <span class="required">*</span>
             <select name="city" required>
               <option value="" disabled selected>Select City</option>
@@ -294,7 +293,7 @@
               <option value="203">203</option>
             </select>
           </label>
-          <label class="span-3">Address / Location <span class="required">*</span><input name="address" required></label>
+          <label class="span-4">Address / Location <span class="required">*</span><input name="address" required placeholder="Full street address or junction"></label>
         </div>
       </div>
 
@@ -334,8 +333,8 @@
           <button class="btn btn-outline" type="button" onclick="dropPin()">📍 Capture Location</button>
         </div>
         <div class="grid">
-          <label>Latitude <input name="gpsLatitude" id="gpsLatitude" readonly></label>
-          <label>Longitude <input name="gpsLongitude" id="gpsLongitude" readonly></label>
+          <label>Latitude <span class="required">*</span><input name="gpsLatitude" id="gpsLatitude" required readonly placeholder="Capture location..."></label>
+          <label>Longitude <span class="required">*</span><input name="gpsLongitude" id="gpsLongitude" required readonly placeholder="Capture location..."></label>
           <div class="span-2" style="display:flex; align-items:center; gap:10px; padding-top:20px;">
              <input type="checkbox" name="locationConfirmed" id="locationConfirmed" style="width:20px; height:20px; margin:0;">
              <label for="locationConfirmed">I confirm GPS location is correct</label>
@@ -578,7 +577,7 @@
       list.innerHTML = docs.map(doc => `
         <div class="history-item">
           <div>
-            <div style="font-weight:900; color:var(--kke-blue)">Job #${doc.jobNumber} - ${doc.city}</div>
+            <div style="font-weight:900; color:var(--kke-blue)">${doc.city} - ${doc.address}</div>
             <div style="font-size:12px; color:var(--gray)">${doc.date} | Lead: ${doc.crewLead}</div>
           </div>
           <div style="text-align:right">
