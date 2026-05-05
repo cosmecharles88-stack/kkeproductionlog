@@ -403,59 +403,32 @@
   import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // --- SAFE INITIALIZATION ---
-  let db, auth;
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-default';
+  // --- UI LOGIC (Always available even if DB fails) ---
   
-  try {
-    const configData = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-    if (configData) {
-      const app = initializeApp(configData);
-      auth = getAuth(app);
-      db = getFirestore(app);
-    }
-  } catch (err) {
-    console.error("Firebase connection failed. Report saving will be unavailable.", err);
-  }
+  // Set default date
+  const dateInput = document.getElementById('formDate');
+  if (dateInput) dateInput.valueAsDate = new Date();
 
-  let currentUser = null;
-
-  async function initAuth() {
-    if (!auth) return;
-    try {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    } catch (err) {
-      console.error("Auth error", err);
-    }
-  }
-
-  if (auth) {
-    onAuthStateChanged(auth, (user) => {
-      currentUser = user;
-      if (user) loadHistory();
-    });
-    initAuth();
-  }
-
-  // --- UI SETUP ---
-  document.getElementById('formDate').valueAsDate = new Date();
-
+  // Tab switching
   const switchTab = (tabId) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById(tabId === 'new-form' ? 'tabNew' : 'tabHistory').classList.add('active');
-    document.getElementById(tabId).classList.add('active');
+    const btnId = tabId === 'new-form' ? 'tabNew' : 'tabHistory';
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.add('active');
+    const content = document.getElementById(tabId);
+    if (content) content.classList.add('active');
   };
 
-  document.getElementById('tabNew').addEventListener('click', () => switchTab('new-form'));
-  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
+  const btnNew = document.getElementById('tabNew');
+  if (btnNew) btnNew.addEventListener('click', () => switchTab('new-form'));
+  
+  const btnHistoryTab = document.getElementById('tabHistory');
+  if (btnHistoryTab) btnHistoryTab.addEventListener('click', () => switchTab('history'));
 
   function showMessage(text, type = 'success') {
     const box = document.getElementById('statusMessage');
+    if (!box) return;
     box.textContent = text;
     box.style.display = 'block';
     box.style.backgroundColor = type === 'success' ? '#f0fdf4' : '#fef2f2';
@@ -465,31 +438,35 @@
     if(type === 'success') setTimeout(() => box.style.display = 'none', 5000);
   }
 
-  // --- CALCULATIONS ---
+  // Time Calculations
   const runCalcs = () => {
-    const s = document.getElementById('startTime').value;
-    const f = document.getElementById('finishTime').value;
-    if (s && f) {
-      const [sh, sm] = s.split(':').map(Number);
-      const [fh, fm] = f.split(':').map(Number);
+    const startVal = document.getElementById('startTime')?.value;
+    const finishVal = document.getElementById('finishTime')?.value;
+    const display = document.getElementById('totalHoursDisplay');
+    if (startVal && finishVal && display) {
+      const [sh, sm] = startVal.split(':').map(Number);
+      const [fh, fm] = finishVal.split(':').map(Number);
       let diff = (fh * 60 + fm) - (sh * 60 + sm);
       if (diff < 0) diff += 1440;
-      document.getElementById('totalHoursDisplay').textContent = (diff / 60).toFixed(2);
+      display.textContent = (diff / 60).toFixed(2);
     }
   };
 
-  document.getElementById('startTime').addEventListener('input', runCalcs);
-  document.getElementById('finishTime').addEventListener('input', runCalcs);
+  document.getElementById('startTime')?.addEventListener('input', runCalcs);
+  document.getElementById('finishTime')?.addEventListener('input', runCalcs);
 
-  // --- GPS ---
-  document.getElementById('btnGPS').addEventListener('click', () => {
+  // GPS
+  document.getElementById('btnGPS')?.addEventListener('click', () => {
     if (!navigator.geolocation) return showMessage("Geolocation not supported", "error");
     showMessage("Pinning location...", "success");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        document.getElementById('gpsLatitude').value = pos.coords.latitude.toFixed(6);
-        document.getElementById('gpsLongitude').value = pos.coords.longitude.toFixed(6);
-        document.getElementById('locationConfirmed').checked = true;
+        const lat = document.getElementById('gpsLatitude');
+        const lon = document.getElementById('gpsLongitude');
+        const conf = document.getElementById('locationConfirmed');
+        if (lat) lat.value = pos.coords.latitude.toFixed(6);
+        if (lon) lon.value = pos.coords.longitude.toFixed(6);
+        if (conf) conf.checked = true;
         showMessage("Location pinned successfully", "success");
       },
       (err) => showMessage("Location access denied. Please enable GPS.", "error"),
@@ -497,13 +474,20 @@
     );
   });
 
-  // --- ROAD PROFILE TABLE GENERATION ---
+  // Road Profile Table Logic
   const generateProfileRows = () => {
-    const len = parseInt(document.getElementById('profileLength').value) || 100;
-    const step = parseInt(document.getElementById('profileInterval').value) || 10;
+    const lenInput = document.getElementById('profileLength');
+    const stepInput = document.getElementById('profileInterval');
     const body = document.getElementById('profileRows');
     
-    if (!body) return;
+    if (!body || !lenInput || !stepInput) return;
+    
+    const len = parseInt(lenInput.value) || 0;
+    let step = parseInt(stepInput.value) || 10;
+    
+    // Safety check to prevent infinite loops
+    if (step <= 0) step = 10;
+    
     body.innerHTML = '';
     
     for (let i = 0; i <= len; i += step) {
@@ -519,35 +503,76 @@
     }
   };
 
-  document.getElementById('btnBuildRows').addEventListener('click', generateProfileRows);
-  // Build initial table rows immediately
+  document.getElementById('btnBuildRows')?.addEventListener('click', generateProfileRows);
+  
+  // Initial build
   generateProfileRows();
 
-  // --- FORM SUBMISSION ---
-  document.getElementById('crewForm').addEventListener('submit', async (e) => {
+  // --- DATABASE LOGIC (Wrapped in safety checks) ---
+  
+  let db, auth;
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-default';
+  
+  try {
+    const configData = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+    if (configData) {
+      const firebaseApp = initializeApp(configData);
+      auth = getAuth(firebaseApp);
+      db = getFirestore(firebaseApp);
+    }
+  } catch (err) {
+    console.warn("Database initialization skipped or failed.", err);
+  }
+
+  let currentUser = null;
+
+  async function initAuth() {
+    if (!auth) return;
+    try {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    } catch (err) {
+      console.warn("Auth process failed.", err);
+    }
+  }
+
+  if (auth) {
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      if (user) loadHistory();
+    });
+    initAuth();
+  }
+
+  // Submit Handler
+  document.getElementById('crewForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!db) return showMessage("Database not connected. Please check your Firebase configuration.", "error");
-    if (!currentUser) return showMessage("Signing in securely...", "error");
-    if (!document.getElementById('locationConfirmed').checked) return showMessage("Please confirm the GPS location.", "error");
+    if (!db) return showMessage("Database not connected. Form cannot be saved to cloud.", "error");
+    if (!currentUser) return showMessage("Not signed in. Attempting sign-in...", "error");
+    if (!document.getElementById('locationConfirmed')?.checked) return showMessage("Please confirm the GPS location.", "error");
 
     const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Uploading Report...";
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Uploading Report...";
+    }
 
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
-    data.totalHours = document.getElementById('totalHoursDisplay').textContent;
+    data.totalHours = document.getElementById('totalHoursDisplay')?.textContent || "0";
     
-    // Scrape profile data
     const profileData = [];
     document.querySelectorAll('#profileRows tr').forEach(tr => {
       const inputs = tr.querySelectorAll('input');
       profileData.push({
-        station: tr.querySelector('.station-cell').textContent,
-        d1Before: inputs[0].value,
-        d1After: inputs[1].value,
-        d2Before: inputs[2].value,
-        d2After: inputs[3].value
+        station: tr.querySelector('.station-cell')?.textContent || "",
+        d1Before: inputs[0]?.value || "",
+        d1After: inputs[1]?.value || "",
+        d2Before: inputs[2]?.value || "",
+        d2After: inputs[3]?.value || ""
       });
     });
     data.profile = profileData;
@@ -560,27 +585,29 @@
       
       showMessage("Report saved to cloud successfully!");
       e.target.reset();
-      document.getElementById('formDate').valueAsDate = new Date();
+      if (dateInput) dateInput.valueAsDate = new Date();
       generateProfileRows();
-      document.getElementById('totalHoursDisplay').textContent = "—";
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Save & Submit Report";
+      const hrs = document.getElementById('totalHoursDisplay');
+      if (hrs) hrs.textContent = "—";
       switchTab('history');
     } catch (err) {
       console.error(err);
-      showMessage("Error saving to cloud. Ensure your database rules allow writing.", "error");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Save & Submit Report";
+      showMessage("Error saving to cloud. Ensure internet connection.", "error");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Save & Submit Report";
+      }
     }
   });
 
-  // --- HISTORY VIEW ---
   function loadHistory() {
     if (!db || !currentUser) return;
     const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
     
     onSnapshot(collRef, (snapshot) => {
       const list = document.getElementById('historyList');
+      if (!list) return;
       if (snapshot.empty) {
         list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No reports found in cloud.</p>`;
         return;
@@ -592,18 +619,19 @@
       list.innerHTML = docs.map(doc => `
         <div class="history-item">
           <div>
-            <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">${doc.city} - ${doc.address}</div>
-            <div style="font-size:13px; color:var(--gray); margin-top:2px;">${doc.date} | Lead: ${doc.crewLead}</div>
+            <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">${doc.city || 'Unknown City'} - ${doc.address || 'No Address'}</div>
+            <div style="font-size:13px; color:var(--gray); margin-top:2px;">${doc.date || 'No Date'} | Lead: ${doc.crewLead || 'None'}</div>
           </div>
           <div style="text-align:right">
-            <div style="font-weight:700; font-size:18px;">${doc.totalHours} Hrs</div>
-            <div style="font-size:11px; color:var(--gray)">Truck: ${doc.truckNumber}</div>
+            <div style="font-weight:700; font-size:18px;">${doc.totalHours || '0'} Hrs</div>
+            <div style="font-size:11px; color:var(--gray)">Truck: ${doc.truckNumber || 'N/A'}</div>
           </div>
         </div>
       `).join('');
     }, (err) => {
       console.error(err);
-      document.getElementById('historyList').innerHTML = "Error loading history from cloud.";
+      const list = document.getElementById('historyList');
+      if (list) list.innerHTML = "Error loading history.";
     });
   }
 </script>
