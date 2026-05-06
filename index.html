@@ -120,33 +120,33 @@
       background: linear-gradient(90deg, var(--kke-dark-blue), var(--kke-blue), #0b75d1);
     }
 
- .header-inner {
-  position: relative;
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 20px;
-  align-items: stretch;
-  padding: 20px;
-}
+    .header-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      align-items: stretch;
+      padding: 20px;
+    }
 
-  .brand-panel {
-  background: rgba(255,255,255,0.94);
-  border: 1px solid rgba(0,87,168,0.12);
-  border-radius: 16px;
-  padding: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 150px;
-}
+    .brand-panel {
+      background: rgba(255,255,255,0.94);
+      border: 1px solid rgba(0,87,168,0.12);
+      border-radius: 16px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 125px;
+    }
 
- .brand-logo {
-  width: 100%;
-  max-width: 320px;
-  max-height: 140px;
-  object-fit: contain;
-  display: block;
-}
+    .brand-logo {
+      width: 100%;
+      max-width: 300px;
+      max-height: 115px;
+      object-fit: contain;
+      display: block;
+    }
 
     .login-logo {
       width: 100%;
@@ -420,6 +420,154 @@
       .history-item { align-items: flex-start; flex-direction: column; }
       .history-item > div:last-child { text-align: left !important; }
     }
+
+    /* Manager Tools / Filters / Modal */
+    .tool-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+
+    .tool-row label { margin: 0; }
+
+    .small-btn {
+      padding: 9px 12px;
+      border-radius: 9px;
+      font-size: 12px;
+    }
+
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-warning { background: #f59e0b; color: #111827; }
+
+    .history-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+      margin-left: 6px;
+    }
+
+    .status-approved { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .status-review { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .status-rejected { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.72);
+      z-index: 3000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: white;
+      border-radius: 22px;
+      max-width: 980px;
+      width: 100%;
+      max-height: 92vh;
+      overflow: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.32);
+      border: 1px solid rgba(0, 87, 168, 0.18);
+    }
+
+    .modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 18px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      position: sticky;
+      bottom: 0;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .audit-log {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 220px;
+      overflow: auto;
+      font-size: 12px;
+      color: #374151;
+    }
+
+    .audit-line {
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .audit-line:last-child { border-bottom: none; }
+
+    .trend-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+      min-height: 170px;
+      align-items: end;
+      padding-top: 20px;
+    }
+
+    .trend-bar-wrap {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      min-height: 160px;
+      gap: 8px;
+    }
+
+    .trend-bar {
+      width: 100%;
+      max-width: 48px;
+      border-radius: 10px 10px 3px 3px;
+      background: linear-gradient(180deg, var(--kke-blue), var(--kke-dark-blue));
+      min-height: 4px;
+    }
+
+    .trend-label { font-size: 11px; color: var(--gray); font-weight: 800; text-align:center; }
+    .trend-value { font-size: 11px; color: var(--kke-dark-blue); font-weight: 900; text-align:center; }
+
+    @media (max-width: 768px) {
+      .tool-row { grid-template-columns: 1fr; }
+      .history-item { flex-direction: column; align-items: stretch; gap: 10px; }
+      .history-actions { justify-content: flex-start; }
+      .trend-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
   </style>
 </head>
 <body>
@@ -612,6 +760,28 @@
 
     <div class="card">
       <h2>Recent Reports</h2>
+      <div class="tool-row">
+        <label>Search
+          <input id="historySearch" type="search" placeholder="Search city, truck, lead, address, notes...">
+        </label>
+        <label>City
+          <select id="historyCityFilter"><option value="">All Cities</option></select>
+        </label>
+        <label>Truck
+          <select id="historyTruckFilter"><option value="">All Trucks</option></select>
+        </label>
+        <label>Status
+          <select id="historyStatusFilter">
+            <option value="">Active Reports</option>
+            <option value="Needs Review">Needs Review</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Deleted">Deleted / Recovery</option>
+            <option value="all">All Including Deleted</option>
+          </select>
+        </label>
+        <button class="btn btn-outline small-btn" type="button" id="btnClearFilters">Clear</button>
+      </div>
       <div id="historyList">Loading reports...</div>
     </div>
   </div>
@@ -699,8 +869,64 @@
     </div>
 
     <div class="card">
+      <h2>Production Trend — Last 7 Report Days</h2>
+      <div id="trendMetrics" class="empty-state">No trend data yet.</div>
+    </div>
+
+    <div class="card">
       <h2>Reports Needing Review</h2>
       <div id="flaggedReports" class="empty-state">No flagged reports.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Manager Edit Modal -->
+<div id="editModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 style="margin:0; border:0; padding:0;">Manager Edit Report</h2>
+        <div id="editModalSub" style="font-size:12px; color:var(--gray); margin-top:4px;">Modify report fields and save an audit trail.</div>
+      </div>
+      <button class="btn btn-outline small-btn" type="button" id="btnCloseEditModal">Close</button>
+    </div>
+    <div class="modal-body">
+      <form id="editReportForm">
+        <input type="hidden" id="editDocId">
+        <div class="grid">
+          <label>Date<input id="editDate" type="date"></label>
+          <label>City<input id="editCity"></label>
+          <label>Truck #<input id="editTruckNumber"></label>
+          <label>Crew Lead<input id="editCrewLead"></label>
+          <label class="span-4">Address / Location<input id="editAddress"></label>
+          <label>A Lbs Start<input id="editAMeterStart" type="number" step="0.01"></label>
+          <label>A Lbs Finish<input id="editAMeterFinish" type="number" step="0.01"></label>
+          <label>B Lbs Start<input id="editBMeterStart" type="number" step="0.01"></label>
+          <label>B Lbs Finish<input id="editBMeterFinish" type="number" step="0.01"></label>
+          <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
+          <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
+          <label>Approval Status
+            <select id="editApprovalStatus">
+              <option value="Needs Review">Needs Review</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </label>
+          <label>Manager Initials<input id="editManagerInitials" placeholder="Optional"></label>
+          <label class="span-4">Crew Notes<textarea id="editNotes" rows="3"></textarea></label>
+          <label class="span-4">Manager Notes<textarea id="editManagerNotes" rows="3" placeholder="Internal manager notes, corrections, or approval comments..."></textarea></label>
+        </div>
+      </form>
+      <div style="margin-top:18px;">
+        <h2>Audit Trail</h2>
+        <div id="auditTrailBox" class="audit-log">No audit entries yet.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" id="btnPrintReport">PDF / Print</button>
+      <button class="btn btn-outline" type="button" id="btnCancelEdit">Cancel</button>
+      <button class="btn btn-primary" type="button" id="btnSaveEdit">Save Changes</button>
     </div>
   </div>
 </div>
@@ -722,7 +948,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   // --- FIREBASE CONFIG ---
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -791,6 +1017,8 @@
   let isCurrentUserManager = false;
   let historyUnsubscribe = null;
   let dashboardUnsubscribe = null;
+  let allReports = [];
+  let currentEditReport = null;
 
   // --- AUTH LOGIC ---
   const authOverlay = document.getElementById('auth-overlay');
@@ -1090,6 +1318,15 @@
     data.timestamp = serverTimestamp();
     data.userId = auth.currentUser.uid;
     data.submittedBy = auth.currentUser.email;
+    data.approvalStatus = data.approvalStatus || "Needs Review";
+    data.managerNotes = "";
+    data.deleted = false;
+    data.auditTrail = [{
+      action: "Created",
+      by: auth.currentUser.email,
+      at: new Date().toISOString(),
+      note: "Report submitted from field form."
+    }];
 
     try {
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
@@ -1117,39 +1354,170 @@
     }
   });
 
+  function statusClass(status) {
+    if (status === 'Approved') return 'status-approved';
+    if (status === 'Rejected') return 'status-rejected';
+    return 'status-review';
+  }
+
+  function activeReportsOnly(docs) {
+    return docs.filter(report => report.deleted !== true);
+  }
+
+  function populateHistoryFilters(docs) {
+    const activeDocs = activeReportsOnly(docs);
+    const citySelect = document.getElementById('historyCityFilter');
+    const truckSelect = document.getElementById('historyTruckFilter');
+    if (!citySelect || !truckSelect) return;
+
+    const currentCity = citySelect.value;
+    const currentTruck = truckSelect.value;
+    const cities = [...new Set(activeDocs.map(d => d.city).filter(Boolean))].sort();
+    const trucks = [...new Set(activeDocs.map(d => d.truckNumber).filter(Boolean))].sort();
+
+    citySelect.innerHTML = '<option value="">All Cities</option>' + cities.map(city => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`).join('');
+    truckSelect.innerHTML = '<option value="">All Trucks</option>' + trucks.map(truck => `<option value="${escapeHtml(truck)}">${escapeHtml(truck)}</option>`).join('');
+
+    if (cities.includes(currentCity)) citySelect.value = currentCity;
+    if (trucks.includes(currentTruck)) truckSelect.value = currentTruck;
+  }
+
+  function getFilteredReports() {
+    const search = String(document.getElementById('historySearch')?.value || '').toLowerCase().trim();
+    const city = document.getElementById('historyCityFilter')?.value || '';
+    const truck = document.getElementById('historyTruckFilter')?.value || '';
+    const status = document.getElementById('historyStatusFilter')?.value || '';
+
+    return allReports.filter(report => {
+      const isDeleted = report.deleted === true;
+      const approvalStatus = report.approvalStatus || 'Needs Review';
+
+      if (status === 'Deleted') {
+        if (!isDeleted) return false;
+      } else if (status === 'all') {
+        // Include everything.
+      } else {
+        if (isDeleted) return false;
+        if (status && approvalStatus !== status) return false;
+      }
+
+      if (city && report.city !== city) return false;
+      if (truck && report.truckNumber !== truck) return false;
+
+      if (search) {
+        const haystack = [
+          report.city,
+          report.truckNumber,
+          report.crewLead,
+          report.address,
+          report.date,
+          report.submittedBy,
+          report.notes,
+          report.managerNotes,
+          report.approvalStatus
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+
+      return true;
+    });
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    if (!list) return;
+
+    const docs = getFilteredReports();
+    if (!docs.length) {
+      list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No matching reports found.</p>`;
+      return;
+    }
+
+    list.innerHTML = docs.map(report => {
+      const pounds = getReportPounds(report);
+      const hours = getReportHours(report);
+      const lbsPerHour = hours > 0 ? pounds / hours : 0;
+      const status = report.approvalStatus || 'Needs Review';
+      const deletedLabel = report.deleted === true ? `<span class="status-pill status-rejected">Deleted</span>` : '';
+      const statusPill = `<span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span>`;
+      const managerActions = isCurrentUserManager ? `
+        <div class="history-actions">
+          ${report.deleted === true ? `
+            <button class="btn btn-success small-btn" type="button" onclick="restoreReport('${report.id}')">Restore</button>
+            <button class="btn btn-danger small-btn" type="button" onclick="permanentlyDeleteReport('${report.id}')">Permanent Delete</button>
+          ` : `
+            <button class="btn btn-outline small-btn" type="button" onclick="openEditReport('${report.id}')">Edit</button>
+            <button class="btn btn-outline small-btn" type="button" onclick="printReport('${report.id}')">PDF / Print</button>
+            <button class="btn btn-danger small-btn" type="button" onclick="softDeleteReport('${report.id}')">Delete</button>
+          `}
+        </div>
+      ` : '';
+
+      return `
+        <div class="history-item">
+          <div style="flex:1;">
+            <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">
+              ${escapeHtml(report.city || 'Unknown City')} - ${escapeHtml(report.address || 'No Address')}
+              ${statusPill}${deletedLabel}
+            </div>
+            <div style="font-size:13px; color:var(--gray); margin-top:2px;">
+              ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(report.crewLead || 'None')} | Truck: ${escapeHtml(report.truckNumber || 'N/A')}
+            </div>
+            ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
+            ${managerActions}
+          </div>
+          <div style="text-align:right; min-width:150px;">
+            <div style="font-weight:700; font-size:18px;">${fmtNumber(pounds, 0)} lbs</div>
+            <div style="font-size:12px; color:var(--gray);">${fmtNumber(hours, 2)} hrs | ${fmtNumber(lbsPerHour, 0)} lbs/hr</div>
+            <div style="font-size:11px; color:var(--gray)">By: ${escapeHtml(report.submittedBy || 'N/A')}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
   function loadHistory() {
     if (!auth.currentUser) return;
     const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
-    
+
     historyUnsubscribe = onSnapshot(collRef, (snapshot) => {
-      const list = document.getElementById('historyList');
-      if (!list) return;
-      if (snapshot.empty) {
-        list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No reports found.</p>`;
-        return;
-      }
-
-      let docs = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-      docs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-
-      list.innerHTML = docs.map(doc => `
-        <div class="history-item">
-          <div>
-            <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">${escapeHtml(doc.city || 'Unknown City')} - ${escapeHtml(doc.address || 'No Address')}</div>
-            <div style="font-size:13px; color:var(--gray); margin-top:2px;">${escapeHtml(doc.date || 'No Date')} | Lead: ${escapeHtml(doc.crewLead || 'None')} | Truck: ${escapeHtml(doc.truckNumber || 'N/A')}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-weight:700; font-size:18px;">${fmtNumber(getReportPounds(doc), 0)} lbs</div>
-            <div style="font-size:12px; color:var(--gray);">${fmtNumber(getReportHours(doc), 2)} hrs | ${fmtNumber(getReportHours(doc) > 0 ? getReportPounds(doc) / getReportHours(doc) : 0, 0)} lbs/hr</div>
-            <div style="font-size:11px; color:var(--gray)">By: ${escapeHtml(doc.submittedBy || 'N/A')}</div>
-          </div>
-        </div>
-      `).join('');
+      allReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      allReports.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      populateHistoryFilters(allReports);
+      renderHistory();
     }, (err) => {
       console.error(err);
       const list = document.getElementById('historyList');
-      if (list) list.innerHTML = "Error loading history.";
+      if (list) list.innerHTML = 'Error loading history.';
     });
+  }
+
+  function renderTrendChart(docs) {
+    const byDate = {};
+    activeReportsOnly(docs).forEach(report => {
+      if (!report.date) return;
+      byDate[report.date] = (byDate[report.date] || 0) + getReportPounds(report);
+    });
+
+    const entries = Object.entries(byDate)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-7)
+      .map(([date, pounds]) => ({ date, pounds }));
+
+    if (!entries.length) return `<div class="empty-state">No trend data yet.</div>`;
+
+    const max = Math.max(...entries.map(item => item.pounds), 1);
+    return `<div class="trend-grid">${entries.map(item => {
+      const height = Math.max(4, (item.pounds / max) * 140);
+      const label = item.date.slice(5);
+      return `
+        <div class="trend-bar-wrap">
+          <div class="trend-value">${fmtNumber(item.pounds, 0)}</div>
+          <div class="trend-bar" style="height:${height}px"></div>
+          <div class="trend-label">${escapeHtml(label)}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
   }
 
   function loadDashboard() {
@@ -1157,7 +1525,7 @@
     const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
 
     dashboardUnsubscribe = onSnapshot(collRef, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const docs = activeReportsOnly(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
 
       let totalPounds = 0;
       let totalHours = 0;
@@ -1170,12 +1538,12 @@
       const flags = [];
       const today = new Date();
 
-      docs.forEach(doc => {
-        const pounds = getReportPounds(doc);
-        const hours = getReportHours(doc);
-        const city = doc.city || 'Unknown City';
-        const truck = doc.truckNumber || 'Unknown Truck';
-        const crew = doc.crewLead || 'Unknown Crew';
+      docs.forEach(report => {
+        const pounds = getReportPounds(report);
+        const hours = getReportHours(report);
+        const city = report.city || 'Unknown City';
+        const truck = report.truckNumber || 'Unknown Truck';
+        const crew = report.crewLead || 'Unknown Crew';
 
         totalPounds += pounds;
         totalHours += hours;
@@ -1192,15 +1560,16 @@
         crewStats[crew].hours += hours;
         crewStats[crew].reports += 1;
 
-        if (isSameDate(doc.date, today)) todayPounds += pounds;
-        if (isThisWeek(doc.date)) weekPounds += pounds;
+        if (isSameDate(report.date, today)) todayPounds += pounds;
+        if (isThisWeek(report.date)) weekPounds += pounds;
 
-        const reportName = `${doc.date || 'No Date'} | ${doc.city || 'Unknown City'} | ${doc.crewLead || 'No Lead'}`;
+        const reportName = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.crewLead || 'No Lead'}`;
+        if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
         if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
         if (pounds <= 0) flags.push(`${reportName}: missing or zero pumped pounds.`);
-        if (Number(doc.aMeterFinish || 0) < Number(doc.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
-        if (Number(doc.bMeterFinish || 0) < Number(doc.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
-        if (!doc.gpsLatitude || !doc.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
+        if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
+        if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
+        if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
         if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high pounds per hour.`);
       });
 
@@ -1238,14 +1607,272 @@
         crew => `${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports`
       );
 
-      document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 20).map(flag => `
+      const trendBox = document.getElementById('trendMetrics');
+      if (trendBox) trendBox.innerHTML = renderTrendChart(docs);
+
+      document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 30).map(flag => `
         <div class="flag-item">${escapeHtml(flag)}</div>
       `).join('') : `<div class="empty-state">No flagged reports.</div>`;
     }, (err) => {
       console.error(err);
-      showMessage("Error loading dashboard. Check manager access and Firebase rules.", "error");
+      showMessage('Error loading dashboard. Check manager access and Firebase rules.', 'error');
     });
   }
+
+  function makeAuditEntry(action, note = '') {
+    return {
+      action,
+      note,
+      by: auth.currentUser?.email || 'unknown',
+      at: new Date().toISOString()
+    };
+  }
+
+  function reportRef(reportId) {
+    return firestoreDoc(db, 'artifacts', appId, 'public', 'data', 'submissions', reportId);
+  }
+
+  function recalcReportFields(patch) {
+    const aStart = Number(patch.aMeterStart || 0);
+    const aFinish = Number(patch.aMeterFinish || 0);
+    const bStart = Number(patch.bMeterStart || 0);
+    const bFinish = Number(patch.bMeterFinish || 0);
+    patch.aPounds = Math.max(0, aFinish - aStart);
+    patch.bPounds = Math.max(0, bFinish - bStart);
+    patch.totalPounds = patch.aPounds + patch.bPounds;
+    patch.poundsPerHour = Number(patch.totalHours || 0) > 0 ? patch.totalPounds / Number(patch.totalHours || 0) : 0;
+    return patch;
+  }
+
+  function renderAuditTrail(report) {
+    const box = document.getElementById('auditTrailBox');
+    if (!box) return;
+    const entries = Array.isArray(report.auditTrail) ? report.auditTrail.slice().reverse() : [];
+    if (!entries.length) {
+      box.innerHTML = 'No audit entries yet.';
+      return;
+    }
+    box.innerHTML = entries.map(entry => `
+      <div class="audit-line">
+        <strong>${escapeHtml(entry.action || 'Update')}</strong>
+        <div>${escapeHtml(entry.note || '')}</div>
+        <div style="color:var(--gray); margin-top:2px;">${escapeHtml(entry.by || 'unknown')} | ${escapeHtml(entry.at || '')}</div>
+      </div>
+    `).join('');
+  }
+
+  window.openEditReport = function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const report = allReports.find(item => item.id === reportId);
+    if (!report) return showMessage('Report not found.', 'error');
+
+    currentEditReport = report;
+    document.getElementById('editDocId').value = report.id;
+    document.getElementById('editModalSub').textContent = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.address || 'No Address'}`;
+    document.getElementById('editDate').value = report.date || '';
+    document.getElementById('editCity').value = report.city || '';
+    document.getElementById('editTruckNumber').value = report.truckNumber || '';
+    document.getElementById('editCrewLead').value = report.crewLead || '';
+    document.getElementById('editAddress').value = report.address || '';
+    document.getElementById('editAMeterStart').value = report.aMeterStart || '';
+    document.getElementById('editAMeterFinish').value = report.aMeterFinish || '';
+    document.getElementById('editBMeterStart').value = report.bMeterStart || '';
+    document.getElementById('editBMeterFinish').value = report.bMeterFinish || '';
+    document.getElementById('editTotalHours').value = getReportHours(report) || '';
+    document.getElementById('editLinearFeet').value = report.linearFeet || '';
+    document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
+    document.getElementById('editManagerInitials').value = '';
+    document.getElementById('editNotes').value = report.notes || '';
+    document.getElementById('editManagerNotes').value = report.managerNotes || '';
+    renderAuditTrail(report);
+    document.getElementById('editModal').style.display = 'flex';
+  };
+
+  function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    currentEditReport = null;
+  }
+
+  async function saveEditedReport() {
+    if (!isCurrentUserManager || !currentEditReport) return showMessage('Manager access required.', 'error');
+    const docId = document.getElementById('editDocId').value;
+    const patch = recalcReportFields({
+      date: document.getElementById('editDate').value,
+      city: document.getElementById('editCity').value.trim(),
+      truckNumber: document.getElementById('editTruckNumber').value.trim(),
+      crewLead: document.getElementById('editCrewLead').value.trim(),
+      address: document.getElementById('editAddress').value.trim(),
+      aMeterStart: document.getElementById('editAMeterStart').value,
+      aMeterFinish: document.getElementById('editAMeterFinish').value,
+      bMeterStart: document.getElementById('editBMeterStart').value,
+      bMeterFinish: document.getElementById('editBMeterFinish').value,
+      totalHours: document.getElementById('editTotalHours').value,
+      linearFeet: document.getElementById('editLinearFeet').value,
+      approvalStatus: document.getElementById('editApprovalStatus').value,
+      managerNotes: document.getElementById('editManagerNotes').value.trim(),
+      notes: document.getElementById('editNotes').value.trim(),
+      lastModifiedAt: serverTimestamp(),
+      lastModifiedBy: auth.currentUser.email
+    });
+
+    const initials = document.getElementById('editManagerInitials').value.trim();
+    const auditNote = initials ? `Edited by manager initials: ${initials}` : 'Manager edited report fields.';
+
+    try {
+      await updateDoc(reportRef(docId), {
+        ...patch,
+        auditTrail: arrayUnion(makeAuditEntry('Manager Edit', auditNote))
+      });
+      closeEditModal();
+      showMessage('Report updated successfully.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Update failed. Check Firebase manager permissions.', 'error');
+    }
+  }
+
+  window.softDeleteReport = async function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const report = allReports.find(item => item.id === reportId);
+    const label = report ? `${report.date || ''} ${report.city || ''} ${report.address || ''}` : reportId;
+    const typed = prompt(`Type DELETE to move this report to recovery:\n${label}`);
+    if (typed !== 'DELETE') return;
+
+    try {
+      await updateDoc(reportRef(reportId), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: auth.currentUser.email,
+        auditTrail: arrayUnion(makeAuditEntry('Soft Delete', 'Moved to deleted report recovery.'))
+      });
+      showMessage('Report moved to recovery.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Delete failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  window.restoreReport = async function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    try {
+      await updateDoc(reportRef(reportId), {
+        deleted: false,
+        restoredAt: serverTimestamp(),
+        restoredBy: auth.currentUser.email,
+        auditTrail: arrayUnion(makeAuditEntry('Restored', 'Recovered from deleted reports.'))
+      });
+      showMessage('Report restored successfully.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Restore failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  window.permanentlyDeleteReport = async function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const typed = prompt('Permanent delete cannot be recovered. Type PERMANENT DELETE to continue.');
+    if (typed !== 'PERMANENT DELETE') return;
+    try {
+      await deleteDoc(reportRef(reportId));
+      showMessage('Report permanently deleted.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Permanent delete failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  window.printReport = function(reportId) {
+    const report = allReports.find(item => item.id === reportId) || currentEditReport;
+    if (!report) return showMessage('Report not found.', 'error');
+
+    const profileRows = Array.isArray(report.profile) ? report.profile.map(row => `
+      <tr>
+        <td>${escapeHtml(row.station)}</td>
+        <td>${escapeHtml(row.d1Before)}</td>
+        <td>${escapeHtml(row.d1After)}</td>
+        <td>${escapeHtml(row.d2Before)}</td>
+        <td>${escapeHtml(row.d2After)}</td>
+      </tr>
+    `).join('') : '';
+
+    const popup = window.open('', '_blank');
+    if (!popup) return showMessage('Popup blocked. Allow popups to export PDF.', 'error');
+    popup.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>KKE Report ${escapeHtml(report.date || '')}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
+          .top { text-align:center; border-bottom: 4px solid #0057a8; padding-bottom: 14px; margin-bottom: 20px; }
+          .logo { max-width: 260px; max-height: 120px; object-fit: contain; }
+          h1 { color:#003f7d; margin: 10px 0 0; }
+          .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .box { border:1px solid #d1d5db; border-radius: 10px; padding: 10px; }
+          .label { font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:bold; }
+          .value { font-size:16px; font-weight:bold; margin-top:4px; }
+          table { width:100%; border-collapse:collapse; margin-top:12px; }
+          th, td { border:1px solid #d1d5db; padding:7px; font-size:12px; }
+          th { background:#f3f4f6; color:#003f7d; }
+          @media print { button { display:none; } }
+        </style>
+      </head>
+      <body>
+        <div class="top">
+          <img src="logo.png" class="logo" onerror="this.src='logo.jpg'">
+          <h1>Crew Profile Report</h1>
+        </div>
+        <div class="grid">
+          <div class="box"><div class="label">Date</div><div class="value">${escapeHtml(report.date || '')}</div></div>
+          <div class="box"><div class="label">City</div><div class="value">${escapeHtml(report.city || '')}</div></div>
+          <div class="box"><div class="label">Truck</div><div class="value">${escapeHtml(report.truckNumber || '')}</div></div>
+          <div class="box"><div class="label">Crew Lead</div><div class="value">${escapeHtml(report.crewLead || '')}</div></div>
+          <div class="box"><div class="label">Total Pounds</div><div class="value">${fmtNumber(getReportPounds(report), 0)} lbs</div></div>
+          <div class="box"><div class="label">Efficiency</div><div class="value">${fmtNumber(getReportHours(report) > 0 ? getReportPounds(report) / getReportHours(report) : 0, 0)} lbs/hr</div></div>
+          <div class="box"><div class="label">Total Hours</div><div class="value">${fmtNumber(getReportHours(report), 2)}</div></div>
+          <div class="box"><div class="label">Approval</div><div class="value">${escapeHtml(report.approvalStatus || 'Needs Review')}</div></div>
+        </div>
+        <h2>Address</h2>
+        <p>${escapeHtml(report.address || '')}</p>
+        <h2>Notes</h2>
+        <p>${escapeHtml(report.notes || '')}</p>
+        <h2>Manager Notes</h2>
+        <p>${escapeHtml(report.managerNotes || '')}</p>
+        <h2>Road Profile</h2>
+        <table>
+          <thead><tr><th>Station</th><th>NE Before</th><th>NE After</th><th>SW Before</th><th>SW After</th></tr></thead>
+          <tbody>${profileRows}</tbody>
+        </table>
+        <button onclick="window.print()" style="margin-top:20px; padding:12px 18px; background:#0057a8; color:white; border:0; border-radius:8px; font-weight:bold;">Print / Save PDF</button>
+      </body>
+      </html>
+    `);
+    popup.document.close();
+    setTimeout(() => popup.focus(), 250);
+  };
+
+  document.getElementById('historySearch')?.addEventListener('input', renderHistory);
+  document.getElementById('historyCityFilter')?.addEventListener('change', renderHistory);
+  document.getElementById('historyTruckFilter')?.addEventListener('change', renderHistory);
+  document.getElementById('historyStatusFilter')?.addEventListener('change', renderHistory);
+  document.getElementById('btnClearFilters')?.addEventListener('click', () => {
+    document.getElementById('historySearch').value = '';
+    document.getElementById('historyCityFilter').value = '';
+    document.getElementById('historyTruckFilter').value = '';
+    document.getElementById('historyStatusFilter').value = '';
+    renderHistory();
+  });
+  document.getElementById('btnCloseEditModal')?.addEventListener('click', closeEditModal);
+  document.getElementById('btnCancelEdit')?.addEventListener('click', closeEditModal);
+  document.getElementById('btnSaveEdit')?.addEventListener('click', saveEditedReport);
+  document.getElementById('btnPrintReport')?.addEventListener('click', () => {
+    const id = document.getElementById('editDocId')?.value;
+    if (id) window.printReport(id);
+  });
+  document.getElementById('editModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'editModal') closeEditModal();
+  });
+
 </script>
 
 </body>
