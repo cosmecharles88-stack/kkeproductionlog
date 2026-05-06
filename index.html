@@ -781,6 +781,7 @@
       Sign in with Google
     </button>
     <p id="authError" style="color: var(--danger); font-size: 12px; margin-top: 15px;"></p>
+    <p style="color: var(--gray); font-size: 11px; margin-top: 10px; line-height: 1.4;">For best results on mobile, open this site directly in Chrome or Safari instead of an in-app browser.</p>
   </div>
 </div>
 
@@ -1225,7 +1226,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   // --- FIREBASE CONFIG ---
@@ -1242,6 +1243,7 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-sheet-main';
 
   const ALLOWED_USERS = [
@@ -1303,15 +1305,48 @@
   const mainContent = document.getElementById('main-content');
   const loginError = document.getElementById('authError');
 
+  function getFriendlyAuthError(err) {
+    const code = err?.code || '';
+    const message = err?.message || String(err || 'Unknown error');
+
+    if (code.includes('unauthorized-domain')) {
+      return 'This website domain is not authorized in Firebase Authentication settings.';
+    }
+
+    if (message.includes('missing initial state') || code.includes('argument-error')) {
+      return 'Google sign-in could not finish because the browser blocked or cleared session storage. Open the site in Chrome/Safari directly, not inside a preview or embedded browser, then try again.';
+    }
+
+    if (code.includes('popup-blocked') || code.includes('popup-closed-by-user')) {
+      return 'The sign-in window was blocked or closed. Try again and allow the Google sign-in window.';
+    }
+
+    return message;
+  }
+
   document.getElementById('btnGoogleLogin').addEventListener('click', async () => {
     try {
-      loginError.textContent = "";
-      await signInWithPopup(auth, provider);
+      loginError.textContent = "Redirecting to Google sign-in...";
+      sessionStorage.setItem('kkeAuthRedirectStarted', new Date().toISOString());
+      await signInWithRedirect(auth, provider);
     } catch (err) {
       console.error(err);
-      loginError.textContent = "Sign-in failed: " + err.message;
+      loginError.textContent = "Sign-in failed: " + getFriendlyAuthError(err);
     }
   });
+
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result?.user) {
+        sessionStorage.removeItem('kkeAuthRedirectStarted');
+        loginError.textContent = "";
+      }
+    })
+    .catch((err) => {
+      console.error("Redirect sign-in error:", err);
+      sessionStorage.removeItem('kkeAuthRedirectStarted');
+      loginError.textContent = "Sign-in failed: " + getFriendlyAuthError(err);
+    });
 
   document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
 
