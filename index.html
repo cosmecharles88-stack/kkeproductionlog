@@ -561,6 +561,64 @@
     .trend-label { font-size: 11px; color: var(--gray); font-weight: 800; text-align:center; }
     .trend-value { font-size: 11px; color: var(--kke-dark-blue); font-weight: 900; text-align:center; }
 
+
+    .transition-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .transition-card {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .transition-card-title {
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: var(--gray);
+      letter-spacing: 0.6px;
+    }
+
+    .transition-card-value {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--kke-dark-blue);
+      margin-top: 4px;
+    }
+
+    .transition-row {
+      display: grid;
+      grid-template-columns: 1.1fr 0.8fr 0.8fr 0.8fr 1.2fr;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 13px;
+    }
+
+    .transition-row.header-row {
+      background: #f8fafc;
+      color: var(--kke-dark-blue);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .transition-row:last-child { border-bottom: none; }
+
+    @media (max-width: 768px) {
+      .transition-summary { grid-template-columns: 1fr; }
+      .transition-row { grid-template-columns: 1fr; gap: 4px; }
+      .transition-row.header-row { display: none; }
+    }
+
     @media (max-width: 768px) {
       .tool-row { grid-template-columns: 1fr; }
       .history-item { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -848,6 +906,32 @@
       </div>
     </div>
 
+
+
+    <div class="card">
+      <h2>Job-to-Job Transition / GPS Travel</h2>
+      <p class="dashboard-note">Calculated from same-day reports by the same truck: previous finish time to next start time, with GPS distance between job pins.</p>
+      <div class="grid">
+        <div class="calc-box">
+          <div class="calc-label">Avg Transition</div>
+          <div class="calc-value" id="dashAvgTransition">0 min</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Avg GPS Miles</div>
+          <div class="calc-value" id="dashAvgTransitionMiles">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Avg Travel MPH</div>
+          <div class="calc-value" id="dashAvgTravelMph">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Longest Transition</div>
+          <div class="calc-value" id="dashLongestTransition">0 min</div>
+        </div>
+      </div>
+      <div id="transitionMetrics" style="margin-top:16px;" class="empty-state">No transition data yet.</div>
+    </div>
+
     <div class="card">
       <h2>Pounds Pumped by City</h2>
       <div id="cityMetrics" class="empty-state">No data yet.</div>
@@ -906,6 +990,8 @@
           <label>B Lbs Finish<input id="editBMeterFinish" type="number" step="0.01"></label>
           <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
           <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
+          <label>GPS Latitude<input id="editGpsLatitude" type="number" step="0.000001"></label>
+          <label>GPS Longitude<input id="editGpsLongitude" type="number" step="0.000001"></label>
           <label>Approval Status
             <select id="editApprovalStatus">
               <option value="Needs Review">Needs Review</option>
@@ -1492,6 +1578,111 @@
     });
   }
 
+
+
+  function parseDateTimeMinutes(report, timeField) {
+    const date = report.date;
+    const time = report[timeField];
+    if (!date || !time || !/^\d{2}:\d{2}$/.test(String(time))) return null;
+    const [year, month, day] = String(date).split('-').map(Number);
+    const [hour, minute] = String(time).split(':').map(Number);
+    if (![year, month, day, hour, minute].every(Number.isFinite)) return null;
+    return new Date(year, month - 1, day, hour, minute).getTime();
+  }
+
+  function getGpsPoint(report) {
+    const lat = Number(report.gpsLatitude);
+    const lon = Number(report.gpsLongitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (lat === 0 && lon === 0) return null;
+    return { lat, lon };
+  }
+
+  function haversineMiles(a, b) {
+    if (!a || !b) return 0;
+    const radiusMiles = 3958.7613;
+    const toRad = degrees => degrees * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lon - a.lon);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * radiusMiles * Math.asin(Math.sqrt(h));
+  }
+
+  function calculateTransitions(reports) {
+    const byTruckDate = {};
+    activeReportsOnly(reports).forEach(report => {
+      const truck = report.truckNumber || 'Unknown Truck';
+      const date = report.date || '';
+      const startMs = parseDateTimeMinutes(report, 'startTime');
+      const finishMs = parseDateTimeMinutes(report, 'finishTime');
+      if (!truck || !date || startMs === null || finishMs === null) return;
+      const key = `${truck}__${date}`;
+      if (!byTruckDate[key]) byTruckDate[key] = [];
+      byTruckDate[key].push({ ...report, startMs, finishMs });
+    });
+
+    const transitions = [];
+    Object.values(byTruckDate).forEach(items => {
+      items.sort((a, b) => a.startMs - b.startMs);
+      for (let i = 0; i < items.length - 1; i++) {
+        const previous = items[i];
+        const next = items[i + 1];
+        const minutes = (next.startMs - previous.finishMs) / 60000;
+        if (!Number.isFinite(minutes) || minutes < 0 || minutes > 480) continue;
+        const prevPoint = getGpsPoint(previous);
+        const nextPoint = getGpsPoint(next);
+        const miles = haversineMiles(prevPoint, nextPoint);
+        const mph = minutes > 0 && miles > 0 ? miles / (minutes / 60) : 0;
+        transitions.push({
+          truck: previous.truckNumber || 'Unknown Truck',
+          date: previous.date || '',
+          crewLead: next.crewLead || previous.crewLead || 'Unknown Crew',
+          fromCity: previous.city || 'Unknown City',
+          toCity: next.city || 'Unknown City',
+          fromAddress: previous.address || 'Previous job',
+          toAddress: next.address || 'Next job',
+          minutes,
+          miles,
+          mph,
+          hasGps: Boolean(prevPoint && nextPoint)
+        });
+      }
+    });
+    return transitions;
+  }
+
+  function renderTransitionTable(transitions) {
+    if (!transitions.length) return `<div class="empty-state">No transition data yet. This appears after a truck submits at least two same-day jobs with start and finish times.</div>`;
+    const top = transitions.slice().sort((a, b) => b.minutes - a.minutes).slice(0, 12);
+    return `
+      <div class="transition-row header-row">
+        <div>Truck / Date</div><div>Transition</div><div>GPS Miles</div><div>MPH</div><div>Route</div>
+      </div>
+      ${top.map(item => `
+        <div class="transition-row">
+          <div><strong style="color:var(--kke-blue);">${escapeHtml(item.truck)}</strong><br><span style="color:var(--gray);">${escapeHtml(item.date)} | ${escapeHtml(item.crewLead)}</span></div>
+          <div><strong>${fmtNumber(item.minutes, 0)} min</strong></div>
+          <div>${item.hasGps ? `${fmtNumber(item.miles, 1)} mi` : 'No GPS'}</div>
+          <div>${item.hasGps && item.mph > 0 ? `${fmtNumber(item.mph, 0)} mph` : '—'}</div>
+          <div>${escapeHtml(item.fromCity)} → ${escapeHtml(item.toCity)}<br><span style="color:var(--gray);">${escapeHtml(item.fromAddress)} → ${escapeHtml(item.toAddress)}</span></div>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  function buildTransitionStats(transitions) {
+    const gpsTransitions = transitions.filter(item => item.hasGps);
+    const totalMinutes = transitions.reduce((sum, item) => sum + item.minutes, 0);
+    const totalMiles = gpsTransitions.reduce((sum, item) => sum + item.miles, 0);
+    const avgMinutes = transitions.length ? totalMinutes / transitions.length : 0;
+    const avgMiles = gpsTransitions.length ? totalMiles / gpsTransitions.length : 0;
+    const avgMph = totalMinutes > 0 && totalMiles > 0 ? totalMiles / (totalMinutes / 60) : 0;
+    const longest = transitions.length ? Math.max(...transitions.map(item => item.minutes)) : 0;
+    return { avgMinutes, avgMiles, avgMph, longest };
+  }
+
   function renderTrendChart(docs) {
     const byDate = {};
     activeReportsOnly(docs).forEach(report => {
@@ -1526,6 +1717,8 @@
 
     dashboardUnsubscribe = onSnapshot(collRef, (snapshot) => {
       const docs = activeReportsOnly(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      const transitions = calculateTransitions(docs);
+      const transitionStats = buildTransitionStats(transitions);
 
       let totalPounds = 0;
       let totalHours = 0;
@@ -1592,6 +1785,11 @@
       document.getElementById('dashWeekPounds').textContent = fmtNumber(weekPounds, 0);
       document.getElementById('dashBestTruck').textContent = bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—';
       document.getElementById('dashBestCrew').textContent = bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—';
+      document.getElementById('dashAvgTransition').textContent = `${fmtNumber(transitionStats.avgMinutes, 0)} min`;
+      document.getElementById('dashAvgTransitionMiles').textContent = fmtNumber(transitionStats.avgMiles, 1);
+      document.getElementById('dashAvgTravelMph').textContent = fmtNumber(transitionStats.avgMph, 0);
+      document.getElementById('dashLongestTransition').textContent = `${fmtNumber(transitionStats.longest, 0)} min`;
+      document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
 
       document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
       document.getElementById('truckMetrics').innerHTML = renderBarChart(byTruck, 'lbs', TRUCK_COLORS);
@@ -1680,6 +1878,8 @@
     document.getElementById('editBMeterFinish').value = report.bMeterFinish || '';
     document.getElementById('editTotalHours').value = getReportHours(report) || '';
     document.getElementById('editLinearFeet').value = report.linearFeet || '';
+    document.getElementById('editGpsLatitude').value = report.gpsLatitude || '';
+    document.getElementById('editGpsLongitude').value = report.gpsLongitude || '';
     document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
     document.getElementById('editManagerInitials').value = '';
     document.getElementById('editNotes').value = report.notes || '';
@@ -1708,6 +1908,8 @@
       bMeterFinish: document.getElementById('editBMeterFinish').value,
       totalHours: document.getElementById('editTotalHours').value,
       linearFeet: document.getElementById('editLinearFeet').value,
+      gpsLatitude: document.getElementById('editGpsLatitude').value,
+      gpsLongitude: document.getElementById('editGpsLongitude').value,
       approvalStatus: document.getElementById('editApprovalStatus').value,
       managerNotes: document.getElementById('editManagerNotes').value.trim(),
       notes: document.getElementById('editNotes').value.trim(),
