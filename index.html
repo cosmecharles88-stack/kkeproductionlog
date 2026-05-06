@@ -407,6 +407,68 @@
       border: 1px dashed var(--border);
     }
 
+
+    /* Daily / Weekly / Monthly Manager Metrics */
+    .period-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .period-card {
+      border: 1px solid #dbeafe;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0, 87, 168, 0.05);
+    }
+
+    .period-card-title {
+      color: var(--kke-dark-blue);
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 10px;
+    }
+
+    .period-main-value {
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 950;
+      color: var(--kke-blue);
+      margin-bottom: 12px;
+    }
+
+    .period-mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .period-mini {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 9px;
+    }
+
+    .period-mini-label {
+      color: var(--gray);
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .period-mini-value {
+      color: var(--kke-dark-blue);
+      font-size: 16px;
+      font-weight: 950;
+      margin-top: 2px;
+    }
+
     @media (max-width: 768px) {
       .tabs { overflow-x: auto; }
       .tab-btn { min-width: 120px; }
@@ -754,6 +816,7 @@
       .visual-metric-grid { grid-template-columns: 1fr; }
       .metric-bar-row { grid-template-columns: 70px 1fr 70px; }
       .transition-hero-value { font-size: 32px; }
+      .period-metrics-grid { grid-template-columns: 1fr; }
     }
 
 
@@ -1024,16 +1087,84 @@
     </div>
 
     <div class="card">
-      <h2>Current Period</h2>
+      <h2>Daily / Weekly / Monthly Snapshot</h2>
+      <p class="dashboard-note">These update automatically from the report date. Week is Sunday through Saturday.</p>
+
+      <div class="period-metrics-grid">
+        <div class="period-card">
+          <div class="period-card-title">Today</div>
+          <div class="period-main-value"><span id="dashTodayPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashTodayHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashTodayLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashTodayReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashTodayBestTruck">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="period-card">
+          <div class="period-card-title">This Week</div>
+          <div class="period-main-value"><span id="dashWeekPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashWeekHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashWeekLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashWeekReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashWeekBestTruck">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="period-card">
+          <div class="period-card-title">This Month</div>
+          <div class="period-main-value"><span id="dashMonthPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashMonthHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashMonthLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashMonthReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashMonthBestTruck">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Top Efficiency</h2>
       <div class="grid">
-        <div class="calc-box">
-          <div class="calc-label">Today Pounds</div>
-          <div class="calc-value" id="dashTodayPounds">0</div>
-        </div>
-        <div class="calc-box">
-          <div class="calc-label">This Week Pounds</div>
-          <div class="calc-value" id="dashWeekPounds">0</div>
-        </div>
         <div class="calc-box">
           <div class="calc-label">Best Truck Lbs / Hr</div>
           <div class="calc-value" id="dashBestTruck">—</div>
@@ -1041,6 +1172,14 @@
         <div class="calc-box">
           <div class="calc-label">Best Crew Lbs / Hr</div>
           <div class="calc-value" id="dashBestCrew">—</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">This Month Pounds</div>
+          <div class="calc-value" id="dashMonthPoundsLarge">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">This Month Reports</div>
+          <div class="calc-value" id="dashMonthReportsLarge">0</div>
         </div>
       </div>
     </div>
@@ -1472,6 +1611,100 @@
     const end = new Date(start);
     end.setDate(start.getDate() + 7);
     return date >= start && date < end;
+  }
+
+
+  function parseReportDate(dateValue) {
+    if (!dateValue) return null;
+    const date = new Date(`${dateValue}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getPeriodRanges(now = new Date()) {
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(todayStart.getDate() + 1);
+
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(todayStart.getDate() - todayStart.getDay());
+
+    const nextWeekStart = new Date(weekStart);
+    nextWeekStart.setDate(weekStart.getDate() + 7);
+
+    const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+    const nextMonthStart = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 1);
+
+    return {
+      today: { start: todayStart, end: tomorrowStart },
+      week: { start: weekStart, end: nextWeekStart },
+      month: { start: monthStart, end: nextMonthStart }
+    };
+  }
+
+  function isDateInRange(dateValue, range) {
+    const date = parseReportDate(dateValue);
+    if (!date || !range) return false;
+    return date >= range.start && date < range.end;
+  }
+
+  function getPeriodMetrics(docs, range) {
+    const metrics = {
+      pounds: 0,
+      hours: 0,
+      reports: 0,
+      byTruck: {}
+    };
+
+    docs.forEach(report => {
+      if (!isDateInRange(report.date, range)) return;
+
+      const pounds = getReportPounds(report);
+      const hours = getReportHours(report);
+      const truck = report.truckNumber || 'Unknown Truck';
+
+      metrics.pounds += pounds;
+      metrics.hours += hours;
+      metrics.reports += 1;
+
+      if (!metrics.byTruck[truck]) metrics.byTruck[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      metrics.byTruck[truck].pounds += pounds;
+      metrics.byTruck[truck].hours += hours;
+      metrics.byTruck[truck].reports += 1;
+    });
+
+    metrics.poundsPerHour = metrics.hours > 0 ? metrics.pounds / metrics.hours : 0;
+    metrics.bestTruck = Object.values(metrics.byTruck)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour)[0] || null;
+
+    return metrics;
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function updatePeriodMetricCards(docs) {
+    const ranges = getPeriodRanges(new Date());
+    const periods = {
+      Today: getPeriodMetrics(docs, ranges.today),
+      Week: getPeriodMetrics(docs, ranges.week),
+      Month: getPeriodMetrics(docs, ranges.month)
+    };
+
+    Object.entries(periods).forEach(([name, metrics]) => {
+      setText(`dash${name}Pounds`, fmtNumber(metrics.pounds, 0));
+      setText(`dash${name}Hours`, fmtNumber(metrics.hours, 2));
+      setText(`dash${name}LbsPerHour`, fmtNumber(metrics.poundsPerHour, 0));
+      setText(`dash${name}Reports`, fmtNumber(metrics.reports, 0));
+      setText(`dash${name}BestTruck`, metrics.bestTruck ? `${metrics.bestTruck.name}` : '—');
+    });
+
+    setText('dashMonthPoundsLarge', fmtNumber(periods.Month.pounds, 0));
+    setText('dashMonthReportsLarge', fmtNumber(periods.Month.reports, 0));
   }
 
   function renderBarChart(dataObject, unitLabel, colorMap, sortMode = 'value') {
@@ -2049,6 +2282,8 @@
 
       const bestTruck = truckEntries[0];
       const bestCrew = crewEntries[0];
+
+      updatePeriodMetricCards(docs);
 
       document.getElementById('dashTotalPounds').textContent = fmtNumber(totalPounds, 0);
       document.getElementById('dashTotalHours').textContent = fmtNumber(totalHours, 2);
