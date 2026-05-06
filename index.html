@@ -619,6 +619,144 @@
       .transition-row.header-row { display: none; }
     }
 
+
+    /* Transition Analytics Visual Surfacing */
+    .transition-hero {
+      background: linear-gradient(135deg, #003f7d 0%, #0057a8 58%, #0b75d1 100%);
+      color: white;
+      border-radius: 18px;
+      padding: 20px;
+      margin: 16px 0;
+      box-shadow: 0 12px 30px rgba(0, 87, 168, 0.18);
+    }
+
+    .transition-hero-grid {
+      display: grid;
+      grid-template-columns: 1.2fr repeat(3, 1fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .transition-hero-main,
+    .transition-hero-stat {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 15px;
+      padding: 16px;
+    }
+
+    .transition-hero-label {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.9px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.72);
+    }
+
+    .transition-hero-value {
+      font-size: 38px;
+      line-height: 1;
+      font-weight: 950;
+      margin-top: 8px;
+    }
+
+    .transition-hero-sub {
+      font-size: 13px;
+      color: rgba(255,255,255,0.82);
+      margin-top: 8px;
+      font-weight: 650;
+    }
+
+    .visual-metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .visual-panel {
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 15px;
+      background: #ffffff;
+    }
+
+    .visual-panel-title {
+      font-size: 13px;
+      color: var(--kke-dark-blue);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .metric-bar-row {
+      display: grid;
+      grid-template-columns: 88px 1fr 84px;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 13px;
+    }
+
+    .metric-bar-row:last-child { border-bottom: none; }
+
+    .metric-bar-track {
+      background: #e5e7eb;
+      border-radius: 999px;
+      height: 12px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      min-width: 4px;
+    }
+
+    .transition-alert {
+      border-left: 5px solid #f97316;
+      background: #fff7ed;
+      color: #7c2d12;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-weight: 800;
+      margin-top: 14px;
+    }
+
+    .transition-route-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .transition-route-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    .transition-route-title {
+      font-weight: 950;
+      color: var(--kke-blue);
+      margin-bottom: 4px;
+    }
+
+    .transition-route-meta {
+      font-size: 12px;
+      color: var(--gray);
+      font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+      .transition-hero-grid { grid-template-columns: 1fr; }
+      .visual-metric-grid { grid-template-columns: 1fr; }
+      .metric-bar-row { grid-template-columns: 70px 1fr 70px; }
+      .transition-hero-value { font-size: 32px; }
+    }
+
+
     @media (max-width: 768px) {
       .tool-row { grid-template-columns: 1fr; }
       .history-item { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -908,9 +1046,35 @@
 
 
 
-    <div class="card">
-      <h2>Job-to-Job Transition / GPS Travel</h2>
-      <p class="dashboard-note">Calculated from same-day reports by the same truck: previous finish time to next start time, with GPS distance between job pins.</p>
+    <div class="card" id="transitionAnalyticsCard">
+      <h2>Dispatch Efficiency — Job-to-Job Transition / GPS Travel</h2>
+      <p class="dashboard-note">This is the travel and downtime metric. It is calculated from same-day reports by the same truck: previous finish time to next job start time, with GPS distance between job pins.</p>
+
+      <div class="transition-hero">
+        <div class="transition-hero-grid">
+          <div class="transition-hero-main">
+            <div class="transition-hero-label">Average Transition Time</div>
+            <div class="transition-hero-value" id="dashAvgTransitionHero">0 min</div>
+            <div class="transition-hero-sub" id="dashTransitionSummaryText">Waiting for at least two same-day jobs from the same truck.</div>
+          </div>
+          <div class="transition-hero-stat">
+            <div class="transition-hero-label">Avg GPS Miles</div>
+            <div class="transition-hero-value" id="dashAvgTransitionMilesHero">0</div>
+            <div class="transition-hero-sub">between job pins</div>
+          </div>
+          <div class="transition-hero-stat">
+            <div class="transition-hero-label">Avg Travel MPH</div>
+            <div class="transition-hero-value" id="dashAvgTravelMphHero">0</div>
+            <div class="transition-hero-sub">based on GPS miles/time</div>
+          </div>
+          <div class="transition-hero-stat">
+            <div class="transition-hero-label">Longest Transition</div>
+            <div class="transition-hero-value" id="dashLongestTransitionHero">0 min</div>
+            <div class="transition-hero-sub">same-day truck gap</div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid">
         <div class="calc-box">
           <div class="calc-label">Avg Transition</div>
@@ -929,7 +1093,35 @@
           <div class="calc-value" id="dashLongestTransition">0 min</div>
         </div>
       </div>
-      <div id="transitionMetrics" style="margin-top:16px;" class="empty-state">No transition data yet.</div>
+
+      <div id="transitionAlert" class="transition-alert" style="display:none;"></div>
+
+      <div class="visual-metric-grid">
+        <div class="visual-panel">
+          <div class="visual-panel-title">Average Transition Time by Truck</div>
+          <div id="transitionTruckChart" class="empty-state">No transition data yet.</div>
+        </div>
+        <div class="visual-panel">
+          <div class="visual-panel-title">Average GPS Miles by Truck</div>
+          <div id="transitionMilesChart" class="empty-state">No GPS transition data yet.</div>
+        </div>
+      </div>
+
+      <div class="visual-metric-grid">
+        <div class="visual-panel">
+          <div class="visual-panel-title">Longest Job-to-Job Gaps</div>
+          <div id="transitionLongestList" class="empty-state">No transition data yet.</div>
+        </div>
+        <div class="visual-panel">
+          <div class="visual-panel-title">Most Recent Job-to-Job Routes</div>
+          <div id="transitionRecentRoutes" class="empty-state">No route data yet.</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <h3 style="margin:0 0 8px; color:var(--kke-dark-blue);">Detailed Transition Log</h3>
+        <div id="transitionMetrics" class="empty-state">No transition data yet.</div>
+      </div>
     </div>
 
     <div class="card">
@@ -1672,6 +1864,65 @@
     `;
   }
 
+
+  function groupTransitionByTruck(transitions) {
+    const byTruck = {};
+    transitions.forEach(item => {
+      const truck = item.truck || 'Unknown Truck';
+      if (!byTruck[truck]) byTruck[truck] = { truck, count: 0, totalMinutes: 0, gpsCount: 0, totalMiles: 0, longest: 0 };
+      byTruck[truck].count += 1;
+      byTruck[truck].totalMinutes += item.minutes || 0;
+      byTruck[truck].longest = Math.max(byTruck[truck].longest, item.minutes || 0);
+      if (item.hasGps) {
+        byTruck[truck].gpsCount += 1;
+        byTruck[truck].totalMiles += item.miles || 0;
+      }
+    });
+    return Object.values(byTruck).map(item => ({
+      ...item,
+      avgMinutes: item.count ? item.totalMinutes / item.count : 0,
+      avgMiles: item.gpsCount ? item.totalMiles / item.gpsCount : 0
+    }));
+  }
+
+  function renderMetricBars(entries, valueKey, suffix, colors, decimals = 0) {
+    const clean = entries.filter(item => Number.isFinite(item[valueKey]) && item[valueKey] > 0);
+    if (!clean.length) return `<div class="empty-state">No data yet.</div>`;
+    const max = Math.max(...clean.map(item => item[valueKey]), 1);
+    return clean.sort((a, b) => b[valueKey] - a[valueKey]).map(item => {
+      const label = item.truck || item.name || 'Unknown';
+      const color = colors[label] || '#0057a8';
+      const pct = Math.max(4, (item[valueKey] / max) * 100);
+      return `
+        <div class="metric-bar-row">
+          <div><strong>${escapeHtml(label)}</strong></div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+          <div style="text-align:right; font-weight:900; color:var(--kke-dark-blue);">${fmtNumber(item[valueKey], decimals)} ${suffix}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderLongestTransitions(transitions) {
+    if (!transitions.length) return `<div class="empty-state">No transition data yet.</div>`;
+    return transitions.slice().sort((a, b) => b.minutes - a.minutes).slice(0, 5).map(item => `
+      <div class="transition-route-card">
+        <div class="transition-route-title">Truck ${escapeHtml(item.truck)} — ${fmtNumber(item.minutes, 0)} min</div>
+        <div class="transition-route-meta">${escapeHtml(item.date)} | ${escapeHtml(item.fromCity)} → ${escapeHtml(item.toCity)}${item.hasGps ? ` | ${fmtNumber(item.miles, 1)} mi` : ' | no GPS distance'}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderRecentTransitionRoutes(transitions) {
+    if (!transitions.length) return `<div class="empty-state">No route data yet.</div>`;
+    return transitions.slice().sort((a, b) => `${b.date}`.localeCompare(`${a.date}`)).slice(0, 5).map(item => `
+      <div class="transition-route-card">
+        <div class="transition-route-title">${escapeHtml(item.fromCity)} → ${escapeHtml(item.toCity)}</div>
+        <div class="transition-route-meta">Truck ${escapeHtml(item.truck)} | ${escapeHtml(item.date)} | ${fmtNumber(item.minutes, 0)} min${item.hasGps ? ` | ${fmtNumber(item.miles, 1)} mi | ${fmtNumber(item.mph, 0)} mph` : ' | no GPS distance'}</div>
+      </div>
+    `).join('');
+  }
+
   function buildTransitionStats(transitions) {
     const gpsTransitions = transitions.filter(item => item.hasGps);
     const totalMinutes = transitions.reduce((sum, item) => sum + item.minutes, 0);
@@ -1785,10 +2036,37 @@
       document.getElementById('dashWeekPounds').textContent = fmtNumber(weekPounds, 0);
       document.getElementById('dashBestTruck').textContent = bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—';
       document.getElementById('dashBestCrew').textContent = bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—';
-      document.getElementById('dashAvgTransition').textContent = `${fmtNumber(transitionStats.avgMinutes, 0)} min`;
+      const transitionTruckStats = groupTransitionByTruck(transitions);
+      const avgTransitionText = `${fmtNumber(transitionStats.avgMinutes, 0)} min`;
+      const longestTransitionText = `${fmtNumber(transitionStats.longest, 0)} min`;
+      document.getElementById('dashAvgTransition').textContent = avgTransitionText;
       document.getElementById('dashAvgTransitionMiles').textContent = fmtNumber(transitionStats.avgMiles, 1);
       document.getElementById('dashAvgTravelMph').textContent = fmtNumber(transitionStats.avgMph, 0);
-      document.getElementById('dashLongestTransition').textContent = `${fmtNumber(transitionStats.longest, 0)} min`;
+      document.getElementById('dashLongestTransition').textContent = longestTransitionText;
+      document.getElementById('dashAvgTransitionHero').textContent = avgTransitionText;
+      document.getElementById('dashAvgTransitionMilesHero').textContent = fmtNumber(transitionStats.avgMiles, 1);
+      document.getElementById('dashAvgTravelMphHero').textContent = fmtNumber(transitionStats.avgMph, 0);
+      document.getElementById('dashLongestTransitionHero').textContent = longestTransitionText;
+      document.getElementById('dashTransitionSummaryText').textContent = transitions.length
+        ? `${fmtNumber(transitions.length, 0)} same-day job-to-job transitions found. Lower minutes means tighter dispatch and less downtime.`
+        : 'Waiting for at least two same-day jobs from the same truck.';
+      const transitionAlert = document.getElementById('transitionAlert');
+      if (transitionAlert) {
+        if (transitionStats.avgMinutes >= 90) {
+          transitionAlert.style.display = 'block';
+          transitionAlert.textContent = `Dispatch warning: average transition time is ${avgTransitionText}. Review routing, job sequencing, or load-out delays.`;
+        } else if (transitions.length) {
+          transitionAlert.style.display = 'block';
+          transitionAlert.textContent = `Dispatch read: average transition time is ${avgTransitionText}. Use the truck chart below to spot which crew/truck is losing the most time between jobs.`;
+        } else {
+          transitionAlert.style.display = 'none';
+          transitionAlert.textContent = '';
+        }
+      }
+      document.getElementById('transitionTruckChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMinutes', 'min', TRUCK_COLORS, 0);
+      document.getElementById('transitionMilesChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMiles', 'mi', TRUCK_COLORS, 1);
+      document.getElementById('transitionLongestList').innerHTML = renderLongestTransitions(transitions);
+      document.getElementById('transitionRecentRoutes').innerHTML = renderRecentTransitionRoutes(transitions);
       document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
 
       document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
