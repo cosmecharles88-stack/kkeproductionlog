@@ -15,6 +15,7 @@
       --danger: #b91c1c;
       --success: #166534;
       --warning: #92400e;
+      --card: #ffffff;
     }
 
     * { box-sizing: border-box; }
@@ -43,11 +44,20 @@
 
     .login-card {
       background: white;
-      padding: 40px;
+      padding: 36px;
       border-radius: 24px;
       box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-      max-width: 400px;
+      max-width: 430px;
       width: 100%;
+      border: 1px solid rgba(0, 87, 168, 0.12);
+    }
+
+    .login-logo-wrap {
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
     }
 
     .page {
@@ -80,6 +90,7 @@
       cursor: pointer;
       color: var(--gray);
       transition: all 0.2s;
+      white-space: nowrap;
     }
 
     .tab-btn.active {
@@ -91,7 +102,7 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* Header */
+    /* Branded Header */
     .header {
       position: relative;
       overflow: hidden;
@@ -112,33 +123,42 @@
     .header-inner {
       position: relative;
       display: grid;
-      grid-template-columns: 260px 1fr;
+      grid-template-columns: 340px 1fr;
       gap: 20px;
       align-items: stretch;
       padding: 20px;
     }
 
     .brand-panel {
-      background: rgba(255,255,255,0.92);
+      background: rgba(255,255,255,0.94);
       border: 1px solid rgba(0,87,168,0.12);
       border-radius: 16px;
-      padding: 15px;
+      padding: 10px 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 95px;
+      min-height: 125px;
     }
 
     .brand-logo {
-      max-width: 100%;
-      max-height: 82px;
+      width: 100%;
+      max-width: 300px;
+      max-height: 115px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .login-logo {
+      width: 100%;
+      max-width: 320px;
+      max-height: 125px;
       object-fit: contain;
       display: block;
     }
 
     .logo-placeholder {
       font-weight: 900;
-      font-size: 24px;
+      font-size: 26px;
       color: var(--kke-blue);
       letter-spacing: -1px;
     }
@@ -147,7 +167,7 @@
       background: var(--kke-blue);
       color: white;
       border-radius: 16px;
-      padding: 18px;
+      padding: 22px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -159,10 +179,11 @@
       font-weight: 900;
       letter-spacing: 1.5px;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.7);
+      color: rgba(255,255,255,0.72);
     }
 
-    .title-box h1 { margin: 0; font-size: 26px; line-height: 1.1; }
+    .title-box h1 { margin: 0; font-size: 30px; line-height: 1.1; }
+    .title-box p:last-child { margin: 8px 0 0; color: rgba(255,255,255,0.86); font-weight: 600; }
 
     /* Cards */
     .card {
@@ -174,7 +195,13 @@
       border: 1px solid #edf2f7;
     }
 
-    h2 { margin: 0 0 16px; font-size: 18px; color: var(--kke-dark-blue); border-left: 4px solid var(--kke-blue); padding-left: 10px; }
+    h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      color: var(--kke-dark-blue);
+      border-left: 4px solid var(--kke-blue);
+      padding-left: 10px;
+    }
 
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .span-2 { grid-column: span 2; }
@@ -194,7 +221,12 @@
       background: #fafafa;
     }
 
-    input:focus, select:focus, textarea:focus { border-color: var(--kke-blue); outline: none; background: white; box-shadow: 0 0 0 3px rgba(0, 87, 168, 0.1); }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--kke-blue);
+      outline: none;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(0, 87, 168, 0.1);
+    }
 
     .calc-box {
       background: #f0f7ff;
@@ -204,6 +236,7 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
+      min-height: 78px;
     }
 
     .calc-label { font-size: 11px; font-weight: 800; color: var(--kke-blue); text-transform: uppercase; }
@@ -246,7 +279,9 @@
 
     .submit-bar {
       position: fixed;
-      bottom: 0; left: 0; right: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
       background: white;
       padding: 16px 20px;
       box-shadow: 0 -10px 25px rgba(0,0,0,0.1);
@@ -275,38 +310,55 @@
       font-size: 14px;
     }
 
-    .metric-row {
+    .chart-wrap {
       display: grid;
-      grid-template-columns: 190px 1fr 120px;
+      gap: 12px;
+    }
+
+    .chart-row {
+      display: grid;
+      grid-template-columns: 180px 1fr 120px;
       gap: 12px;
       align-items: center;
       padding: 10px 0;
       border-bottom: 1px solid #edf2f7;
     }
 
-    .metric-row:last-child { border-bottom: none; }
+    .chart-row:last-child { border-bottom: none; }
 
-    .metric-name {
+    .chart-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-weight: 900;
       color: var(--dark);
       overflow-wrap: anywhere;
     }
 
-    .metric-bar-bg {
-      height: 14px;
+    .color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: 0 0 12px;
+      background: var(--row-color, var(--kke-blue));
+    }
+
+    .bar-bg {
+      height: 20px;
       border-radius: 999px;
       background: #e5e7eb;
       overflow: hidden;
     }
 
-    .metric-bar-fill {
+    .bar-fill {
       height: 100%;
       border-radius: 999px;
-      background: linear-gradient(90deg, var(--kke-dark-blue), var(--kke-blue));
-      min-width: 2px;
+      width: var(--bar-width, 0%);
+      min-width: 3px;
+      background: var(--row-color, var(--kke-blue));
     }
 
-    .metric-value {
+    .chart-value {
       text-align: right;
       font-weight: 900;
       color: var(--kke-dark-blue);
@@ -339,28 +391,34 @@
       border: 1px solid #fed7aa;
       background: #fff7ed;
       color: var(--warning);
-      padding: 12px;
-      border-radius: 12px;
-      margin-bottom: 10px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
       font-weight: 700;
+      font-size: 13px;
     }
 
     .empty-state {
       color: var(--gray);
       text-align: center;
-      padding: 18px;
+      padding: 20px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px dashed var(--border);
     }
 
     @media (max-width: 768px) {
+      .tabs { overflow-x: auto; }
+      .tab-btn { min-width: 120px; }
       .header-inner { grid-template-columns: 1fr; gap: 12px; }
       .grid { grid-template-columns: 1fr; }
       .span-2, .span-3, .span-4 { grid-column: span 1; }
-      .brand-panel { padding: 10px; }
-      .tabs { gap: 4px; }
-      .tab-btn { padding: 10px 7px; font-size: 13px; }
-      .metric-row { grid-template-columns: 1fr; gap: 6px; }
-      .metric-value { text-align: left; }
+      .brand-panel { padding: 10px; min-height: 110px; }
+      .brand-logo { max-width: 290px; max-height: 105px; }
+      .chart-row { grid-template-columns: 1fr; gap: 6px; }
+      .chart-value { text-align: left; }
       .history-item { align-items: flex-start; flex-direction: column; }
+      .history-item > div:last-child { text-align: left !important; }
     }
   </style>
 </head>
@@ -369,7 +427,11 @@
 <!-- Login Screen -->
 <div id="auth-overlay">
   <div class="login-card">
-    <h1 style="color: var(--kke-blue); margin-bottom: 10px;">KKE Concrete</h1>
+    <div class="login-logo-wrap">
+      <img src="logo.png" alt="KKE Concrete Lifting" class="login-logo" onerror="swapLogoOrFallback(this)">
+      <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+    </div>
+    <h1 style="color: var(--kke-blue); margin: 0 0 8px;">KKE Concrete</h1>
     <p style="color: var(--gray); margin-bottom: 30px;">Field Operations Portal</p>
     <button id="btnGoogleLogin" class="btn btn-primary" style="width: 100%; padding: 15px;">
       Sign in with Google
@@ -393,12 +455,13 @@
       <div class="header-topline"></div>
       <div class="header-inner">
         <div class="brand-panel">
-          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
           <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
         </div>
         <div class="title-box">
           <p class="eyebrow">Production & Profile</p>
           <h1>Crew Profile Sheet</h1>
+          <p>Field report, GPS verification, production pounds, and road profile tracking.</p>
         </div>
       </div>
     </div>
@@ -462,19 +525,18 @@
       <div class="card">
         <h2>Production Data</h2>
         <div class="grid">
-          <label>A Lbs Start <span class="required">*</span><input name="aMeterStart" id="aMeterStart" type="number" step="0.01" required value="0"></label>
+          <label>A Lbs Start <span class="required">*</span><input name="aMeterStart" id="aMeterStart" type="number" step="0.01" value="0" required></label>
           <label>A Lbs Finish <span class="required">*</span><input name="aMeterFinish" id="aMeterFinish" type="number" step="0.01" required></label>
-          <label>B Lbs Start <span class="required">*</span><input name="bMeterStart" id="bMeterStart" type="number" step="0.01" required value="0"></label>
+          <label>B Lbs Start <span class="required">*</span><input name="bMeterStart" id="bMeterStart" type="number" step="0.01" value="0" required></label>
           <label>B Lbs Finish <span class="required">*</span><input name="bMeterFinish" id="bMeterFinish" type="number" step="0.01" required></label>
           <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
-          <label>Lift Height / Average Lift Inches <input name="lift" id="lift" type="number" step="0.01" placeholder="e.g. 1.5"></label>
-          <label>Total Linear Feet Completed <input name="linearFeet" id="linearFeet" type="number" step="1" placeholder="e.g. 400"></label>
-          <label>Gen Run Time <input name="generatorRunTime"></label>
+          <label>Lift Height <input name="lift" placeholder="e.g. 1.5 in"></label>
+          <label class="span-2">Gen Run Time <input name="generatorRunTime"></label>
         </div>
       </div>
 
       <div class="card">
-        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap:12px; flex-wrap:wrap;">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
           <h2 style="margin:0;">Job Site GPS</h2>
           <button class="btn btn-outline" type="button" id="btnGPS">📍 Capture Location</button>
         </div>
@@ -491,7 +553,7 @@
       <div class="card">
         <h2>Road Profile</h2>
         <div class="grid">
-          <label>Total Length (ft)<input id="profileLength" type="number" value="100" step="10"></label>
+          <label>Total Length (ft)<input id="profileLength" name="linearFeet" type="number" value="100" step="10"></label>
           <label>Interval (ft)<input id="profileInterval" type="number" value="10" step="1"></label>
           <div class="span-2" style="padding-top:22px;">
             <button class="btn btn-outline" type="button" id="btnBuildRows">Build Table Rows</button>
@@ -533,6 +595,21 @@
 
   <!-- History Tab -->
   <div id="history" class="tab-content">
+    <div class="header">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
+          <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+        </div>
+        <div class="title-box">
+          <p class="eyebrow">Live Field Records</p>
+          <h1>Report History</h1>
+          <p>Submitted crew reports shown from Firestore in real time.</p>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Recent Reports</h2>
       <div id="historyList">Loading reports...</div>
@@ -541,9 +618,24 @@
 
   <!-- Manager Dashboard Tab -->
   <div id="dashboard" class="tab-content">
+    <div class="header">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
+          <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+        </div>
+        <div class="title-box">
+          <p class="eyebrow">Manager Live Analytics</p>
+          <h1>Production Dashboard</h1>
+          <p>Live pounds, pounds per hour, city totals, truck totals, and flagged reports.</p>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Manager Dashboard</h2>
-      <p class="dashboard-note">Live production metrics from submitted reports. This tab is only shown to manager emails in the approved manager list.</p>
+      <p class="dashboard-note">Live production metrics from submitted reports. Efficiency is measured as pounds pumped per hour.</p>
       <div class="grid">
         <div class="calc-box">
           <div class="calc-label">Total Pounds Pumped</div>
@@ -554,7 +646,7 @@
           <div class="calc-value" id="dashTotalHours">0</div>
         </div>
         <div class="calc-box">
-          <div class="calc-label">Pounds / Hour</div>
+          <div class="calc-label">Avg Lbs / Hour</div>
           <div class="calc-value" id="dashPoundsPerHour">0</div>
         </div>
         <div class="calc-box">
@@ -565,16 +657,8 @@
     </div>
 
     <div class="card">
-      <h2>Production Efficiency</h2>
+      <h2>Current Period</h2>
       <div class="grid">
-        <div class="calc-box">
-          <div class="calc-label">Linear Feet / Hour</div>
-          <div class="calc-value" id="dashFeetPerHour">0</div>
-        </div>
-        <div class="calc-box">
-          <div class="calc-label">Inch-Feet / Hour</div>
-          <div class="calc-value" id="dashInchFeetPerHour">0</div>
-        </div>
         <div class="calc-box">
           <div class="calc-label">Today Pounds</div>
           <div class="calc-value" id="dashTodayPounds">0</div>
@@ -582,6 +666,14 @@
         <div class="calc-box">
           <div class="calc-label">This Week Pounds</div>
           <div class="calc-value" id="dashWeekPounds">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Best Truck Lbs / Hr</div>
+          <div class="calc-value" id="dashBestTruck">—</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Best Crew Lbs / Hr</div>
+          <div class="calc-value" id="dashBestCrew">—</div>
         </div>
       </div>
     </div>
@@ -597,7 +689,12 @@
     </div>
 
     <div class="card">
-      <h2>Crew Efficiency Leaderboard</h2>
+      <h2>Truck Efficiency — Lbs Per Hour</h2>
+      <div id="truckEfficiencyMetrics" class="empty-state">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Crew Efficiency Leaderboard — Lbs Per Hour</h2>
       <div id="crewMetrics" class="empty-state">No data yet.</div>
     </div>
 
@@ -607,6 +704,20 @@
     </div>
   </div>
 </div>
+
+<script>
+  // This function is intentionally outside the module script so inline image onerror can call it.
+  function swapLogoOrFallback(img) {
+    if (img.dataset.triedJpg !== 'true') {
+      img.dataset.triedJpg = 'true';
+      img.src = 'logo.jpg';
+      return;
+    }
+    img.style.display = 'none';
+    const fallback = img.nextElementSibling;
+    if (fallback) fallback.style.display = 'block';
+  }
+</script>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -649,6 +760,34 @@
     "cosmecharles88@gmail.com"
   ];
 
+  const TRUCK_COLORS = {
+    "102": "#0057a8",
+    "106": "#16a34a",
+    "107": "#f97316",
+    "118": "#7c3aed",
+    "203": "#dc2626",
+    "Unknown Truck": "#6b7280"
+  };
+
+  const CITY_COLORS = {
+    "Celina": "#0057a8",
+    "The Colony": "#0f766e",
+    "Coppel": "#9333ea",
+    "Frisco": "#ea580c",
+    "Frisco Parks Department": "#16a34a",
+    "Garland": "#dc2626",
+    "Highland Village": "#2563eb",
+    "Mckinney": "#ca8a04",
+    "Prosper": "#0891b2",
+    "Richardson": "#7c3aed",
+    "Sachse": "#be123c",
+    "Saginaw": "#4d7c0f",
+    "Other": "#6b7280",
+    "Unknown City": "#6b7280"
+  };
+
+  const FALLBACK_COLORS = ["#0057a8", "#16a34a", "#f97316", "#7c3aed", "#dc2626", "#0891b2", "#ca8a04", "#be123c"];
+
   let isCurrentUserManager = false;
   let historyUnsubscribe = null;
   let dashboardUnsubscribe = null;
@@ -681,7 +820,7 @@
     }
 
     if (user) {
-      const email = (user.email || '').toLowerCase();
+      const email = String(user.email || '').toLowerCase();
 
       if (!ALLOWED_USERS.includes(email)) {
         signOut(auth);
@@ -745,7 +884,104 @@
     box.style.color = type === 'success' ? '#166534' : '#b91c1c';
     box.style.border = `1px solid ${type === 'success' ? '#bbf7d0' : '#fecaca'}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if(type === 'success') setTimeout(() => box.style.display = 'none', 5000);
+    if (type === 'success') setTimeout(() => box.style.display = 'none', 5000);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function fmtNumber(value, decimals = 0) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return decimals > 0 ? (0).toFixed(decimals) : '0';
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+  }
+
+  function getReportPounds(doc) {
+    if (Number.isFinite(Number(doc.totalPounds))) return Number(doc.totalPounds);
+    const aStart = Number(doc.aMeterStart || 0);
+    const aFinish = Number(doc.aMeterFinish || 0);
+    const bStart = Number(doc.bMeterStart || 0);
+    const bFinish = Number(doc.bMeterFinish || 0);
+    return Math.max(0, aFinish - aStart) + Math.max(0, bFinish - bStart);
+  }
+
+  function getReportHours(doc) {
+    const hours = Number(doc.totalHours || 0);
+    return Number.isFinite(hours) && hours > 0 ? hours : 0;
+  }
+
+  function getColor(name, colorMap) {
+    if (colorMap[name]) return colorMap[name];
+    let total = 0;
+    String(name || '').split('').forEach(char => total += char.charCodeAt(0));
+    return FALLBACK_COLORS[total % FALLBACK_COLORS.length];
+  }
+
+  function isSameDate(dateValue, compareDate) {
+    if (!dateValue) return false;
+    const d = new Date(`${dateValue}T00:00:00`);
+    return d.getFullYear() === compareDate.getFullYear() &&
+      d.getMonth() === compareDate.getMonth() &&
+      d.getDate() === compareDate.getDate();
+  }
+
+  function isThisWeek(dateValue) {
+    if (!dateValue) return false;
+    const now = new Date();
+    const date = new Date(`${dateValue}T00:00:00`);
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    return date >= start && date < end;
+  }
+
+  function renderBarChart(dataObject, unitLabel, colorMap, sortMode = 'value') {
+    const entries = Object.entries(dataObject)
+      .map(([name, value]) => ({ name, value: Number(value) || 0 }))
+      .filter(item => item.value > 0)
+      .sort((a, b) => sortMode === 'name' ? a.name.localeCompare(b.name) : b.value - a.value);
+
+    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
+
+    const max = Math.max(...entries.map(item => item.value), 1);
+    return `<div class="chart-wrap">${entries.map(item => {
+      const width = Math.max(3, (item.value / max) * 100);
+      const color = getColor(item.name, colorMap);
+      return `
+        <div class="chart-row" style="--row-color:${color}; --bar-width:${width}%">
+          <div class="chart-label"><span class="color-dot"></span>${escapeHtml(item.name)}</div>
+          <div class="bar-bg"><div class="bar-fill"></div></div>
+          <div class="chart-value">${fmtNumber(item.value, unitLabel === 'lbs/hr' ? 0 : 0)} ${unitLabel}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function buildLeaderboard(entries, valueKey, unitLabel, subTextBuilder) {
+    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
+    return entries.map((item, index) => `
+      <div class="leaderboard-item">
+        <div class="rank-badge">${index + 1}</div>
+        <div>
+          <div style="font-weight:900; color:var(--dark);">${escapeHtml(item.name)}</div>
+          <div style="font-size:12px; color:var(--gray);">${subTextBuilder(item)}</div>
+        </div>
+        <div style="text-align:right; font-weight:900; color:var(--kke-dark-blue);">
+          ${fmtNumber(item[valueKey], 0)} ${unitLabel}
+        </div>
+      </div>
+    `).join('');
   }
 
   // Calculations
@@ -812,82 +1048,6 @@
   document.getElementById('btnBuildRows')?.addEventListener('click', generateProfileRows);
   generateProfileRows();
 
-  function getReportPounds(doc) {
-    if (Number.isFinite(Number(doc.totalPounds)) && Number(doc.totalPounds) > 0) return Number(doc.totalPounds);
-    const aStart = Number(doc.aMeterStart || 0);
-    const aFinish = Number(doc.aMeterFinish || 0);
-    const bStart = Number(doc.bMeterStart || 0);
-    const bFinish = Number(doc.bMeterFinish || 0);
-    const aPounds = Math.max(0, aFinish - aStart);
-    const bPounds = Math.max(0, bFinish - bStart);
-    return aPounds + bPounds;
-  }
-
-  function getReportHours(doc) {
-    const hours = Number(doc.totalHours || 0);
-    return Number.isFinite(hours) ? Math.max(0, hours) : 0;
-  }
-
-  function getReportLift(doc) {
-    const lift = Number(doc.lift || 0);
-    return Number.isFinite(lift) ? Math.max(0, lift) : 0;
-  }
-
-  function getReportLinearFeet(doc) {
-    const feet = Number(doc.linearFeet || doc.profileLength || 0);
-    return Number.isFinite(feet) ? Math.max(0, feet) : 0;
-  }
-
-  function fmtNumber(value, decimals = 0) {
-    const n = Number(value || 0);
-    return n.toLocaleString(undefined, { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
-  }
-
-  function formatMetricRows(dataObj, valueLabel = 'lbs') {
-    const entries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
-    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
-    const max = Math.max(...entries.map(([, value]) => value), 1);
-    return entries.map(([name, value]) => {
-      const width = Math.max(2, (value / max) * 100);
-      return `
-        <div class="metric-row">
-          <div class="metric-name">${escapeHtml(name)}</div>
-          <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:${width}%;"></div></div>
-          <div class="metric-value">${fmtNumber(value, valueLabel === 'hrs' ? 2 : 0)} ${valueLabel}</div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
-  }
-
-  function isSameDate(dateString, dateObj) {
-    if (!dateString) return false;
-    const d = new Date(dateString + 'T00:00:00');
-    return d.getFullYear() === dateObj.getFullYear() &&
-      d.getMonth() === dateObj.getMonth() &&
-      d.getDate() === dateObj.getDate();
-  }
-
-  function isThisWeek(dateString) {
-    if (!dateString) return false;
-    const today = new Date();
-    const d = new Date(dateString + 'T00:00:00');
-    const start = new Date(today);
-    start.setDate(today.getDate() - today.getDay());
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 7);
-    return d >= start && d < end;
-  }
-
   // --- SUBMISSION ---
   document.getElementById('crewForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -903,23 +1063,17 @@
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
     data.totalHours = document.getElementById('totalHoursDisplay')?.textContent || "0";
-    data.profileLength = document.getElementById('profileLength')?.value || "";
+    data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
     data.profileInterval = document.getElementById('profileInterval')?.value || "";
 
     const aStart = Number(data.aMeterStart || 0);
     const aFinish = Number(data.aMeterFinish || 0);
     const bStart = Number(data.bMeterStart || 0);
     const bFinish = Number(data.bMeterFinish || 0);
-
     data.aPounds = Math.max(0, aFinish - aStart);
     data.bPounds = Math.max(0, bFinish - bStart);
     data.totalPounds = data.aPounds + data.bPounds;
-    data.linearFeet = Number(data.linearFeet || data.profileLength || 0);
-    data.lift = Number(data.lift || 0);
-    data.inchFeet = data.linearFeet * data.lift;
-    data.poundsPerHour = getReportHours(data) > 0 ? data.totalPounds / getReportHours(data) : 0;
-    data.linearFeetPerHour = getReportHours(data) > 0 ? data.linearFeet / getReportHours(data) : 0;
-    data.inchFeetPerHour = getReportHours(data) > 0 ? data.inchFeet / getReportHours(data) : 0;
+    data.poundsPerHour = Number(data.totalHours) > 0 ? data.totalPounds / Number(data.totalHours) : 0;
     
     const profileData = [];
     document.querySelectorAll('#profileRows tr').forEach(tr => {
@@ -946,15 +1100,15 @@
       if (dateInput) dateInput.valueAsDate = new Date();
       const aStartInput = document.getElementById('aMeterStart');
       const bStartInput = document.getElementById('bMeterStart');
-      if (aStartInput) aStartInput.value = "0";
-      if (bStartInput) bStartInput.value = "0";
+      if (aStartInput) aStartInput.value = 0;
+      if (bStartInput) bStartInput.value = 0;
       generateProfileRows();
       const hrs = document.getElementById('totalHoursDisplay');
       if (hrs) hrs.textContent = "—";
       switchTab('history');
     } catch (err) {
       console.error(err);
-      showMessage("Error saving to cloud. Ensure internet connection and Firebase rules are published.", "error");
+      showMessage("Error saving to cloud. Ensure internet connection and Firebase permissions.", "error");
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -986,7 +1140,7 @@
           </div>
           <div style="text-align:right">
             <div style="font-weight:700; font-size:18px;">${fmtNumber(getReportPounds(doc), 0)} lbs</div>
-            <div style="font-size:12px; color:var(--gray);">${fmtNumber(getReportHours(doc), 2)} Hrs</div>
+            <div style="font-size:12px; color:var(--gray);">${fmtNumber(getReportHours(doc), 2)} hrs | ${fmtNumber(getReportHours(doc) > 0 ? getReportPounds(doc) / getReportHours(doc) : 0, 0)} lbs/hr</div>
             <div style="font-size:11px; color:var(--gray)">By: ${escapeHtml(doc.submittedBy || 'N/A')}</div>
           </div>
         </div>
@@ -1007,39 +1161,36 @@
 
       let totalPounds = 0;
       let totalHours = 0;
-      let totalFeet = 0;
-      let totalInchFeet = 0;
       let todayPounds = 0;
       let weekPounds = 0;
       const byCity = {};
       const byTruck = {};
-      const byCrew = {};
+      const truckStats = {};
+      const crewStats = {};
       const flags = [];
       const today = new Date();
 
       docs.forEach(doc => {
         const pounds = getReportPounds(doc);
         const hours = getReportHours(doc);
-        const feet = getReportLinearFeet(doc);
-        const lift = getReportLift(doc);
-        const inchFeet = feet * lift;
         const city = doc.city || 'Unknown City';
         const truck = doc.truckNumber || 'Unknown Truck';
         const crew = doc.crewLead || 'Unknown Crew';
 
         totalPounds += pounds;
         totalHours += hours;
-        totalFeet += feet;
-        totalInchFeet += inchFeet;
         byCity[city] = (byCity[city] || 0) + pounds;
         byTruck[truck] = (byTruck[truck] || 0) + pounds;
 
-        if (!byCrew[crew]) byCrew[crew] = { pounds: 0, hours: 0, feet: 0, inchFeet: 0, reports: 0 };
-        byCrew[crew].pounds += pounds;
-        byCrew[crew].hours += hours;
-        byCrew[crew].feet += feet;
-        byCrew[crew].inchFeet += inchFeet;
-        byCrew[crew].reports += 1;
+        if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+        truckStats[truck].pounds += pounds;
+        truckStats[truck].hours += hours;
+        truckStats[truck].reports += 1;
+
+        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        crewStats[crew].pounds += pounds;
+        crewStats[crew].hours += hours;
+        crewStats[crew].reports += 1;
 
         if (isSameDate(doc.date, today)) todayPounds += pounds;
         if (isThisWeek(doc.date)) weekPounds += pounds;
@@ -1053,51 +1204,46 @@
         if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high pounds per hour.`);
       });
 
+      const truckEntries = Object.values(truckStats)
+        .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+        .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+      const crewEntries = Object.values(crewStats)
+        .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+        .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+      const bestTruck = truckEntries[0];
+      const bestCrew = crewEntries[0];
+
       document.getElementById('dashTotalPounds').textContent = fmtNumber(totalPounds, 0);
       document.getElementById('dashTotalHours').textContent = fmtNumber(totalHours, 2);
       document.getElementById('dashPoundsPerHour').textContent = fmtNumber(totalHours > 0 ? totalPounds / totalHours : 0, 0);
       document.getElementById('dashReportCount').textContent = fmtNumber(docs.length, 0);
-      document.getElementById('dashFeetPerHour').textContent = fmtNumber(totalHours > 0 ? totalFeet / totalHours : 1 - 1, 2);
-      document.getElementById('dashInchFeetPerHour').textContent = fmtNumber(totalHours > 0 ? totalInchFeet / totalHours : 0, 2);
       document.getElementById('dashTodayPounds').textContent = fmtNumber(todayPounds, 0);
       document.getElementById('dashWeekPounds').textContent = fmtNumber(weekPounds, 0);
+      document.getElementById('dashBestTruck').textContent = bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—';
+      document.getElementById('dashBestCrew').textContent = bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—';
 
-      document.getElementById('cityMetrics').innerHTML = formatMetricRows(byCity, 'lbs');
-      document.getElementById('truckMetrics').innerHTML = formatMetricRows(byTruck, 'lbs');
+      document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
+      document.getElementById('truckMetrics').innerHTML = renderBarChart(byTruck, 'lbs', TRUCK_COLORS);
 
-      const crewEntries = Object.entries(byCrew)
-        .map(([name, data]) => ({
-          name,
-          ...data,
-          poundsPerHour: data.hours > 0 ? data.pounds / data.hours : 0,
-          feetPerHour: data.hours > 0 ? data.feet / data.hours : 0,
-          inchFeetPerHour: data.hours > 0 ? data.inchFeet / data.hours : 0
-        }))
-        .sort((a, b) => b.inchFeetPerHour - a.inchFeetPerHour);
+      const truckEfficiencyObject = {};
+      truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
+      document.getElementById('truckEfficiencyMetrics').innerHTML = renderBarChart(truckEfficiencyObject, 'lbs/hr', TRUCK_COLORS);
 
-      document.getElementById('crewMetrics').innerHTML = crewEntries.length ? crewEntries.map((crew, index) => `
-        <div class="leaderboard-item">
-          <div class="rank-badge">${index + 1}</div>
-          <div>
-            <div style="font-weight:900; color:var(--dark);">${escapeHtml(crew.name)}</div>
-            <div style="font-size:12px; color:var(--gray);">
-              ${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports
-            </div>
-          </div>
-          <div style="text-align:right; font-weight:900; color:var(--kke-dark-blue);">
-            ${fmtNumber(crew.inchFeetPerHour, 2)} inch-ft/hr
-            <div style="font-size:11px; color:var(--gray); font-weight:700;">${fmtNumber(crew.poundsPerHour, 0)} lbs/hr</div>
-          </div>
-        </div>
-      `).join('') : `<div class="empty-state">No data yet.</div>`;
+      document.getElementById('crewMetrics').innerHTML = buildLeaderboard(
+        crewEntries,
+        'poundsPerHour',
+        'lbs/hr',
+        crew => `${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports`
+      );
 
       document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 20).map(flag => `
         <div class="flag-item">${escapeHtml(flag)}</div>
       `).join('') : `<div class="empty-state">No flagged reports.</div>`;
     }, (err) => {
       console.error(err);
-      const dashboard = document.getElementById('dashboard');
-      if (dashboard) showMessage("Error loading dashboard. Check manager access and Firebase rules.", "error");
+      showMessage("Error loading dashboard. Check manager access and Firebase rules.", "error");
     });
   }
 </script>
