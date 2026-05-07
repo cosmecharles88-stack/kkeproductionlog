@@ -2900,15 +2900,47 @@
     const report = allReports.find(item => item.id === reportId) || currentEditReport;
     if (!report) return showMessage('Report not found.', 'error');
 
-    const profileRows = Array.isArray(report.profile) ? report.profile.map(row => `
+    const safe = value => escapeHtml(value ?? '');
+    const metricBox = (label, value) => `
+      <div class="box">
+        <div class="label">${safe(label)}</div>
+        <div class="value">${safe(value)}</div>
+      </div>
+    `;
+
+    const totalPounds = getReportPounds(report);
+    const totalHours = getReportHours(report);
+    const aPounds = Number.isFinite(Number(report.aPounds)) ? Number(report.aPounds) : Math.max(0, Number(report.aMeterFinish || 0) - Number(report.aMeterStart || 0));
+    const bPounds = Number.isFinite(Number(report.bPounds)) ? Number(report.bPounds) : Math.max(0, Number(report.bMeterFinish || 0) - Number(report.bMeterStart || 0));
+    const efficiency = totalHours > 0 ? totalPounds / totalHours : 0;
+    const liftAreaSqFt = Number.isFinite(Number(report.liftAreaSqFt)) ? Number(report.liftAreaSqFt) : calculateLiftAreaSqFt(report.liftAreaLength, report.liftAreaWidth);
+
+    const profileRows = Array.isArray(report.profile) && report.profile.length ? report.profile.map(row => `
       <tr>
-        <td>${escapeHtml(row.station)}</td>
-        <td>${escapeHtml(row.d1Before)}</td>
-        <td>${escapeHtml(row.d1After)}</td>
-        <td>${escapeHtml(row.d2Before)}</td>
-        <td>${escapeHtml(row.d2After)}</td>
+        <td>${safe(row.station)}</td>
+        <td>${safe(row.d1Before)}</td>
+        <td>${safe(row.d1After)}</td>
+        <td>${safe(row.d2Before)}</td>
+        <td>${safe(row.d2After)}</td>
       </tr>
-    `).join('') : '';
+    `).join('') : '<tr><td colspan="5">No road profile readings recorded.</td></tr>';
+
+    const photoLinks = Array.isArray(report.photos) && report.photos.length ? `
+      <div class="photo-links">
+        ${report.photos.map((photo, index) => `
+          <a href="${safe(photo.url || photo.downloadURL || '')}" target="_blank" rel="noopener">Photo ${index + 1}${photo.name ? ` - ${safe(photo.name)}` : ''}</a>
+        `).join('')}
+      </div>
+    ` : '<p>No photos attached.</p>';
+
+    const auditRows = Array.isArray(report.auditTrail) && report.auditTrail.length ? report.auditTrail.map(entry => `
+      <tr>
+        <td>${safe(entry.action || '')}</td>
+        <td>${safe(entry.by || '')}</td>
+        <td>${safe(entry.at || '')}</td>
+        <td>${safe(entry.note || '')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4">No audit entries recorded.</td></tr>';
 
     const popup = window.open('', '_blank');
     if (!popup) return showMessage('Popup blocked. Allow popups to export PDF.', 'error');
@@ -2916,49 +2948,115 @@
       <!DOCTYPE html>
       <html>
       <head>
-        <title>KKE Report ${escapeHtml(report.date || '')}</title>
+        <title>KKE Report ${safe(report.date || '')}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
           .top { text-align:center; border-bottom: 4px solid #0057a8; padding-bottom: 14px; margin-bottom: 20px; }
           .logo { max-width: 260px; max-height: 120px; object-fit: contain; }
           h1 { color:#003f7d; margin: 10px 0 0; }
+          h2 { color:#003f7d; border-left:4px solid #0057a8; padding-left:10px; margin-top:24px; }
+          .section-note { color:#6b7280; font-size:12px; margin-top:-8px; }
           .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-          .box { border:1px solid #d1d5db; border-radius: 10px; padding: 10px; }
+          .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+          .box { border:1px solid #d1d5db; border-radius: 10px; padding: 10px; break-inside: avoid; }
           .label { font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:bold; }
-          .value { font-size:16px; font-weight:bold; margin-top:4px; }
+          .value { font-size:16px; font-weight:bold; margin-top:4px; overflow-wrap:anywhere; }
+          .full { grid-column: 1 / -1; }
           table { width:100%; border-collapse:collapse; margin-top:12px; }
-          th, td { border:1px solid #d1d5db; padding:7px; font-size:12px; }
+          th, td { border:1px solid #d1d5db; padding:7px; font-size:12px; vertical-align:top; }
           th { background:#f3f4f6; color:#003f7d; }
-          @media print { button { display:none; } }
+          .photo-links { display:grid; gap:6px; }
+          .photo-links a { color:#0057a8; font-weight:bold; overflow-wrap:anywhere; }
+          .print-button { margin-top:20px; padding:12px 18px; background:#0057a8; color:white; border:0; border-radius:8px; font-weight:bold; }
+          @media print {
+            button { display:none; }
+            body { margin: 18px; }
+            .box, table { break-inside: avoid; }
+          }
         </style>
       </head>
       <body>
         <div class="top">
           <img src="logo.png" class="logo" onerror="this.src='logo.jpg'">
           <h1>Crew Profile Report</h1>
+          <div style="color:#6b7280; font-weight:bold; margin-top:6px;">${safe(report.city || '')} ${report.date ? '| ' + safe(report.date) : ''}</div>
         </div>
+
+        <h2>Job Summary</h2>
         <div class="grid">
-          <div class="box"><div class="label">Date</div><div class="value">${escapeHtml(report.date || '')}</div></div>
-          <div class="box"><div class="label">City</div><div class="value">${escapeHtml(report.city || '')}</div></div>
-          <div class="box"><div class="label">Truck</div><div class="value">${escapeHtml(report.truckNumber || '')}</div></div>
-          <div class="box"><div class="label">Crew Lead</div><div class="value">${escapeHtml(report.crewLead || '')}</div></div>
-          <div class="box"><div class="label">Total Pounds</div><div class="value">${fmtNumber(getReportPounds(report), 0)} lbs</div></div>
-          <div class="box"><div class="label">Efficiency</div><div class="value">${fmtNumber(getReportHours(report) > 0 ? getReportPounds(report) / getReportHours(report) : 0, 0)} lbs/hr</div></div>
-          <div class="box"><div class="label">Total Hours</div><div class="value">${fmtNumber(getReportHours(report), 2)}</div></div>
-          <div class="box"><div class="label">Approval</div><div class="value">${escapeHtml(report.approvalStatus || 'Needs Review')}</div></div>
+          ${metricBox('Date', report.date || '')}
+          ${metricBox('City', report.city || '')}
+          ${metricBox('Truck #', report.truckNumber || '')}
+          ${metricBox('Crew Lead / Truck Boss', report.crewLead || '')}
+          ${metricBox('Helper 1', report.helper1 || '')}
+          ${metricBox('Helper 2', report.helper2 || '')}
+          ${metricBox('Helper 3', report.helper3 || '')}
+          ${metricBox('Helper 4', report.helper4 || '')}
+          ${metricBox('Start Time', report.startTime || '')}
+          ${metricBox('Finish Time', report.finishTime || '')}
+          ${metricBox('Total Hours', fmtNumber(totalHours, 2))}
+          ${metricBox('Approval Status', report.approvalStatus || 'Needs Review')}
+          ${metricBox('Submitted By', report.submittedBy || '')}
+          ${metricBox('Last Modified By', report.lastModifiedBy || '')}
+          <div class="box full"><div class="label">Address / Location</div><div class="value">${safe(report.address || '')}</div></div>
         </div>
-        <h2>Address</h2>
-        <p>${escapeHtml(report.address || '')}</p>
+
+        <h2>Production Metrics</h2>
+        <p class="section-note">Includes meter readings, pounds, efficiency, clicks, lift height, and generator runtime.</p>
+        <div class="grid-3">
+          ${metricBox('A Lbs Start', report.aMeterStart || '0')}
+          ${metricBox('A Lbs Finish', report.aMeterFinish || '0')}
+          ${metricBox('A Pounds Used', `${fmtNumber(aPounds, 0)} lbs`)}
+          ${metricBox('B Lbs Start', report.bMeterStart || '0')}
+          ${metricBox('B Lbs Finish', report.bMeterFinish || '0')}
+          ${metricBox('B Pounds Used', `${fmtNumber(bPounds, 0)} lbs`)}
+          ${metricBox('Total Pounds Pumped', `${fmtNumber(totalPounds, 0)} lbs`)}
+          ${metricBox('Lbs / Hour', `${fmtNumber(efficiency, 0)} lbs/hr`)}
+          ${metricBox('Clicks', report.clicks || '0')}
+          ${metricBox('Lift Height', report.lift || '')}
+          ${metricBox('Generator Run Time', report.generatorRunTime || '')}
+          ${metricBox('Linear Feet', report.linearFeet || '')}
+        </div>
+
+        <h2>Work Area Details</h2>
+        <div class="grid">
+          ${metricBox('Work Area Type', report.workAreaDisplay || report.workAreaType || '')}
+          ${metricBox('Other Area Type', report.workAreaOther || '')}
+          ${metricBox('Lift Area Length', report.liftAreaLength ? `${report.liftAreaLength} ft` : '')}
+          ${metricBox('Lift Area Width', report.liftAreaWidth ? `${report.liftAreaWidth} ft` : '')}
+          ${metricBox('Calculated Work Area', liftAreaSqFt ? `${fmtNumber(liftAreaSqFt, 2)} sq ft` : '')}
+          ${metricBox('Profile Interval', report.profileInterval ? `${report.profileInterval} ft` : '')}
+          <div class="box full"><div class="label">Area / Dimension Notes</div><div class="value">${safe(report.liftAreaNotes || '')}</div></div>
+        </div>
+
+        <h2>GPS Verification</h2>
+        <div class="grid">
+          ${metricBox('Latitude', report.gpsLatitude || '')}
+          ${metricBox('Longitude', report.gpsLongitude || '')}
+          ${metricBox('Location Confirmed', report.locationConfirmed ? 'Yes' : 'No')}
+          ${metricBox('Photo Count', report.photoCount || (Array.isArray(report.photos) ? report.photos.length : 0))}
+        </div>
+
+        <h2>Photos</h2>
+        ${photoLinks}
+
         <h2>Notes</h2>
-        <p>${escapeHtml(report.notes || '')}</p>
-        <h2>Manager Notes</h2>
-        <p>${escapeHtml(report.managerNotes || '')}</p>
+        <div class="box"><div class="label">Crew Notes</div><div class="value">${safe(report.notes || '')}</div></div>
+        <div class="box" style="margin-top:10px;"><div class="label">Manager Notes</div><div class="value">${safe(report.managerNotes || '')}</div></div>
+
         <h2>Road Profile</h2>
         <table>
           <thead><tr><th>Station</th><th>NE Before</th><th>NE After</th><th>SW Before</th><th>SW After</th></tr></thead>
           <tbody>${profileRows}</tbody>
         </table>
-        <button onclick="window.print()" style="margin-top:20px; padding:12px 18px; background:#0057a8; color:white; border:0; border-radius:8px; font-weight:bold;">Print / Save PDF</button>
+
+        <h2>Audit Trail</h2>
+        <table>
+          <thead><tr><th>Action</th><th>By</th><th>At</th><th>Note</th></tr></thead>
+          <tbody>${auditRows}</tbody>
+        </table>
+
+        <button onclick="window.print()" class="print-button">Print / Save PDF</button>
       </body>
       </html>
     `);
