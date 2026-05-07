@@ -469,6 +469,90 @@
       margin-top: 2px;
     }
 
+
+    /* Work Area / Photo Upload */
+    .conditional-field {
+      display: none;
+    }
+
+    .helper-text {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--gray);
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .area-summary-box {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 78px;
+    }
+
+    .area-summary-title {
+      color: var(--kke-blue);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .area-summary-value {
+      color: var(--kke-dark-blue);
+      font-size: 22px;
+      font-weight: 950;
+      margin-top: 4px;
+    }
+
+    .photo-upload-box {
+      border: 2px dashed #bfdbfe;
+      background: #f8fbff;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .photo-file-list {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--gray);
+      font-weight: 700;
+    }
+
+    .photo-file-pill {
+      background: white;
+      border: 1px solid #dbeafe;
+      color: var(--kke-dark-blue);
+      border-radius: 999px;
+      padding: 7px 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .photo-link-list {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 7px;
+    }
+
+    .photo-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #eaf4ff;
+      color: var(--kke-dark-blue);
+      border: 1px solid #bfdbfe;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+
     @media (max-width: 768px) {
       .tabs { overflow-x: auto; }
       .tab-btn { min-width: 120px; }
@@ -914,6 +998,51 @@
         </div>
       </div>
 
+
+      <div class="card">
+        <h2>Work Area Details</h2>
+        <div class="grid">
+          <label>Work Area Type <span class="required">*</span>
+            <select name="workAreaType" id="workAreaType" required>
+              <option value="" disabled selected>Select Area Type</option>
+              <option value="Alley">Alley</option>
+              <option value="Driveway">Driveway</option>
+              <option value="Leadwalk">Leadwalk</option>
+              <option value="ADA">ADA</option>
+              <option value="Street">Street</option>
+              <option value="Parking Lot">Parking Lot</option>
+              <option value="Pool">Pool</option>
+              <option value="Deck">Deck</option>
+              <option value="Patio">Patio</option>
+              <option value="Sport Court">Sport Court</option>
+              <option value="Other">Other</option>
+            </select>
+            <div class="helper-text">Use Street for road-profile jobs. Use dimensions below for patios, driveways, pool decks, sport courts, and other flat work.</div>
+          </label>
+
+          <label id="otherWorkAreaWrap" class="conditional-field">Other Area Type <span class="required">*</span>
+            <input name="workAreaOther" id="workAreaOther" placeholder="Example: loading dock, warehouse slab, sidewalk section">
+          </label>
+
+          <label>Lift Area Length (ft)
+            <input name="liftAreaLength" id="liftAreaLength" type="number" step="0.01" placeholder="Example: 12">
+          </label>
+
+          <label>Lift Area Width (ft)
+            <input name="liftAreaWidth" id="liftAreaWidth" type="number" step="0.01" placeholder="Example: 24">
+          </label>
+
+          <div class="area-summary-box">
+            <div class="area-summary-title">Calculated Work Area</div>
+            <div class="area-summary-value" id="liftAreaSqFtDisplay">—</div>
+          </div>
+
+          <label class="span-4">Area / Dimension Notes
+            <input name="liftAreaNotes" id="liftAreaNotes" placeholder="Example: 12' x 24' patio, west side by pool gate">
+          </label>
+        </div>
+      </div>
+
       <div class="card">
         <h2>Crew & Time</h2>
         <div class="grid">
@@ -959,8 +1088,9 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="roadProfileCard">
         <h2>Road Profile</h2>
+        <p class="dashboard-note road-profile-guidance">Street jobs use this station table for before/after profile readings. Non-street jobs can use dimensions in Work Area Details.</p>
         <div class="grid">
           <label>Total Length (ft)<input id="profileLength" name="linearFeet" type="number" value="100" step="10"></label>
           <label>Interval (ft)<input id="profileInterval" type="number" value="10" step="1"></label>
@@ -986,6 +1116,18 @@
               <!-- Rows added via JS -->
             </tbody>
           </table>
+        </div>
+      </div>
+
+
+      <div class="card">
+        <h2>Job Photos</h2>
+        <div class="photo-upload-box">
+          <label>Upload Pictures
+            <input id="jobPhotos" name="jobPhotos" type="file" accept="image/*" multiple>
+          </label>
+          <div class="helper-text">Optional. Add before, after, site condition, traffic control, or issue photos. Photos are uploaded to Firebase Storage and linked to the report.</div>
+          <div id="photoFileList" class="photo-file-list"></div>
         </div>
       </div>
 
@@ -1276,6 +1418,12 @@
       <div id="truckMetrics" class="empty-state">No data yet.</div>
     </div>
 
+
+    <div class="card">
+      <h2>Pounds Pumped by Work Area Type</h2>
+      <div id="workAreaMetrics" class="empty-state">No data yet.</div>
+    </div>
+
     <div class="card">
       <h2>Truck Efficiency — Lbs Per Hour</h2>
       <div id="truckEfficiencyMetrics" class="empty-state">No data yet.</div>
@@ -1318,6 +1466,26 @@
           <label>Truck #<input id="editTruckNumber"></label>
           <label>Crew Lead<input id="editCrewLead"></label>
           <label class="span-4">Address / Location<input id="editAddress"></label>
+          <label>Work Area Type
+            <select id="editWorkAreaType">
+              <option value="">Select Area Type</option>
+              <option value="Alley">Alley</option>
+              <option value="Driveway">Driveway</option>
+              <option value="Leadwalk">Leadwalk</option>
+              <option value="ADA">ADA</option>
+              <option value="Street">Street</option>
+              <option value="Parking Lot">Parking Lot</option>
+              <option value="Pool">Pool</option>
+              <option value="Deck">Deck</option>
+              <option value="Patio">Patio</option>
+              <option value="Sport Court">Sport Court</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label>Other Area Type<input id="editWorkAreaOther" placeholder="Only if Other"></label>
+          <label>Lift Area Length (ft)<input id="editLiftAreaLength" type="number" step="0.01"></label>
+          <label>Lift Area Width (ft)<input id="editLiftAreaWidth" type="number" step="0.01"></label>
+          <label class="span-4">Area / Dimension Notes<input id="editLiftAreaNotes"></label>
           <label>A Lbs Start<input id="editAMeterStart" type="number" step="0.01"></label>
           <label>A Lbs Finish<input id="editAMeterFinish" type="number" step="0.01"></label>
           <label>B Lbs Start<input id="editBMeterStart" type="number" step="0.01"></label>
@@ -1339,6 +1507,10 @@
           <label class="span-4">Manager Notes<textarea id="editManagerNotes" rows="3" placeholder="Internal manager notes, corrections, or approval comments..."></textarea></label>
         </div>
       </form>
+      <div style="margin-top:18px;">
+        <h2>Report Photos</h2>
+        <div id="editPhotoLinks" class="empty-state">No photos attached.</div>
+      </div>
       <div style="margin-top:18px;">
         <h2>Audit Trail</h2>
         <div id="auditTrailBox" class="audit-log">No audit entries yet.</div>
@@ -1370,6 +1542,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
   // --- FIREBASE CONFIG ---
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -1384,6 +1557,7 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const storage = getStorage(app);
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-sheet-main';
@@ -1748,6 +1922,108 @@
     `).join('');
   }
 
+
+  function getWorkAreaDisplay(report) {
+    const areaType = report.workAreaType || '';
+    if (areaType === 'Other' && report.workAreaOther) return report.workAreaOther;
+    return areaType || 'Not Listed';
+  }
+
+  function calculateLiftAreaSqFt(length, width) {
+    const l = Number(length || 0);
+    const w = Number(width || 0);
+    return l > 0 && w > 0 ? l * w : 0;
+  }
+
+  function toggleWorkAreaFields() {
+    const type = document.getElementById('workAreaType')?.value || '';
+    const otherWrap = document.getElementById('otherWorkAreaWrap');
+    const otherInput = document.getElementById('workAreaOther');
+    const profileCard = document.getElementById('roadProfileCard');
+    const isOther = type === 'Other';
+
+    if (otherWrap) otherWrap.style.display = isOther ? 'block' : 'none';
+    if (otherInput) otherInput.required = isOther;
+
+    if (profileCard) {
+      const note = profileCard.querySelector('.road-profile-guidance');
+      if (note) {
+        note.textContent = type === 'Street'
+          ? 'Street selected: use this station table for road profile before/after readings.'
+          : 'Non-street selected: use this section only if profile readings are needed. Otherwise use Work Area Dimensions above.';
+      }
+    }
+  }
+
+  function updateLiftAreaSqFtDisplay() {
+    const length = document.getElementById('liftAreaLength')?.value;
+    const width = document.getElementById('liftAreaWidth')?.value;
+    const display = document.getElementById('liftAreaSqFtDisplay');
+    const sqFt = calculateLiftAreaSqFt(length, width);
+    if (display) display.textContent = sqFt > 0 ? `${fmtNumber(sqFt, 2)} sq ft` : '—';
+  }
+
+  function renderSelectedPhotoNames() {
+    const input = document.getElementById('jobPhotos');
+    const list = document.getElementById('photoFileList');
+    if (!input || !list) return;
+
+    const files = Array.from(input.files || []);
+    if (!files.length) {
+      list.innerHTML = '';
+      return;
+    }
+
+    list.innerHTML = files.map((file, index) => `
+      <div class="photo-file-pill">Photo ${index + 1}: ${escapeHtml(file.name)} (${fmtNumber(file.size / 1024, 0)} KB)</div>
+    `).join('');
+  }
+
+  function safeFileName(name) {
+    return String(name || 'photo')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 80);
+  }
+
+  async function uploadReportPhotos(files, reportKey) {
+    const uploaded = [];
+    for (const [index, file] of files.entries()) {
+      const cleanName = safeFileName(file.name || `photo_${index + 1}.jpg`);
+      const path = `report-photos/${appId}/${auth.currentUser.uid}/${reportKey}/${Date.now()}_${index + 1}_${cleanName}`;
+      const fileRef = storageRef(storage, path);
+      const snapshot = await uploadBytes(fileRef, file, {
+        contentType: file.type || 'image/jpeg',
+        customMetadata: {
+          uploadedBy: auth.currentUser.email || '',
+          appId
+        }
+      });
+      const url = await getDownloadURL(snapshot.ref);
+      uploaded.push({
+        name: file.name || cleanName,
+        type: file.type || '',
+        size: file.size || 0,
+        path,
+        url,
+        uploadedAt: new Date().toISOString()
+      });
+    }
+    return uploaded;
+  }
+
+  function renderPhotoLinks(report) {
+    const photos = Array.isArray(report.photos) ? report.photos : [];
+    if (!photos.length) return '';
+    return `
+      <div class="photo-link-list">
+        ${photos.map((photo, index) => `
+          <a class="photo-link" href="${escapeHtml(photo.url || '#')}" target="_blank" rel="noopener">Photo ${index + 1}</a>
+        `).join('')}
+      </div>
+    `;
+  }
+
+
   // Calculations
   const runCalcs = () => {
     const startVal = document.getElementById('startTime')?.value;
@@ -1764,6 +2040,15 @@
 
   document.getElementById('startTime')?.addEventListener('input', runCalcs);
   document.getElementById('finishTime')?.addEventListener('input', runCalcs);
+
+
+  document.getElementById('workAreaType')?.addEventListener('change', toggleWorkAreaFields);
+  document.getElementById('liftAreaLength')?.addEventListener('input', updateLiftAreaSqFtDisplay);
+  document.getElementById('liftAreaWidth')?.addEventListener('input', updateLiftAreaSqFtDisplay);
+  document.getElementById('jobPhotos')?.addEventListener('change', renderSelectedPhotoNames);
+  toggleWorkAreaFields();
+  updateLiftAreaSqFtDisplay();
+
 
   // GPS
   document.getElementById('btnGPS')?.addEventListener('click', () => {
@@ -1826,9 +2111,17 @@
 
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
+    delete data.jobPhotos;
     data.totalHours = document.getElementById('totalHoursDisplay')?.textContent || "0";
     data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
     data.profileInterval = document.getElementById('profileInterval')?.value || "";
+    data.workAreaType = data.workAreaType || "";
+    data.workAreaOther = data.workAreaType === "Other" ? (data.workAreaOther || "") : "";
+    data.workAreaDisplay = data.workAreaType === "Other" && data.workAreaOther ? data.workAreaOther : data.workAreaType;
+    data.liftAreaLength = data.liftAreaLength || "";
+    data.liftAreaWidth = data.liftAreaWidth || "";
+    data.liftAreaSqFt = calculateLiftAreaSqFt(data.liftAreaLength, data.liftAreaWidth);
+    data.liftAreaNotes = data.liftAreaNotes || "";
 
     const aStart = Number(data.aMeterStart || 0);
     const aFinish = Number(data.aMeterFinish || 0);
@@ -1851,6 +2144,12 @@
       });
     });
     data.profile = profileData;
+
+    const photoFiles = Array.from(document.getElementById('jobPhotos')?.files || []);
+    const reportPhotoKey = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    data.photos = [];
+    data.photoCount = 0;
+
     data.timestamp = serverTimestamp();
     data.userId = auth.currentUser.uid;
     data.submittedBy = auth.currentUser.email;
@@ -1865,6 +2164,12 @@
     }];
 
     try {
+      if (photoFiles.length) {
+        showMessage(`Uploading ${photoFiles.length} photo${photoFiles.length === 1 ? '' : 's'}...`, "success");
+        data.photos = await uploadReportPhotos(photoFiles, reportPhotoKey);
+        data.photoCount = data.photos.length;
+      }
+
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
       await addDoc(collRef, data);
       
@@ -1878,6 +2183,9 @@
       generateProfileRows();
       const hrs = document.getElementById('totalHoursDisplay');
       if (hrs) hrs.textContent = "—";
+      toggleWorkAreaFields();
+      updateLiftAreaSqFtDisplay();
+      renderSelectedPhotoNames();
       switchTab('history');
     } catch (err) {
       console.error(err);
@@ -1951,7 +2259,11 @@
           report.submittedBy,
           report.notes,
           report.managerNotes,
-          report.approvalStatus
+          report.approvalStatus,
+          report.workAreaType,
+          report.workAreaOther,
+          report.workAreaDisplay,
+          report.liftAreaNotes
         ].join(' ').toLowerCase();
         if (!haystack.includes(search)) return false;
       }
@@ -2003,6 +2315,13 @@
             <div style="font-size:13px; color:var(--gray); margin-top:2px;">
               ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(report.crewLead || 'None')} | Truck: ${escapeHtml(report.truckNumber || 'N/A')}
             </div>
+            <div style="font-size:12px; color:#374151; margin-top:6px;">
+              <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))}
+              ${Number(report.liftAreaSqFt || 0) > 0 ? ` | <strong>Dimensions:</strong> ${escapeHtml(report.liftAreaLength || '')}' x ${escapeHtml(report.liftAreaWidth || '')}' (${fmtNumber(report.liftAreaSqFt, 2)} sq ft)` : ''}
+              ${report.photoCount ? ` | <strong>Photos:</strong> ${fmtNumber(report.photoCount, 0)}` : ''}
+            </div>
+            ${report.liftAreaNotes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Area Notes:</strong> ${escapeHtml(report.liftAreaNotes)}</div>` : ''}
+            ${renderPhotoLinks(report)}
             ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
             ${managerActions}
           </div>
@@ -2239,6 +2558,7 @@
       let weekPounds = 0;
       const byCity = {};
       const byTruck = {};
+      const byArea = {};
       const truckStats = {};
       const crewStats = {};
       const flags = [];
@@ -2255,6 +2575,8 @@
         totalHours += hours;
         byCity[city] = (byCity[city] || 0) + pounds;
         byTruck[truck] = (byTruck[truck] || 0) + pounds;
+        const workArea = getWorkAreaDisplay(report);
+        byArea[workArea] = (byArea[workArea] || 0) + pounds;
 
         if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
         truckStats[truck].pounds += pounds;
@@ -2336,6 +2658,8 @@
 
       document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
       document.getElementById('truckMetrics').innerHTML = renderBarChart(byTruck, 'lbs', TRUCK_COLORS);
+      const workAreaBox = document.getElementById('workAreaMetrics');
+      if (workAreaBox) workAreaBox.innerHTML = renderBarChart(byArea, 'lbs', {}, 'value');
 
       const truckEfficiencyObject = {};
       truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
@@ -2413,6 +2737,9 @@
     patch.bPounds = Math.max(0, bFinish - bStart);
     patch.totalPounds = patch.aPounds + patch.bPounds;
     patch.poundsPerHour = Number(patch.totalHours || 0) > 0 ? patch.totalPounds / Number(patch.totalHours || 0) : 0;
+    patch.workAreaOther = patch.workAreaType === 'Other' ? (patch.workAreaOther || '') : '';
+    patch.workAreaDisplay = patch.workAreaType === 'Other' && patch.workAreaOther ? patch.workAreaOther : (patch.workAreaType || '');
+    patch.liftAreaSqFt = calculateLiftAreaSqFt(patch.liftAreaLength, patch.liftAreaWidth);
     return patch;
   }
 
@@ -2446,6 +2773,13 @@
     document.getElementById('editTruckNumber').value = report.truckNumber || '';
     document.getElementById('editCrewLead').value = report.crewLead || '';
     document.getElementById('editAddress').value = report.address || '';
+    document.getElementById('editWorkAreaType').value = report.workAreaType || '';
+    document.getElementById('editWorkAreaOther').value = report.workAreaOther || '';
+    document.getElementById('editLiftAreaLength').value = report.liftAreaLength || '';
+    document.getElementById('editLiftAreaWidth').value = report.liftAreaWidth || '';
+    document.getElementById('editLiftAreaNotes').value = report.liftAreaNotes || '';
+    const editPhotoLinks = document.getElementById('editPhotoLinks');
+    if (editPhotoLinks) editPhotoLinks.innerHTML = renderPhotoLinks(report) || '<div class="empty-state">No photos attached.</div>';
     document.getElementById('editAMeterStart').value = report.aMeterStart || '';
     document.getElementById('editAMeterFinish').value = report.aMeterFinish || '';
     document.getElementById('editBMeterStart').value = report.bMeterStart || '';
@@ -2476,6 +2810,11 @@
       truckNumber: document.getElementById('editTruckNumber').value.trim(),
       crewLead: document.getElementById('editCrewLead').value.trim(),
       address: document.getElementById('editAddress').value.trim(),
+      workAreaType: document.getElementById('editWorkAreaType').value,
+      workAreaOther: document.getElementById('editWorkAreaOther').value.trim(),
+      liftAreaLength: document.getElementById('editLiftAreaLength').value,
+      liftAreaWidth: document.getElementById('editLiftAreaWidth').value,
+      liftAreaNotes: document.getElementById('editLiftAreaNotes').value.trim(),
       aMeterStart: document.getElementById('editAMeterStart').value,
       aMeterFinish: document.getElementById('editAMeterFinish').value,
       bMeterStart: document.getElementById('editBMeterStart').value,
