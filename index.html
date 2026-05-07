@@ -528,6 +528,7 @@
     .status-approved { background: #dcfce7; color: #166534; border-color: #86efac; }
     .status-review { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
     .status-rejected { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .status-revision { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
 
     .modal-overlay {
       position: fixed;
@@ -1034,6 +1035,7 @@
           <select id="historyStatusFilter">
             <option value="">Active Reports</option>
             <option value="Needs Review">Needs Review</option>
+            <option value="Needs Revision">Needs Revision</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
             <option value="Deleted">Deleted / Recovery</option>
@@ -1327,6 +1329,7 @@
           <label>Approval Status
             <select id="editApprovalStatus">
               <option value="Needs Review">Needs Review</option>
+              <option value="Needs Revision">Needs Revision</option>
               <option value="Approved">Approved</option>
               <option value="Rejected">Rejected</option>
             </select>
@@ -1890,6 +1893,7 @@
   function statusClass(status) {
     if (status === 'Approved') return 'status-approved';
     if (status === 'Rejected') return 'status-rejected';
+    if (status === 'Needs Revision') return 'status-revision';
     return 'status-review';
   }
 
@@ -1979,6 +1983,9 @@
             <button class="btn btn-success small-btn" type="button" onclick="restoreReport('${report.id}')">Restore</button>
             <button class="btn btn-danger small-btn" type="button" onclick="permanentlyDeleteReport('${report.id}')">Permanent Delete</button>
           ` : `
+            <button class="btn btn-success small-btn" type="button" onclick="reviewReport('${report.id}', 'Approved')">Approve</button>
+            <button class="btn btn-warning small-btn" type="button" onclick="reviewReport('${report.id}', 'Needs Revision')">Needs Revision</button>
+            <button class="btn btn-danger small-btn" type="button" onclick="reviewReport('${report.id}', 'Rejected')">Reject</button>
             <button class="btn btn-outline small-btn" type="button" onclick="openEditReport('${report.id}')">Edit</button>
             <button class="btn btn-outline small-btn" type="button" onclick="printReport('${report.id}')">PDF / Print</button>
             <button class="btn btn-danger small-btn" type="button" onclick="softDeleteReport('${report.id}')">Delete</button>
@@ -2264,6 +2271,7 @@
 
         const reportName = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.crewLead || 'No Lead'}`;
         if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
+        if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
         if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
         if (pounds <= 0) flags.push(`${reportName}: missing or zero pumped pounds.`);
         if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
@@ -2364,6 +2372,37 @@
   function reportRef(reportId) {
     return firestoreDoc(db, 'artifacts', appId, 'public', 'data', 'submissions', reportId);
   }
+
+  window.reviewReport = async function(reportId, status) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+
+    const allowedStatuses = ['Approved', 'Needs Revision', 'Rejected', 'Needs Review'];
+    if (!allowedStatuses.includes(status)) return showMessage('Invalid review status.', 'error');
+
+    const report = allReports.find(item => item.id === reportId);
+    if (!report) return showMessage('Report not found.', 'error');
+
+    let note = '';
+    if (status === 'Needs Revision' || status === 'Rejected') {
+      note = prompt(`Add a manager note for ${status}:`, report.managerNotes || '') || '';
+    }
+
+    try {
+      await updateDoc(reportRef(reportId), {
+        approvalStatus: status,
+        managerNotes: note || report.managerNotes || '',
+        reviewedBy: auth.currentUser.email,
+        reviewedAt: serverTimestamp(),
+        lastModifiedBy: auth.currentUser.email,
+        lastModifiedAt: serverTimestamp(),
+        auditTrail: arrayUnion(makeAuditEntry('Review Status Updated', `Status changed to ${status}${note ? ': ' + note : '.'}`))
+      });
+      showMessage(`Report marked as ${status}.`);
+    } catch (err) {
+      console.error(err);
+      showMessage('Review update failed. Check Firebase manager permissions.', 'error');
+    }
+  };
 
   function recalcReportFields(patch) {
     const aStart = Number(patch.aMeterStart || 0);
