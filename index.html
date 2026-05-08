@@ -1209,30 +1209,34 @@
         <div class="title-box">
           <p class="eyebrow">Manager Live Analytics</p>
           <h1>Production Dashboard</h1>
-          <p>Live pounds, pounds per hour, city totals, truck totals, and flagged reports.</p>
+          <p>Live clicks, estimated lbs, flow meter lbs, and variance by report.</p>
         </div>
       </div>
     </div>
 
     <div class="card">
       <h2>Manager Dashboard</h2>
-      <p class="dashboard-note">Live production metrics from submitted reports. Efficiency is measured as pounds pumped per hour.</p>
+      <p class="dashboard-note">Live production metrics from submitted reports. Estimated lbs are calculated from clicks × 0.6 and compared against flow meter lbs.</p>
       <div class="grid">
         <div class="calc-box">
-          <div class="calc-label">Total Pounds Pumped</div>
-          <div class="calc-value" id="dashTotalPounds">0</div>
+          <div class="calc-label">Clicks</div>
+          <div class="calc-value" id="dashTotalClicks">0</div>
         </div>
         <div class="calc-box">
-          <div class="calc-label">Total Hours</div>
-          <div class="calc-value" id="dashTotalHours">0</div>
+          <div class="calc-label">Estimated Lbs</div>
+          <div class="calc-value" id="dashEstimatedLbs">0</div>
         </div>
         <div class="calc-box">
-          <div class="calc-label">Avg Lbs / Hour</div>
-          <div class="calc-value" id="dashPoundsPerHour">0</div>
+          <div class="calc-label">Flow Meter Lbs</div>
+          <div class="calc-value" id="dashFlowMeterLbs">0</div>
         </div>
         <div class="calc-box">
-          <div class="calc-label">Reports</div>
-          <div class="calc-value" id="dashReportCount">0</div>
+          <div class="calc-label">Difference %</div>
+          <div class="calc-value" id="dashDifferencePercent">0%</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Difference Lbs</div>
+          <div class="calc-value" id="dashDifferenceLbs">0</div>
         </div>
       </div>
     </div>
@@ -1498,6 +1502,7 @@
           <label>A Lbs Finish<input id="editAMeterFinish" type="number" step="0.01"></label>
           <label>B Lbs Start<input id="editBMeterStart" type="number" step="0.01"></label>
           <label>B Lbs Finish<input id="editBMeterFinish" type="number" step="0.01"></label>
+          <label>Clicks<input id="editClicks" type="number" step="1"></label>
           <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
           <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
           <label>GPS Latitude<input id="editGpsLatitude" type="number" step="0.000001"></label>
@@ -1829,13 +1834,35 @@
     });
   }
 
-  function getReportPounds(doc) {
-    if (Number.isFinite(Number(doc.totalPounds))) return Number(doc.totalPounds);
+  function getReportClicks(doc) {
+    const clicks = Number(doc.clicks || 0);
+    return Number.isFinite(clicks) && clicks > 0 ? clicks : 0;
+  }
+
+  function getReportEstimatedPounds(doc) {
+    return getReportClicks(doc) * 0.6;
+  }
+
+  function getReportFlowMeterPounds(doc) {
+    if (Number.isFinite(Number(doc.flowMeterPounds))) return Number(doc.flowMeterPounds);
     const aStart = Number(doc.aMeterStart || 0);
     const aFinish = Number(doc.aMeterFinish || 0);
     const bStart = Number(doc.bMeterStart || 0);
     const bFinish = Number(doc.bMeterFinish || 0);
     return Math.max(0, aFinish - aStart) + Math.max(0, bFinish - bStart);
+  }
+
+  function getReportPounds(doc) {
+    return getReportEstimatedPounds(doc);
+  }
+
+  function getPoundComparison(doc) {
+    const clicks = getReportClicks(doc);
+    const estimatedPounds = getReportEstimatedPounds(doc);
+    const flowMeterPounds = getReportFlowMeterPounds(doc);
+    const differencePounds = estimatedPounds - flowMeterPounds;
+    const differencePercent = flowMeterPounds > 0 ? (differencePounds / flowMeterPounds) * 100 : 0;
+    return { clicks, estimatedPounds, flowMeterPounds, differencePounds, differencePercent };
   }
 
   function getReportHours(doc) {
@@ -2212,8 +2239,13 @@ data.googlePlaceId = data.googlePlaceId || "";
     const bFinish = Number(data.bMeterFinish || 0);
     data.aPounds = Math.max(0, aFinish - aStart);
     data.bPounds = Math.max(0, bFinish - bStart);
-    data.totalPounds = data.aPounds + data.bPounds;
-    data.poundsPerHour = Number(data.totalHours) > 0 ? data.totalPounds / Number(data.totalHours) : 0;
+    data.clicks = Number(data.clicks || 0);
+    data.estimatedPounds = data.clicks * 0.6;
+    data.flowMeterPounds = data.aPounds + data.bPounds;
+    data.differencePounds = data.estimatedPounds - data.flowMeterPounds;
+    data.differencePercent = data.flowMeterPounds > 0 ? (data.differencePounds / data.flowMeterPounds) * 100 : 0;
+    data.totalPounds = data.estimatedPounds;
+    data.poundsPerHour = Number(data.totalHours) > 0 ? data.estimatedPounds / Number(data.totalHours) : 0;
     
     const profileData = [];
     document.querySelectorAll('#profileRows tr').forEach(tr => {
@@ -2635,7 +2667,10 @@ data.googlePlaceId = data.googlePlaceId || "";
       const transitions = calculateTransitions(docs);
       const transitionStats = buildTransitionStats(transitions);
 
+      let totalClicks = 0;
       let totalPounds = 0;
+      let totalFlowMeterPounds = 0;
+      let totalDifferencePounds = 0;
       let totalHours = 0;
       let todayPounds = 0;
       let weekPounds = 0;
@@ -2648,13 +2683,17 @@ data.googlePlaceId = data.googlePlaceId || "";
       const today = new Date();
 
       docs.forEach(report => {
-        const pounds = getReportPounds(report);
+        const comparison = getPoundComparison(report);
+        const pounds = comparison.estimatedPounds;
         const hours = getReportHours(report);
         const city = report.city || 'Unknown City';
         const truck = report.truckNumber || 'Unknown Truck';
         const crew = report.crewLead || 'Unknown Crew';
 
+        totalClicks += comparison.clicks;
         totalPounds += pounds;
+        totalFlowMeterPounds += comparison.flowMeterPounds;
+        totalDifferencePounds += comparison.differencePounds;
         totalHours += hours;
         byCity[city] = (byCity[city] || 0) + pounds;
         byTruck[truck] = (byTruck[truck] || 0) + pounds;
@@ -2678,11 +2717,11 @@ data.googlePlaceId = data.googlePlaceId || "";
         if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
         if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
         if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
-        if (pounds <= 0) flags.push(`${reportName}: missing or zero pumped pounds.`);
+        if (comparison.clicks <= 0) flags.push(`${reportName}: missing or zero clicks.`);
         if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
         if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
         if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
-        if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high pounds per hour.`);
+        if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high estimated pounds per hour.`);
       });
 
       const truckEntries = Object.values(truckStats)
@@ -2698,10 +2737,12 @@ data.googlePlaceId = data.googlePlaceId || "";
 
       updatePeriodMetricCards(docs);
 
-      document.getElementById('dashTotalPounds').textContent = fmtNumber(totalPounds, 0);
-      document.getElementById('dashTotalHours').textContent = fmtNumber(totalHours, 2);
-      document.getElementById('dashPoundsPerHour').textContent = fmtNumber(totalHours > 0 ? totalPounds / totalHours : 0, 0);
-      document.getElementById('dashReportCount').textContent = fmtNumber(docs.length, 0);
+      const totalDifferencePercent = totalFlowMeterPounds > 0 ? (totalDifferencePounds / totalFlowMeterPounds) * 100 : 0;
+      document.getElementById('dashTotalClicks').textContent = fmtNumber(totalClicks, 0);
+      document.getElementById('dashEstimatedLbs').textContent = fmtNumber(totalPounds, 0);
+      document.getElementById('dashFlowMeterLbs').textContent = fmtNumber(totalFlowMeterPounds, 0);
+      document.getElementById('dashDifferencePercent').textContent = `${fmtNumber(totalDifferencePercent, 1)}%`;
+      document.getElementById('dashDifferenceLbs').textContent = fmtNumber(totalDifferencePounds, 0);
       document.getElementById('dashTodayPounds').textContent = fmtNumber(todayPounds, 0);
       document.getElementById('dashWeekPounds').textContent = fmtNumber(weekPounds, 0);
       document.getElementById('dashBestTruck').textContent = bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—';
@@ -2818,8 +2859,13 @@ data.googlePlaceId = data.googlePlaceId || "";
     const bFinish = Number(patch.bMeterFinish || 0);
     patch.aPounds = Math.max(0, aFinish - aStart);
     patch.bPounds = Math.max(0, bFinish - bStart);
-    patch.totalPounds = patch.aPounds + patch.bPounds;
-    patch.poundsPerHour = Number(patch.totalHours || 0) > 0 ? patch.totalPounds / Number(patch.totalHours || 0) : 0;
+    patch.clicks = Number(patch.clicks || 0);
+    patch.estimatedPounds = patch.clicks * 0.6;
+    patch.flowMeterPounds = patch.aPounds + patch.bPounds;
+    patch.differencePounds = patch.estimatedPounds - patch.flowMeterPounds;
+    patch.differencePercent = patch.flowMeterPounds > 0 ? (patch.differencePounds / patch.flowMeterPounds) * 100 : 0;
+    patch.totalPounds = patch.estimatedPounds;
+    patch.poundsPerHour = Number(patch.totalHours || 0) > 0 ? patch.estimatedPounds / Number(patch.totalHours || 0) : 0;
     patch.workAreaOther = patch.workAreaType === 'Other' ? (patch.workAreaOther || '') : '';
     patch.workAreaDisplay = patch.workAreaType === 'Other' && patch.workAreaOther ? patch.workAreaOther : (patch.workAreaType || '');
     patch.liftAreaSqFt = calculateLiftAreaSqFt(patch.liftAreaLength, patch.liftAreaWidth);
@@ -2867,6 +2913,7 @@ data.googlePlaceId = data.googlePlaceId || "";
     document.getElementById('editAMeterFinish').value = report.aMeterFinish || '';
     document.getElementById('editBMeterStart').value = report.bMeterStart || '';
     document.getElementById('editBMeterFinish').value = report.bMeterFinish || '';
+    document.getElementById('editClicks').value = report.clicks || '';
     document.getElementById('editTotalHours').value = getReportHours(report) || '';
     document.getElementById('editLinearFeet').value = report.linearFeet || '';
     document.getElementById('editGpsLatitude').value = report.gpsLatitude || '';
@@ -2902,6 +2949,7 @@ data.googlePlaceId = data.googlePlaceId || "";
       aMeterFinish: document.getElementById('editAMeterFinish').value,
       bMeterStart: document.getElementById('editBMeterStart').value,
       bMeterFinish: document.getElementById('editBMeterFinish').value,
+      clicks: document.getElementById('editClicks').value,
       totalHours: document.getElementById('editTotalHours').value,
       linearFeet: document.getElementById('editLinearFeet').value,
       gpsLatitude: document.getElementById('editGpsLatitude').value,
@@ -2995,6 +3043,7 @@ data.googlePlaceId = data.googlePlaceId || "";
     const totalHours = getReportHours(report);
     const aPounds = Number.isFinite(Number(report.aPounds)) ? Number(report.aPounds) : Math.max(0, Number(report.aMeterFinish || 0) - Number(report.aMeterStart || 0));
     const bPounds = Number.isFinite(Number(report.bPounds)) ? Number(report.bPounds) : Math.max(0, Number(report.bMeterFinish || 0) - Number(report.bMeterStart || 0));
+    const poundComparison = getPoundComparison(report);
     const efficiency = totalHours > 0 ? totalPounds / totalHours : 0;
     const liftAreaSqFt = Number.isFinite(Number(report.liftAreaSqFt)) ? Number(report.liftAreaSqFt) : calculateLiftAreaSqFt(report.liftAreaLength, report.liftAreaWidth);
 
@@ -3093,9 +3142,12 @@ data.googlePlaceId = data.googlePlaceId || "";
           ${metricBox('B Lbs Start', report.bMeterStart || '0')}
           ${metricBox('B Lbs Finish', report.bMeterFinish || '0')}
           ${metricBox('B Pounds Used', `${fmtNumber(bPounds, 0)} lbs`)}
-          ${metricBox('Total Pounds Pumped', `${fmtNumber(totalPounds, 0)} lbs`)}
+          ${metricBox('Clicks', fmtNumber(poundComparison.clicks, 0))}
+          ${metricBox('Estimated Lbs', `${fmtNumber(poundComparison.estimatedPounds, 0)} lbs`)}
+          ${metricBox('Flow Meter Lbs', `${fmtNumber(poundComparison.flowMeterPounds, 0)} lbs`)}
+          ${metricBox('Difference %', `${fmtNumber(poundComparison.differencePercent, 1)}%`)}
+          ${metricBox('Difference Lbs', `${fmtNumber(poundComparison.differencePounds, 0)} lbs`)}
           ${metricBox('Lbs / Hour', `${fmtNumber(efficiency, 0)} lbs/hr`)}
-          ${metricBox('Clicks', report.clicks || '0')}
           ${metricBox('Lift Height', report.lift || '')}
           ${metricBox('Generator Run Time', report.generatorRunTime || '')}
           ${metricBox('Linear Feet', report.linearFeet || '')}
