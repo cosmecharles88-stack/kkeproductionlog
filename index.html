@@ -994,7 +994,13 @@
               <option value="203">203</option>
             </select>
           </label>
-          <label class="span-4">Address / Location <span class="required">*</span><input name="address" required placeholder="Full street address or junction"></label>
+         <label class="span-4">Address / Location <span class="required">*</span>
+  <input id="jobAddress" name="address" required placeholder="Start typing address or job location">
+  <input id="addressLatitude" name="addressLatitude" type="hidden">
+  <input id="addressLongitude" name="addressLongitude" type="hidden">
+  <input id="googlePlaceId" name="googlePlaceId" type="hidden">
+  <div class="helper-text">Start typing and select the Google-suggested address to standardize spelling.</div>
+</label>
         </div>
       </div>
 
