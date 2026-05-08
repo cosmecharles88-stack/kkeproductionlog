@@ -1026,7 +1026,17 @@
             </select>
             <div class="helper-text">Use Street for road-profile jobs. Use dimensions below for patios, driveways, pool decks, sport courts, and other flat work.</div>
           </label>
-
+<label>
+  Injection Type <span class="required">*</span>
+  <select name="injectionType" id="injectionType" required>
+    <option value="" disabled selected>Select Injection Type</option>
+    <option value="Method">Method</option>
+    <option value="Deep Injection">Deep Injection</option>
+  </select>
+  <div class="helper-text">
+    Method = standard 32" injection. Deep Injection = 4'+ stabilization injection.
+  </div>
+</label>
           <label id="otherWorkAreaWrap" class="conditional-field">Other Area Type <span class="required">*</span>
             <input name="workAreaOther" id="workAreaOther" placeholder="Example: loading dock, warehouse slab, sidewalk section">
           </label>
@@ -1493,7 +1503,13 @@
               <option value="Sport Court">Sport Court</option>
               <option value="Other">Other</option>
             </select>
-          </label>
+          <label>Injection Type
+  <select id="editInjectionType">
+    <option value="">Select Injection Type</option>
+    <option value="Method">Method</option>
+    <option value="Deep Injection">Deep Injection</option>
+  </select>
+          
           <label>Other Area Type<input id="editWorkAreaOther" placeholder="Only if Other"></label>
           <label>Lift Area Length (ft)<input id="editLiftAreaLength" type="number" step="0.01"></label>
           <label>Lift Area Width (ft)<input id="editLiftAreaWidth" type="number" step="0.01"></label>
