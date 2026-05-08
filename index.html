@@ -1537,7 +1537,90 @@
     if (fallback) fallback.style.display = 'block';
   }
 </script>
+<script>
 
+  <script>
+  function setCityFromGooglePlace(place) {
+    const citySelect = document.querySelector('select[name="city"]');
+    if (!citySelect || !place.address_components) return;
+
+    let city = "";
+
+    place.address_components.forEach(component => {
+      if (component.types.includes("locality")) city = component.long_name;
+      if (!city && component.types.includes("sublocality")) city = component.long_name;
+      if (!city && component.types.includes("administrative_area_level_3")) city = component.long_name;
+    });
+
+    if (!city) return;
+
+    const matchingOption = Array.from(citySelect.options).find(option =>
+      option.value.toLowerCase() === city.toLowerCase()
+    );
+
+    citySelect.value = matchingOption ? matchingOption.value : "Other";
+  }
+
+  window.initKKEAddressAutocomplete = function () {
+    const addressInput = document.getElementById("jobAddress");
+
+    if (addressInput && window.google?.maps?.places) {
+      const autocomplete = new google.maps.places.Autocomplete(addressInput, {
+        componentRestrictions: { country: "us" },
+        fields: ["formatted_address", "geometry", "place_id", "address_components"],
+        types: ["address"]
+      });
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place || !place.geometry) return;
+
+        addressInput.value = place.formatted_address || addressInput.value;
+
+        const addressLat = document.getElementById("addressLatitude");
+        const addressLng = document.getElementById("addressLongitude");
+        const placeId = document.getElementById("googlePlaceId");
+
+        if (addressLat) addressLat.value = place.geometry.location.lat().toFixed(6);
+        if (addressLng) addressLng.value = place.geometry.location.lng().toFixed(6);
+        if (placeId) placeId.value = place.place_id || "";
+
+        setCityFromGooglePlace(place);
+      });
+    }
+
+    const editAddressInput = document.getElementById("editAddress");
+
+    if (editAddressInput && window.google?.maps?.places) {
+      const editAutocomplete = new google.maps.places.Autocomplete(editAddressInput, {
+        componentRestrictions: { country: "us" },
+        fields: ["formatted_address"],
+        types: ["address"]
+      });
+
+      editAutocomplete.addListener("place_changed", () => {
+        const place = editAutocomplete.getPlace();
+        if (place?.formatted_address) editAddressInput.value = place.formatted_address;
+      });
+    }
+  };
+</script>
+
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&libraries=places&callback=initKKEAddressAutocomplete"
+  async
+  defer>
+</script>
+
+<script type="module">
+</script>
+
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=W-9mVV36KzMAqT5nfX-3xN7UaLic4&libraries=places&callback=initKKEAddressAutocomplete"
+  async
+  defer>
+</script>
+  
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -2122,7 +2205,10 @@
     data.liftAreaWidth = data.liftAreaWidth || "";
     data.liftAreaSqFt = calculateLiftAreaSqFt(data.liftAreaLength, data.liftAreaWidth);
     data.liftAreaNotes = data.liftAreaNotes || "";
-
+data.addressLatitude = data.addressLatitude || "";
+data.addressLongitude = data.addressLongitude || "";
+data.googlePlaceId = data.googlePlaceId || "";
+    
     const aStart = Number(data.aMeterStart || 0);
     const aFinish = Number(data.aMeterFinish || 0);
     const bStart = Number(data.bMeterStart || 0);
