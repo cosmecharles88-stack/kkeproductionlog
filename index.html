@@ -1782,6 +1782,7 @@
 
       loadHistory();
       if (isCurrentUserManager) loadDashboard();
+      restoreLocalDraft();
     } else {
       isCurrentUserManager = false;
       authOverlay.style.display = 'flex';
@@ -1791,7 +1792,66 @@
       switchTab('new-form');
     }
   });
+// --- LOCAL DRAFT AUTOSAVE ---
+const DRAFT_KEY = "kkeCrewProfileDraft_v1";
 
+function saveDraftLocally() {
+  const form = document.getElementById("crewForm");
+  if (!form) return;
+
+  const formData = new FormData(form);
+  const draft = {};
+
+  formData.forEach((value, key) => {
+    draft[key] = value;
+  });
+
+  draft.savedAt = new Date().toLocaleString();
+
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+}
+
+function restoreLocalDraft() {
+  const form = document.getElementById("crewForm");
+  if (!form) return;
+
+  const saved = localStorage.getItem(DRAFT_KEY);
+  if (!saved) return;
+
+  const draft = JSON.parse(saved);
+
+  Object.keys(draft).forEach((key) => {
+    const field = form.elements[key];
+    if (field && key !== "savedAt") {
+      if (field.type === "checkbox") {
+        field.checked = draft[key] === "on" || draft[key] === true;
+      } else {
+        field.value = draft[key];
+      }
+    }
+  });
+
+  showMessage("Draft restored from this device. Last saved: " + draft.savedAt, "success");
+
+  if (typeof calculateHours === "function") calculateHours();
+  if (typeof calculateLiftArea === "function") calculateLiftArea();
+}
+
+function clearLocalDraft() {
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+document.addEventListener("input", (e) => {
+  if (e.target.closest("#crewForm")) {
+    saveDraftLocally();
+  }
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target.closest("#crewForm")) {
+    saveDraftLocally();
+  }
+});
   // --- UI LOGIC ---
   const dateInput = document.getElementById('formDate');
   if (dateInput) dateInput.valueAsDate = new Date();
@@ -2305,6 +2365,7 @@ data.googlePlaceId = data.googlePlaceId || "";
       await addDoc(collRef, data);
       
       showMessage("Report saved to cloud successfully!");
+      clearLocalDraft();
       e.target.reset();
       if (dateInput) dateInput.valueAsDate = new Date();
       const aStartInput = document.getElementById('aMeterStart');
