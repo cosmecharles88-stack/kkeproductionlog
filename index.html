@@ -2353,7 +2353,8 @@ data.googlePlaceId = data.googlePlaceId || "";
       at: new Date().toISOString(),
       note: "Report submitted from field form."
     }];
-
+const GOOGLE_SHEET_API_URL = "https://script.google.com/macros/s/AKfycbyRhwbJJdIzBUEP59Xnxq7GVbx7LRwdKkJy45r7FIF3pDN8A07urPEyeihFgOZdgNZQdA/exec";
+    
     try {
       if (photoFiles.length) {
         showMessage(`Uploading ${photoFiles.length} photo${photoFiles.length === 1 ? '' : 's'}...`, "success");
@@ -2363,7 +2364,25 @@ data.googlePlaceId = data.googlePlaceId || "";
 
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
       await addDoc(collRef, data);
-      
+
+      await fetch(GOOGLE_SHEET_API_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    date: data.date || "",
+    month: data.date
+      ? new Date(data.date).toLocaleString('default', { month: 'long' })
+      : "",
+    city: data.city || "",
+    address: data.address || "",
+    truck: data.truck || "",
+    workArea: data.workAreaType || "",
+    clicks: data.totalClicks || "",
+    inputLbs: data.totalPounds || ""
+  })
+});
       showMessage("Report saved to cloud successfully!");
       clearLocalDraft();
       e.target.reset();
