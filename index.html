@@ -310,6 +310,31 @@
       font-size: 14px;
     }
 
+    .dashboard-filter-row {
+      display: grid;
+      grid-template-columns: minmax(220px, 320px) 1fr;
+      gap: 12px;
+      align-items: end;
+      margin: 12px 0 18px;
+      padding: 14px;
+      background: #f8fbff;
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+    }
+
+    .dashboard-range-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: white;
+      border: 1px solid #bfdbfe;
+      color: var(--kke-dark-blue);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
     .chart-wrap {
       display: grid;
       gap: 12px;
@@ -902,6 +927,8 @@
       .metric-bar-row { grid-template-columns: 70px 1fr 70px; }
       .transition-hero-value { font-size: 32px; }
       .period-metrics-grid { grid-template-columns: 1fr; }
+      .dashboard-filter-row { grid-template-columns: 1fr; }
+      .dashboard-range-pill { border-radius: 12px; }
     }
 
 
@@ -1228,6 +1255,22 @@
     <div class="card">
       <h2>Manager Dashboard</h2>
       <p class="dashboard-note">Live production metrics from submitted reports. Estimated lbs are calculated from clicks × 0.6 and compared against flow meter lbs.</p>
+
+      <div class="dashboard-filter-row">
+        <label>Dashboard Time Period
+          <select id="dashboardPeriodFilter">
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month" selected>This Month</option>
+            <option value="all">All Time</option>
+          </select>
+        </label>
+        <div>
+          <div class="calc-label">Current Dashboard View</div>
+          <div id="dashboardPeriodRangeLabel" class="dashboard-range-pill">This Month</div>
+        </div>
+      </div>
+
       <div class="grid">
         <div class="calc-box">
           <div class="calc-label">Clicks</div>
@@ -1717,6 +1760,7 @@
   let historyUnsubscribe = null;
   let dashboardUnsubscribe = null;
   let allReports = [];
+  let dashboardReports = [];
   let currentEditReport = null;
 
   // --- AUTH LOGIC ---
@@ -1880,6 +1924,11 @@ document.addEventListener("change", (e) => {
       return;
     }
     switchTab('dashboard');
+  });
+
+  document.getElementById('dashboardPeriodFilter')?.addEventListener('change', () => {
+    if (!isCurrentUserManager) return;
+    renderDashboardAnalytics(dashboardReports);
   });
 
   function showMessage(text, type = 'success') {
@@ -2067,6 +2116,181 @@ document.addEventListener("change", (e) => {
 
     setText('dashMonthPoundsLarge', fmtNumber(periods.Month.pounds, 0));
     setText('dashMonthReportsLarge', fmtNumber(periods.Month.reports, 0));
+  }
+
+
+  function getDashboardPeriodRange() {
+    const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
+    const ranges = getPeriodRanges(new Date());
+
+    if (selected === 'today') return { key: selected, label: 'Today', ...ranges.today };
+    if (selected === 'week') return { key: selected, label: 'This Week', ...ranges.week };
+    if (selected === 'month') return { key: selected, label: 'This Month', ...ranges.month };
+
+    return { key: 'all', label: 'All Time', start: null, end: null };
+  }
+
+  function formatDateForDashboard(date) {
+    if (!date) return '';
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function filterReportsForDashboardPeriod(docs) {
+    const range = getDashboardPeriodRange();
+
+    if (range.key === 'all') {
+      setText('dashboardPeriodRangeLabel', 'All submitted active reports');
+      return docs;
+    }
+
+    setText(
+      'dashboardPeriodRangeLabel',
+      `${range.label}: ${formatDateForDashboard(range.start)} – ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
+    );
+
+    return docs.filter(report => isDateInRange(report.date, range));
+  }
+
+  function renderDashboardAnalytics(rawDocs) {
+    const docs = filterReportsForDashboardPeriod(activeReportsOnly(rawDocs || []));
+    const transitions = calculateTransitions(docs);
+    const transitionStats = buildTransitionStats(transitions);
+
+    let totalClicks = 0;
+    let totalPounds = 0;
+    let totalFlowMeterPounds = 0;
+    let totalDifferencePounds = 0;
+    const byCity = {};
+    const byTruck = {};
+    const byArea = {};
+    const truckStats = {};
+    const crewStats = {};
+    const flags = [];
+
+    docs.forEach(report => {
+      const comparison = getPoundComparison(report);
+      const pounds = comparison.estimatedPounds;
+      const hours = getReportHours(report);
+      const city = report.city || 'Unknown City';
+      const truck = report.truckNumber || 'Unknown Truck';
+      const crew = report.crewLead || 'Unknown Crew';
+
+      totalClicks += comparison.clicks;
+      totalPounds += pounds;
+      totalFlowMeterPounds += comparison.flowMeterPounds;
+      totalDifferencePounds += comparison.differencePounds;
+
+      byCity[city] = (byCity[city] || 0) + pounds;
+      byTruck[truck] = (byTruck[truck] || 0) + pounds;
+
+      const workArea = getWorkAreaDisplay(report);
+      byArea[workArea] = (byArea[workArea] || 0) + pounds;
+
+      if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      truckStats[truck].pounds += pounds;
+      truckStats[truck].hours += hours;
+      truckStats[truck].reports += 1;
+
+      if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+      crewStats[crew].pounds += pounds;
+      crewStats[crew].hours += hours;
+      crewStats[crew].reports += 1;
+
+      const reportName = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.crewLead || 'No Lead'}`;
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
+      if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
+      if (comparison.clicks <= 0) flags.push(`${reportName}: missing or zero clicks.`);
+      if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
+      if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
+      if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
+      if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high estimated pounds per hour.`);
+    });
+
+    const truckEntries = Object.values(truckStats)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    const crewEntries = Object.values(crewStats)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    const bestTruck = truckEntries[0];
+    const bestCrew = crewEntries[0];
+
+    updatePeriodMetricCards(rawDocs || []);
+
+    const totalDifferencePercent = totalFlowMeterPounds > 0 ? (totalDifferencePounds / totalFlowMeterPounds) * 100 : 0;
+    setText('dashTotalClicks', fmtNumber(totalClicks, 0));
+    setText('dashEstimatedLbs', fmtNumber(totalPounds, 0));
+    setText('dashFlowMeterLbs', fmtNumber(totalFlowMeterPounds, 0));
+    setText('dashDifferencePercent', `${fmtNumber(totalDifferencePercent, 1)}%`);
+    setText('dashDifferenceLbs', fmtNumber(totalDifferencePounds, 0));
+    setText('dashBestTruck', bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—');
+    setText('dashBestCrew', bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—');
+    setText('dashMonthPoundsLarge', fmtNumber(getPeriodMetrics(rawDocs || [], getPeriodRanges(new Date()).month).pounds, 0));
+    setText('dashMonthReportsLarge', fmtNumber(getPeriodMetrics(rawDocs || [], getPeriodRanges(new Date()).month).reports, 0));
+
+    const transitionTruckStats = groupTransitionByTruck(transitions);
+    const avgTransitionText = `${fmtNumber(transitionStats.avgMinutes, 0)} min`;
+    const longestTransitionText = `${fmtNumber(transitionStats.longest, 0)} min`;
+
+    setText('dashAvgTransition', avgTransitionText);
+    setText('dashAvgTransitionMiles', fmtNumber(transitionStats.avgMiles, 1));
+    setText('dashAvgTravelMph', fmtNumber(transitionStats.avgMph, 0));
+    setText('dashLongestTransition', longestTransitionText);
+    setText('dashAvgTransitionHero', avgTransitionText);
+    setText('dashAvgTransitionMilesHero', fmtNumber(transitionStats.avgMiles, 1));
+    setText('dashAvgTravelMphHero', fmtNumber(transitionStats.avgMph, 0));
+    setText('dashLongestTransitionHero', longestTransitionText);
+    setText('dashTransitionSummaryText', transitions.length
+      ? `${fmtNumber(transitions.length, 0)} same-day job-to-job transitions found for the selected dashboard period. Lower minutes means tighter dispatch and less downtime.`
+      : 'Waiting for at least two same-day jobs from the same truck in the selected dashboard period.'
+    );
+
+    const transitionAlert = document.getElementById('transitionAlert');
+    if (transitionAlert) {
+      if (transitionStats.avgMinutes >= 90) {
+        transitionAlert.style.display = 'block';
+        transitionAlert.textContent = `Dispatch warning: average transition time is ${avgTransitionText}. Review routing, job sequencing, or load-out delays.`;
+      } else if (transitions.length) {
+        transitionAlert.style.display = 'block';
+        transitionAlert.textContent = `Dispatch read: average transition time is ${avgTransitionText}. Use the truck chart below to spot which crew/truck is losing the most time between jobs.`;
+      } else {
+        transitionAlert.style.display = 'none';
+        transitionAlert.textContent = '';
+      }
+    }
+
+    document.getElementById('transitionTruckChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMinutes', 'min', TRUCK_COLORS, 0);
+    document.getElementById('transitionMilesChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMiles', 'mi', TRUCK_COLORS, 1);
+    document.getElementById('transitionLongestList').innerHTML = renderLongestTransitions(transitions);
+    document.getElementById('transitionRecentRoutes').innerHTML = renderRecentTransitionRoutes(transitions);
+    document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
+
+    document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
+    document.getElementById('truckMetrics').innerHTML = renderBarChart(byTruck, 'lbs', TRUCK_COLORS);
+
+    const workAreaBox = document.getElementById('workAreaMetrics');
+    if (workAreaBox) workAreaBox.innerHTML = renderBarChart(byArea, 'lbs', {}, 'value');
+
+    const truckEfficiencyObject = {};
+    truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
+    document.getElementById('truckEfficiencyMetrics').innerHTML = renderBarChart(truckEfficiencyObject, 'lbs/hr', TRUCK_COLORS);
+
+    document.getElementById('crewMetrics').innerHTML = buildLeaderboard(
+      crewEntries,
+      'poundsPerHour',
+      'lbs/hr',
+      crew => `${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports`
+    );
+
+    const trendBox = document.getElementById('trendMetrics');
+    if (trendBox) trendBox.innerHTML = renderTrendChart(docs);
+
+    document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 30).map(flag => `
+      <div class="flag-item">${escapeHtml(flag)}</div>
+    `).join('') : `<div class="empty-state">No flagged reports for selected period.</div>`;
   }
 
   function renderBarChart(dataObject, unitLabel, colorMap, sortMode = 'value') {
@@ -2742,145 +2966,8 @@ data.googlePlaceId = data.googlePlaceId || "";
     const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
 
     dashboardUnsubscribe = onSnapshot(collRef, (snapshot) => {
-      const docs = activeReportsOnly(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      const transitions = calculateTransitions(docs);
-      const transitionStats = buildTransitionStats(transitions);
-
-      let totalClicks = 0;
-      let totalPounds = 0;
-      let totalFlowMeterPounds = 0;
-      let totalDifferencePounds = 0;
-      let totalHours = 0;
-      let todayPounds = 0;
-      let weekPounds = 0;
-      const byCity = {};
-      const byTruck = {};
-      const byArea = {};
-      const truckStats = {};
-      const crewStats = {};
-      const flags = [];
-      const today = new Date();
-
-      docs.forEach(report => {
-        const comparison = getPoundComparison(report);
-        const pounds = comparison.estimatedPounds;
-        const hours = getReportHours(report);
-        const city = report.city || 'Unknown City';
-        const truck = report.truckNumber || 'Unknown Truck';
-        const crew = report.crewLead || 'Unknown Crew';
-
-        totalClicks += comparison.clicks;
-        totalPounds += pounds;
-        totalFlowMeterPounds += comparison.flowMeterPounds;
-        totalDifferencePounds += comparison.differencePounds;
-        totalHours += hours;
-        byCity[city] = (byCity[city] || 0) + pounds;
-        byTruck[truck] = (byTruck[truck] || 0) + pounds;
-        const workArea = getWorkAreaDisplay(report);
-        byArea[workArea] = (byArea[workArea] || 0) + pounds;
-
-        if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
-        truckStats[truck].pounds += pounds;
-        truckStats[truck].hours += hours;
-        truckStats[truck].reports += 1;
-
-        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
-        crewStats[crew].pounds += pounds;
-        crewStats[crew].hours += hours;
-        crewStats[crew].reports += 1;
-
-        if (isSameDate(report.date, today)) todayPounds += pounds;
-        if (isThisWeek(report.date)) weekPounds += pounds;
-
-        const reportName = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.crewLead || 'No Lead'}`;
-        if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
-        if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
-        if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
-        if (comparison.clicks <= 0) flags.push(`${reportName}: missing or zero clicks.`);
-        if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
-        if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
-        if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
-        if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high estimated pounds per hour.`);
-      });
-
-      const truckEntries = Object.values(truckStats)
-        .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
-        .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
-
-      const crewEntries = Object.values(crewStats)
-        .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
-        .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
-
-      const bestTruck = truckEntries[0];
-      const bestCrew = crewEntries[0];
-
-      updatePeriodMetricCards(docs);
-
-      const totalDifferencePercent = totalFlowMeterPounds > 0 ? (totalDifferencePounds / totalFlowMeterPounds) * 100 : 0;
-      document.getElementById('dashTotalClicks').textContent = fmtNumber(totalClicks, 0);
-      document.getElementById('dashEstimatedLbs').textContent = fmtNumber(totalPounds, 0);
-      document.getElementById('dashFlowMeterLbs').textContent = fmtNumber(totalFlowMeterPounds, 0);
-      document.getElementById('dashDifferencePercent').textContent = `${fmtNumber(totalDifferencePercent, 1)}%`;
-      document.getElementById('dashDifferenceLbs').textContent = fmtNumber(totalDifferencePounds, 0);
-      document.getElementById('dashTodayPounds').textContent = fmtNumber(todayPounds, 0);
-      document.getElementById('dashWeekPounds').textContent = fmtNumber(weekPounds, 0);
-      document.getElementById('dashBestTruck').textContent = bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—';
-      document.getElementById('dashBestCrew').textContent = bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—';
-      const transitionTruckStats = groupTransitionByTruck(transitions);
-      const avgTransitionText = `${fmtNumber(transitionStats.avgMinutes, 0)} min`;
-      const longestTransitionText = `${fmtNumber(transitionStats.longest, 0)} min`;
-      document.getElementById('dashAvgTransition').textContent = avgTransitionText;
-      document.getElementById('dashAvgTransitionMiles').textContent = fmtNumber(transitionStats.avgMiles, 1);
-      document.getElementById('dashAvgTravelMph').textContent = fmtNumber(transitionStats.avgMph, 0);
-      document.getElementById('dashLongestTransition').textContent = longestTransitionText;
-      document.getElementById('dashAvgTransitionHero').textContent = avgTransitionText;
-      document.getElementById('dashAvgTransitionMilesHero').textContent = fmtNumber(transitionStats.avgMiles, 1);
-      document.getElementById('dashAvgTravelMphHero').textContent = fmtNumber(transitionStats.avgMph, 0);
-      document.getElementById('dashLongestTransitionHero').textContent = longestTransitionText;
-      document.getElementById('dashTransitionSummaryText').textContent = transitions.length
-        ? `${fmtNumber(transitions.length, 0)} same-day job-to-job transitions found. Lower minutes means tighter dispatch and less downtime.`
-        : 'Waiting for at least two same-day jobs from the same truck.';
-      const transitionAlert = document.getElementById('transitionAlert');
-      if (transitionAlert) {
-        if (transitionStats.avgMinutes >= 90) {
-          transitionAlert.style.display = 'block';
-          transitionAlert.textContent = `Dispatch warning: average transition time is ${avgTransitionText}. Review routing, job sequencing, or load-out delays.`;
-        } else if (transitions.length) {
-          transitionAlert.style.display = 'block';
-          transitionAlert.textContent = `Dispatch read: average transition time is ${avgTransitionText}. Use the truck chart below to spot which crew/truck is losing the most time between jobs.`;
-        } else {
-          transitionAlert.style.display = 'none';
-          transitionAlert.textContent = '';
-        }
-      }
-      document.getElementById('transitionTruckChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMinutes', 'min', TRUCK_COLORS, 0);
-      document.getElementById('transitionMilesChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMiles', 'mi', TRUCK_COLORS, 1);
-      document.getElementById('transitionLongestList').innerHTML = renderLongestTransitions(transitions);
-      document.getElementById('transitionRecentRoutes').innerHTML = renderRecentTransitionRoutes(transitions);
-      document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
-
-      document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
-      document.getElementById('truckMetrics').innerHTML = renderBarChart(byTruck, 'lbs', TRUCK_COLORS);
-      const workAreaBox = document.getElementById('workAreaMetrics');
-      if (workAreaBox) workAreaBox.innerHTML = renderBarChart(byArea, 'lbs', {}, 'value');
-
-      const truckEfficiencyObject = {};
-      truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
-      document.getElementById('truckEfficiencyMetrics').innerHTML = renderBarChart(truckEfficiencyObject, 'lbs/hr', TRUCK_COLORS);
-
-      document.getElementById('crewMetrics').innerHTML = buildLeaderboard(
-        crewEntries,
-        'poundsPerHour',
-        'lbs/hr',
-        crew => `${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports`
-      );
-
-      const trendBox = document.getElementById('trendMetrics');
-      if (trendBox) trendBox.innerHTML = renderTrendChart(docs);
-
-      document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 30).map(flag => `
-        <div class="flag-item">${escapeHtml(flag)}</div>
-      `).join('') : `<div class="empty-state">No flagged reports.</div>`;
+      dashboardReports = activeReportsOnly(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      renderDashboardAnalytics(dashboardReports);
     }, (err) => {
       console.error(err);
       showMessage('Error loading dashboard. Check manager access and Firebase rules.', 'error');
