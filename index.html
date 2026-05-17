@@ -2589,7 +2589,56 @@ data.googlePlaceId = data.googlePlaceId || "";
 
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
       await addDoc(collRef, data);
-      
+      // --- SEND REPORT TO GOOGLE SHETS ---
+try {
+
+  const estimatedLbs = Number(data.clicks || 0) * 0.6;
+
+  const flowMeterLbs =
+    (
+      (Number(data.aMeterFinish || 0) - Number(data.aMeterStart || 0)) +
+      (Number(data.bMeterFinish || 0) - Number(data.bMeterStart || 0))
+    ) / 2;
+
+  await fetch("https://script.google.com/macros/s/AKfycbxUb7jP1GP97Y_LGj8x-3CV6AXaqyaPcyWnxVypJqyHI7kNHZyP9SFoq5TVubxEdr8kWw/exec", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+
+      timestamp: new Date().toISOString(),
+
+      date: data.date || "",
+      city: data.city || "",
+      address: data.address || "",
+
+      truckNumber: data.truckNumber || "",
+      crewLead: data.crewLead || "",
+
+      workAreaType: data.workAreaType || "",
+      injectionType: data.injectionType || "",
+
+      clicks: Number(data.clicks || 0),
+
+      estimatedLbs: estimatedLbs,
+
+      flowMeterLbs: flowMeterLbs,
+
+      totalHours: Number(data.totalHours || 0),
+
+      notes: data.notes || ""
+
+    })
+  });
+
+  console.log("Google Sheet export successful");
+
+} catch (sheetError) {
+
+  console.error("Google Sheet export failed:", sheetError);
+
+}
       showMessage("Report saved to cloud successfully!");
       clearLocalDraft();
       e.target.reset();
