@@ -432,62 +432,6 @@
       border: 1px dashed var(--border);
     }
 
-    /* Submission Confirmation */
-    .submission-confirmation {
-      display: none;
-      border: 1px solid #bfdbfe;
-      background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
-      border-left: 7px solid var(--kke-blue);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 4px 12px rgba(0,87,168,0.08);
-    }
-
-    .submission-confirmation.show {
-      display: block;
-    }
-
-    .submission-confirmation-title {
-      color: var(--success);
-      font-size: 16px;
-      font-weight: 950;
-      margin-bottom: 10px;
-    }
-
-    .submission-confirmation-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-
-    .submission-confirmation-item {
-      background: white;
-      border: 1px solid #dbeafe;
-      border-radius: 12px;
-      padding: 10px;
-    }
-
-    .submission-confirmation-label {
-      color: var(--gray);
-      font-size: 10px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
-
-    .submission-confirmation-value {
-      color: var(--kke-dark-blue);
-      font-size: 15px;
-      font-weight: 950;
-      margin-top: 2px;
-      overflow-wrap: anywhere;
-    }
-
-    @media (max-width: 768px) {
-      .submission-confirmation-grid { grid-template-columns: 1fr 1fr; }
-    }
-
 
     /* Daily / Weekly / Monthly Manager Metrics */
     .period-metrics-grid {
@@ -1166,44 +1110,6 @@
 
     <div id="statusMessage" class="message-box"></div>
 
-    <div id="submissionConfirmation" class="submission-confirmation" aria-live="polite">
-      <div class="submission-confirmation-title">✓ Report Saved</div>
-      <div class="submission-confirmation-grid">
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">City</div>
-          <div class="submission-confirmation-value" id="confirmCity">—</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">Truck</div>
-          <div class="submission-confirmation-value" id="confirmTruck">—</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">Type</div>
-          <div class="submission-confirmation-value" id="confirmInjection">—</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">Crew Lead</div>
-          <div class="submission-confirmation-value" id="confirmCrewLead">—</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">A Side</div>
-          <div class="submission-confirmation-value" id="confirmASide">0 lbs</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">B Side</div>
-          <div class="submission-confirmation-value" id="confirmBSide">0 lbs</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">Clicks</div>
-          <div class="submission-confirmation-value" id="confirmClicks">0</div>
-        </div>
-        <div class="submission-confirmation-item">
-          <div class="submission-confirmation-label">Address</div>
-          <div class="submission-confirmation-value" id="confirmAddress">—</div>
-        </div>
-      </div>
-    </div>
-
     <form id="crewForm">
       <div class="card">
         <h2>Job Information</h2>
@@ -1243,8 +1149,7 @@
             <input id="addressLatitude" name="addressLatitude" type="hidden">
             <input id="addressLongitude" name="addressLongitude" type="hidden">
             <input id="googlePlaceId" name="googlePlaceId" type="hidden">
-            <input id="detectedCity" name="detectedCity" type="hidden">
-            <div class="helper-text">Start typing and select the Google-suggested address to standardize spelling. If City is Other, the app will use the city detected from the Google address.</div>
+            <div class="helper-text">Start typing and select the Google-suggested address to standardize spelling.</div>
           </label>
         </div>
       </div>
@@ -1308,66 +1213,20 @@
       <div class="card">
         <h2>Crew & Time</h2>
         <div class="grid">
-          <label>Truck Boss <span class="required">*</span>
-            <select name="crewLead" id="crewLead" required>
-              <option value="" disabled selected>Select Crew Lead</option>
-              <option value="Walter Timms">Walter Timms</option>
-              <option value="Steve Rickenbrode">Steve Rickenbrode</option>
-              <option value="Isaiah">Isaiah</option>
-              <option value="Kyle Teel">Kyle Teel</option>
-              <option value="Logan">Logan</option>
-              <option value="Josh Hiser">Josh Hiser</option>
-              <option value="Varga">Varga</option>
-            </select>
-          </label>
-          <label>Helper 1
-            <select name="helper1" id="helper1">
-              <option value="">None</option>
-              <option value="Walter Timms">Walter Timms</option>
-              <option value="Steve Rickenbrode">Steve Rickenbrode</option>
-              <option value="Isaiah">Isaiah</option>
-              <option value="Kyle Teel">Kyle Teel</option>
-              <option value="Logan">Logan</option>
-              <option value="Josh Hiser">Josh Hiser</option>
-              <option value="Varga">Varga</option>
-            </select>
-          </label>
-          <label>Helper 2
-            <select name="helper2" id="helper2">
-              <option value="">None</option>
-              <option value="Walter Timms">Walter Timms</option>
-              <option value="Steve Rickenbrode">Steve Rickenbrode</option>
-              <option value="Isaiah">Isaiah</option>
-              <option value="Kyle Teel">Kyle Teel</option>
-              <option value="Logan">Logan</option>
-              <option value="Josh Hiser">Josh Hiser</option>
-              <option value="Varga">Varga</option>
-            </select>
-          </label>
-          <label>Helper 3
-            <select name="helper3" id="helper3">
-              <option value="">None</option>
-              <option value="Walter Timms">Walter Timms</option>
-              <option value="Steve Rickenbrode">Steve Rickenbrode</option>
-              <option value="Isaiah">Isaiah</option>
-              <option value="Kyle Teel">Kyle Teel</option>
-              <option value="Logan">Logan</option>
-              <option value="Josh Hiser">Josh Hiser</option>
-              <option value="Varga">Varga</option>
-            </select>
-          </label>
-          <label>Helper 4
-            <select name="helper4" id="helper4">
-              <option value="">None</option>
-              <option value="Walter Timms">Walter Timms</option>
-              <option value="Steve Rickenbrode">Steve Rickenbrode</option>
-              <option value="Isaiah">Isaiah</option>
-              <option value="Kyle Teel">Kyle Teel</option>
-              <option value="Logan">Logan</option>
-              <option value="Josh Hiser">Josh Hiser</option>
-              <option value="Varga">Varga</option>
-            </select>
-          </label>
+          <label>Truck Boss <span class="required">*</span><input name="crewLead" list="crewNameOptions" autocomplete="off" required placeholder="Select or type name"></label>
+          <label>Helper 1<input name="helper1" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <label>Helper 2<input name="helper2" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <label>Helper 3<input name="helper3" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <label>Helper 4<input name="helper4" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <datalist id="crewNameOptions">
+            <option value="Walter"></option>
+            <option value="Isaiah"></option>
+            <option value="Jeremy"></option>
+            <option value="Kyle"></option>
+            <option value="Logan"></option>
+            <option value="Osvaldo"></option>
+            <option value="Other"></option>
+          </datalist>
           <label>Start Time <span class="required">*</span><input name="startTime" id="startTime" type="time" required></label>
           <label>Finish Time <span class="required">*</span><input name="finishTime" id="finishTime" type="time" required></label>
           <div class="calc-box">
@@ -1932,9 +1791,6 @@
 
     if (!city) return;
 
-    const detectedCityInput = document.getElementById("detectedCity");
-    if (detectedCityInput) detectedCityInput.value = city;
-
     const matchingOption = Array.from(citySelect.options).find(option =>
       option.value.toLowerCase() === city.toLowerCase()
     );
@@ -2335,7 +2191,33 @@ document.addEventListener("change", (e) => {
   }
 
   function normalizePersonName(value = "") {
-    return titleCaseWords(value);
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    const key = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const nameMap = {
+      "walter": "Walter Timms",
+      "walt": "Walter Timms",
+      "walter timms": "Walter Timms",
+      "steve": "Steve Rickenbrode",
+      "steven": "Steve Rickenbrode",
+      "steve rickenbrode": "Steve Rickenbrode",
+      "isaiah": "Isaiah",
+      "cosme": "Cosme Charles",
+      "cosme charles": "Cosme Charles",
+      "kyle": "Kyle Teel",
+      "kyle teel": "Kyle Teel",
+      "logan": "Logan",
+      "osvaldo": "Osvaldo",
+      "varga": "Varga"
+    };
+
+    return nameMap[key] || titleCaseWords(raw);
   }
 
   function getNormalizedCity(report) {
@@ -2846,22 +2728,57 @@ document.addEventListener("change", (e) => {
   }
 
 
-  // Calculations
-  const runCalcs = () => {
+  // Time Calculations
+  // iPhone/Safari can be inconsistent about firing input events on time fields,
+  // so total hours are recalculated on input, change, blur, and again on submit.
+  function parseTimeToMinutes(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    let match = raw.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    if (!match) match = raw.match(/^(\d{1,2})(\d{2})(?:\s*(AM|PM))?$/i);
+    if (!match) return null;
+
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const period = match[3] ? match[3].toUpperCase() : "";
+
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || minutes < 0 || minutes > 59) return null;
+
+    if (period === "PM" && hours < 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    if (!period && (hours < 0 || hours > 23)) return null;
+    if (period && (hours < 0 || hours > 23)) return null;
+
+    return (hours * 60) + minutes;
+  }
+
+  function calculateHoursFromTimes(startValue, finishValue) {
+    const startMinutes = parseTimeToMinutes(startValue);
+    const finishMinutes = parseTimeToMinutes(finishValue);
+    if (startMinutes === null || finishMinutes === null) return null;
+
+    let diffMinutes = finishMinutes - startMinutes;
+    if (diffMinutes < 0) diffMinutes += 1440;
+    if (diffMinutes <= 0) return null;
+
+    return Number((diffMinutes / 60).toFixed(2));
+  }
+
+  function runCalcs() {
     const startVal = document.getElementById('startTime')?.value;
     const finishVal = document.getElementById('finishTime')?.value;
     const display = document.getElementById('totalHoursDisplay');
-    if (startVal && finishVal && display) {
-      const [sh, sm] = startVal.split(':').map(Number);
-      const [fh, fm] = finishVal.split(':').map(Number);
-      let diff = (fh * 60 + fm) - (sh * 60 + sm);
-      if (diff < 0) diff += 1440;
-      display.textContent = (diff / 60).toFixed(2);
-    }
-  };
+    if (!display) return;
 
-  document.getElementById('startTime')?.addEventListener('input', runCalcs);
-  document.getElementById('finishTime')?.addEventListener('input', runCalcs);
+    const hours = calculateHoursFromTimes(startVal, finishVal);
+    display.textContent = hours === null ? "—" : hours.toFixed(2);
+  }
+
+  ['input', 'change', 'blur', 'keyup'].forEach(eventName => {
+    document.getElementById('startTime')?.addEventListener(eventName, runCalcs);
+    document.getElementById('finishTime')?.addEventListener(eventName, runCalcs);
+  });
 
 
   document.getElementById('workAreaType')?.addEventListener('change', toggleWorkAreaFields);
@@ -2919,34 +2836,6 @@ document.addEventListener("change", (e) => {
   document.getElementById('btnBuildRows')?.addEventListener('click', generateProfileRows);
   generateProfileRows();
 
-  function renderSubmissionConfirmation(data) {
-    const box = document.getElementById('submissionConfirmation');
-    if (!box) return;
-
-    const setText = (id, value) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = value;
-    };
-
-    setText('confirmCity', data.city || '—');
-    setText('confirmTruck', data.truckNumber || '—');
-    setText('confirmInjection', data.injectionType || '—');
-    setText('confirmCrewLead', data.crewLead || '—');
-    setText('confirmASide', `${fmtNumber(data.aPounds || 0, 0)} lbs`);
-    setText('confirmBSide', `${fmtNumber(data.bPounds || 0, 0)} lbs`);
-    setText('confirmClicks', fmtNumber(data.clicks || 0, 0));
-    setText('confirmAddress', data.address || '—');
-
-    box.classList.add('show');
-    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function hideSubmissionConfirmation() {
-    const box = document.getElementById('submissionConfirmation');
-    if (box) box.classList.remove('show');
-  }
-
-
   // --- SUBMISSION ---
   document.getElementById('crewForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2959,15 +2848,8 @@ document.addEventListener("change", (e) => {
       submitBtn.textContent = "Uploading Report...";
     }
 
-    hideSubmissionConfirmation();
-
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
-
-    // If City is Other, use the city detected from the Google-selected address.
-    const selectedCity = String(data.city || "").trim();
-    const detectedCity = String(data.detectedCity || "").trim();
-    data.city = selectedCity === "Other" && detectedCity ? detectedCity : selectedCity;
 
     // Normalize typed/select values before saving to Firestore so dashboard totals do not split by capitalization.
     data.city = normalizeCityName(data.city);
@@ -2980,7 +2862,19 @@ document.addEventListener("change", (e) => {
     data.injectionType = normalizeInjectionType(data.injectionType);
 
     delete data.jobPhotos;
-    data.totalHours = document.getElementById('totalHoursDisplay')?.textContent || "0";
+
+    const calculatedHours = calculateHoursFromTimes(data.startTime, data.finishTime);
+    if (calculatedHours === null) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Save & Submit Report";
+      }
+      return showMessage("Start Time and Finish Time did not calculate correctly. Please reselect both times before submitting.", "error");
+    }
+
+    data.totalHours = calculatedHours.toFixed(2);
+    const totalHoursDisplay = document.getElementById('totalHoursDisplay');
+    if (totalHoursDisplay) totalHoursDisplay.textContent = data.totalHours;
     data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
     data.profileInterval = document.getElementById('profileInterval')?.value || "";
     data.workAreaType = data.workAreaType || "";
@@ -2993,7 +2887,6 @@ document.addEventListener("change", (e) => {
 data.addressLatitude = data.addressLatitude || "";
 data.addressLongitude = data.addressLongitude || "";
 data.googlePlaceId = data.googlePlaceId || "";
-data.detectedCity = normalizeCityName(data.detectedCity || "");
     
     const aStart = Number(data.aMeterStart || 0);
     const aFinish = Number(data.aMeterFinish || 0);
@@ -3109,7 +3002,6 @@ try {
 
 }
       showMessage("Report saved to cloud successfully!");
-      renderSubmissionConfirmation(data);
       clearLocalDraft();
       e.target.reset();
       if (dateInput) dateInput.valueAsDate = new Date();
@@ -3117,16 +3009,13 @@ try {
       const bStartInput = document.getElementById('bMeterStart');
       if (aStartInput) aStartInput.value = 0;
       if (bStartInput) bStartInput.value = 0;
-      const detectedCityInput = document.getElementById('detectedCity');
-      if (detectedCityInput) detectedCityInput.value = "";
       generateProfileRows();
       const hrs = document.getElementById('totalHoursDisplay');
       if (hrs) hrs.textContent = "—";
       toggleWorkAreaFields();
       updateLiftAreaSqFtDisplay();
       renderSelectedPhotoNames();
-      // Stay on New Report so crews see the confirmation card immediately.
-      // History still updates in real time for managers.
+      switchTab('history');
     } catch (err) {
       console.error(err);
       showMessage("Error saving to cloud. Ensure internet connection and Firebase permissions.", "error");
