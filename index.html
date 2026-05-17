@@ -2600,19 +2600,6 @@ try {
       (Number(data.bMeterFinish || 0) - Number(data.bMeterStart || 0))
     ) / 2;
 
-console.log({
-  aMeterStart: data.aMeterStart,
-  aMeterFinish: data.aMeterFinish,
-  bMeterStart: data.bMeterStart,
-  bMeterFinish: data.bMeterFinish
-});
-  alert(
-  "A Start: " + data.aMeterStart +
-  "\nA Finish: " + data.aMeterFinish +
-  "\nB Start: " + data.bMeterStart +
-  "\nB Finish: " + data.bMeterFinish +
-  "\nClicks: " + data.clicks
-);
   await fetch("https://script.google.com/macros/s/AKfycbwWsh5VBAuy13ecYbWEuqaJu6awT2ZMzlobytoTfKx5IFs2Kx-6aWeUy1XqS7UfMEyTLw/exec", {
   method: "POST",
   mode: "no-cors",
