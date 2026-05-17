@@ -1686,7 +1686,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, collection, addDoc, onSnapshot,getDocs serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
   // --- FIREBASE CONFIG ---
@@ -1702,65 +1702,6 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  async function backfillReportsToGoogleSheet() {
-
-  try {
-
-    const collRef = collection(
-      db,
-      'artifacts',
-      appId,
-      'public',
-      'data',
-      'submissions'
-    );
-
-    const snapshot = await getDocs(collRef);
-
-    console.log(`Found ${snapshot.size} reports`);
-
-    for (const docSnap of snapshot.docs) {
-
-      const data = docSnap.data();
-
-      await fetch(
-        "https://script.google.com/macros/s/AKfycbwWsh5VBAuy13ecYbWEuqaJu6awT2ZMzlobytoTfKx5IFs2Kx-6aWeUy1XqS7UfMEyTLw/exec",
-        {
-          method: "POST",
-          mode: "no-cors",
-          body: JSON.stringify({
-            city: data.city || "",
-            address: data.address || "",
-            po: data.po || "",
-            date: data.date || "",
-            truckNumber: data.truckNumber || "",
-            injectionType: data.injectionType || "",
-            workAreaType: data.workAreaType || "",
-
-            aMeterStart: data.aMeterStart || 0,
-            aMeterFinish: data.aMeterFinish || 0,
-
-            bMeterStart: data.bMeterStart || 0,
-            bMeterFinish: data.bMeterFinish || 0,
-
-            clicks: data.clicks || 0
-          })
-        }
-      );
-
-      console.log(`Imported: ${data.address || 'Unknown Address'}`);
-
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-
-    alert("Historical import complete.");
-
-  } catch (err) {
-
-    console.error(err);
-    alert("Import failed. Check console.");
-  }
-}
   const storage = getStorage(app);
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
