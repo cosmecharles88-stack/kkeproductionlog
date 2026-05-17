@@ -1715,7 +1715,7 @@ IMPORT HISTORICAL REPORTS
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  async function backfillReportsToGoogleSheet() {
+  window.backfillReportsToGoogleSheet = async function () {
 
   try {
 
@@ -1773,7 +1773,7 @@ IMPORT HISTORICAL REPORTS
     console.error(err);
     alert("Import failed. Check console.");
   }
-}
+};
   const storage = getStorage(app);
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
