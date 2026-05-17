@@ -595,7 +595,7 @@
     /* Manager Tools / Filters / Modal */
     .tool-row {
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
+      grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr auto;
       gap: 10px;
       align-items: end;
       margin-bottom: 14px;
@@ -638,6 +638,69 @@
     .status-review { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
     .status-rejected { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
     .status-revision { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+
+    /* Injection Type Visibility */
+    .injection-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+      line-height: 1;
+      white-space: nowrap;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    .injection-badge.small {
+      padding: 4px 8px;
+      font-size: 10px;
+      margin-left: 0;
+    }
+
+    .badge-method {
+      background: #dbeafe;
+      color: #003f7d;
+      border-color: #93c5fd;
+    }
+
+    .badge-di {
+      background: #ffedd5;
+      color: #9a3412;
+      border-color: #fb923c;
+    }
+
+    .badge-unknown {
+      background: #f3f4f6;
+      color: #4b5563;
+      border-color: #d1d5db;
+    }
+
+    .history-item.di-report {
+      border-left: 7px solid #f97316;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.12);
+      background: linear-gradient(90deg, #fff7ed 0%, #ffffff 18%);
+    }
+
+    .history-item.method-report {
+      border-left: 7px solid var(--kke-blue);
+    }
+
+    .injection-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .injection-summary-grid { grid-template-columns: 1fr; }
+    }
+
 
     .modal-overlay {
       position: fixed;
@@ -1218,6 +1281,14 @@
         <label>Truck
           <select id="historyTruckFilter"><option value="">All Trucks</option></select>
         </label>
+        <label>Injection Type
+          <select id="historyInjectionFilter">
+            <option value="">All Types</option>
+            <option value="method">Method</option>
+            <option value="di">DI / Deep Injection</option>
+            <option value="unknown">Missing Type</option>
+          </select>
+        </label>
         <label>Status
           <select id="historyStatusFilter">
             <option value="">Active Reports</option>
@@ -1389,6 +1460,29 @@
         <div class="calc-box">
           <div class="calc-label">This Month Reports</div>
           <div class="calc-value" id="dashMonthReportsLarge">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Injection Type Breakdown</h2>
+      <p class="dashboard-note">Quick split so managers can immediately distinguish Method vs. DI work in the selected dashboard period.</p>
+      <div class="injection-summary-grid">
+        <div class="calc-box">
+          <div class="calc-label">Method Jobs</div>
+          <div class="calc-value" id="dashMethodJobs">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Method Lbs</div>
+          <div class="calc-value" id="dashMethodLbs">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Jobs</div>
+          <div class="calc-value" id="dashDiJobs" style="color:#9a3412;">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Lbs</div>
+          <div class="calc-value" id="dashDiLbs" style="color:#9a3412;">0</div>
         </div>
       </div>
     </div>
@@ -2165,6 +2259,11 @@ document.addEventListener("change", (e) => {
     const byArea = {};
     const truckStats = {};
     const crewStats = {};
+    const injectionStats = {
+      method: { reports: 0, pounds: 0 },
+      di: { reports: 0, pounds: 0 },
+      unknown: { reports: 0, pounds: 0 }
+    };
     const flags = [];
 
     docs.forEach(report => {
@@ -2174,6 +2273,12 @@ document.addEventListener("change", (e) => {
       const city = report.city || 'Unknown City';
       const truck = report.truckNumber || 'Unknown Truck';
       const crew = report.crewLead || 'Unknown Crew';
+      const injectionKey = getInjectionInfo(report).key;
+
+      if (injectionStats[injectionKey]) {
+        injectionStats[injectionKey].reports += 1;
+        injectionStats[injectionKey].pounds += pounds;
+      }
 
       totalClicks += comparison.clicks;
       totalPounds += pounds;
@@ -2226,6 +2331,10 @@ document.addEventListener("change", (e) => {
     setText('dashFlowMeterLbs', fmtNumber(totalFlowMeterPounds, 0));
     setText('dashDifferencePercent', `${fmtNumber(totalDifferencePercent, 1)}%`);
     setText('dashDifferenceLbs', fmtNumber(totalDifferencePounds, 0));
+    setText('dashMethodJobs', fmtNumber(injectionStats.method.reports, 0));
+    setText('dashMethodLbs', fmtNumber(injectionStats.method.pounds, 0));
+    setText('dashDiJobs', fmtNumber(injectionStats.di.reports, 0));
+    setText('dashDiLbs', fmtNumber(injectionStats.di.pounds, 0));
     setText('dashBestTruck', bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—');
     setText('dashBestCrew', bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—');
     setText('dashMonthPoundsLarge', fmtNumber(getPeriodMetrics(rawDocs || [], getPeriodRanges(new Date()).month).pounds, 0));
@@ -2681,6 +2790,42 @@ try {
     return 'status-review';
   }
 
+  function getInjectionInfo(report) {
+    const raw = String(report?.injectionType || '').trim();
+    const normalized = raw.toLowerCase();
+
+    if (normalized === 'di' || normalized.includes('deep')) {
+      return {
+        key: 'di',
+        label: 'DI',
+        fullLabel: 'Deep Injection',
+        badgeClass: 'badge-di'
+      };
+    }
+
+    if (normalized.includes('method')) {
+      return {
+        key: 'method',
+        label: 'METHOD',
+        fullLabel: 'Method',
+        badgeClass: 'badge-method'
+      };
+    }
+
+    return {
+      key: 'unknown',
+      label: 'NO TYPE',
+      fullLabel: raw || 'Not Listed',
+      badgeClass: 'badge-unknown'
+    };
+  }
+
+  function renderInjectionBadge(report, size = '') {
+    const info = getInjectionInfo(report);
+    const sizeClass = size === 'small' ? ' small' : '';
+    return `<span class="injection-badge ${info.badgeClass}${sizeClass}" title="${escapeHtml(info.fullLabel)}">${escapeHtml(info.label)}</span>`;
+  }
+
   function activeReportsOnly(docs) {
     return docs.filter(report => report.deleted !== true);
   }
@@ -2707,6 +2852,7 @@ try {
     const search = String(document.getElementById('historySearch')?.value || '').toLowerCase().trim();
     const city = document.getElementById('historyCityFilter')?.value || '';
     const truck = document.getElementById('historyTruckFilter')?.value || '';
+    const injection = document.getElementById('historyInjectionFilter')?.value || '';
     const status = document.getElementById('historyStatusFilter')?.value || '';
 
     return allReports.filter(report => {
@@ -2724,6 +2870,7 @@ try {
 
       if (city && report.city !== city) return false;
       if (truck && report.truckNumber !== truck) return false;
+      if (injection && getInjectionInfo(report).key !== injection) return false;
 
       if (search) {
         const haystack = [
@@ -2739,7 +2886,10 @@ try {
           report.workAreaType,
           report.workAreaOther,
           report.workAreaDisplay,
-          report.liftAreaNotes
+          report.liftAreaNotes,
+          report.injectionType,
+          getInjectionInfo(report).fullLabel,
+          getInjectionInfo(report).label
         ].join(' ').toLowerCase();
         if (!haystack.includes(search)) return false;
       }
@@ -2765,6 +2915,9 @@ try {
       const status = report.approvalStatus || 'Needs Review';
       const deletedLabel = report.deleted === true ? `<span class="status-pill status-rejected">Deleted</span>` : '';
       const statusPill = `<span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span>`;
+      const injectionInfo = getInjectionInfo(report);
+      const injectionBadge = renderInjectionBadge(report);
+      const injectionBadgeSmall = renderInjectionBadge(report, 'small');
       const managerActions = isCurrentUserManager ? `
         <div class="history-actions">
           ${report.deleted === true ? `
@@ -2782,17 +2935,17 @@ try {
       ` : '';
 
       return `
-        <div class="history-item">
+        <div class="history-item ${injectionInfo.key === 'di' ? 'di-report' : injectionInfo.key === 'method' ? 'method-report' : ''}">
           <div style="flex:1;">
             <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">
               ${escapeHtml(report.city || 'Unknown City')} - ${escapeHtml(report.address || 'No Address')}
-              ${statusPill}${deletedLabel}
+              ${injectionBadge}${statusPill}${deletedLabel}
             </div>
             <div style="font-size:13px; color:var(--gray); margin-top:2px;">
-              ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(report.crewLead || 'None')} | Truck: ${escapeHtml(report.truckNumber || 'N/A')}
+              ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(report.crewLead || 'None')} | Truck: ${escapeHtml(report.truckNumber || 'N/A')} | Type: ${injectionBadgeSmall}
             </div>
             <div style="font-size:12px; color:#374151; margin-top:6px;">
-              <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))}
+              <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))} | <strong>Injection:</strong> ${escapeHtml(injectionInfo.fullLabel)}
               ${Number(report.liftAreaSqFt || 0) > 0 ? ` | <strong>Dimensions:</strong> ${escapeHtml(report.liftAreaLength || '')}' x ${escapeHtml(report.liftAreaWidth || '')}' (${fmtNumber(report.liftAreaSqFt, 2)} sq ft)` : ''}
               ${report.photoCount ? ` | <strong>Photos:</strong> ${fmtNumber(report.photoCount, 0)}` : ''}
             </div>
@@ -3127,6 +3280,8 @@ try {
     document.getElementById('editCrewLead').value = report.crewLead || '';
     document.getElementById('editAddress').value = report.address || '';
     document.getElementById('editWorkAreaType').value = report.workAreaType || '';
+    const editInjectionType = document.getElementById('editInjectionType');
+    if (editInjectionType) editInjectionType.value = report.injectionType || '';
     document.getElementById('editWorkAreaOther').value = report.workAreaOther || '';
     document.getElementById('editLiftAreaLength').value = report.liftAreaLength || '';
     document.getElementById('editLiftAreaWidth').value = report.liftAreaWidth || '';
@@ -3165,6 +3320,7 @@ try {
       crewLead: document.getElementById('editCrewLead').value.trim(),
       address: document.getElementById('editAddress').value.trim(),
       workAreaType: document.getElementById('editWorkAreaType').value,
+      injectionType: document.getElementById('editInjectionType')?.value || '',
       workAreaOther: document.getElementById('editWorkAreaOther').value.trim(),
       liftAreaLength: document.getElementById('editLiftAreaLength').value,
       liftAreaWidth: document.getElementById('editLiftAreaWidth').value,
@@ -3352,6 +3508,7 @@ try {
           ${metricBox('Finish Time', report.finishTime || '')}
           ${metricBox('Total Hours', fmtNumber(totalHours, 2))}
           ${metricBox('Approval Status', report.approvalStatus || 'Needs Review')}
+          ${metricBox('Injection Type', getInjectionInfo(report).fullLabel)}
           ${metricBox('Submitted By', report.submittedBy || '')}
           ${metricBox('Last Modified By', report.lastModifiedBy || '')}
           <div class="box full"><div class="label">Address / Location</div><div class="value">${safe(report.address || '')}</div></div>
@@ -3426,11 +3583,13 @@ try {
   document.getElementById('historySearch')?.addEventListener('input', renderHistory);
   document.getElementById('historyCityFilter')?.addEventListener('change', renderHistory);
   document.getElementById('historyTruckFilter')?.addEventListener('change', renderHistory);
+  document.getElementById('historyInjectionFilter')?.addEventListener('change', renderHistory);
   document.getElementById('historyStatusFilter')?.addEventListener('change', renderHistory);
   document.getElementById('btnClearFilters')?.addEventListener('click', () => {
     document.getElementById('historySearch').value = '';
     document.getElementById('historyCityFilter').value = '';
     document.getElementById('historyTruckFilter').value = '';
+    document.getElementById('historyInjectionFilter').value = '';
     document.getElementById('historyStatusFilter').value = '';
     renderHistory();
   });
