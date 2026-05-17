@@ -2601,11 +2601,9 @@ try {
     ) / 2;
 
   await fetch("https://script.google.com/macros/s/AKfycbwmWjF0gQhtsDgfQRWxIDhQOXPmeQCDhG17aKiycPYdblok2aoYlwWxbhme8GpcnY3DuQ/exec", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  method: "POST",
+  mode: "no-cors",
+  body: JSON.stringify({
 
       timestamp: new Date().toISOString(),
 
