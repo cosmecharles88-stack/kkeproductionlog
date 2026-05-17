@@ -984,8 +984,67 @@
       font-weight: 700;
     }
 
+    /* Compact Dispatch / Transition Section */
+    #transitionAnalyticsCard {
+      padding-bottom: 16px;
+    }
+
+    .transition-compact-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .transition-compact-note {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      color: #4b5563;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .transition-details-toggle {
+      margin-top: 14px;
+      cursor: pointer;
+      color: var(--kke-blue);
+      font-weight: 950;
+      background: #ffffff;
+      border: 2px solid var(--kke-blue);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    .transition-details-toggle::-webkit-details-marker {
+      display: none;
+    }
+
+    .transition-details-toggle::after {
+      content: "▾";
+      font-size: 13px;
+      transition: transform 0.2s ease;
+    }
+
+    details[open] .transition-details-toggle::after {
+      transform: rotate(180deg);
+    }
+
+    .transition-details-content {
+      margin-top: 14px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 14px;
+    }
+
     @media (max-width: 768px) {
       .transition-hero-grid { grid-template-columns: 1fr; }
+      .transition-compact-grid { grid-template-columns: 1fr 1fr; }
       .visual-metric-grid { grid-template-columns: 1fr; }
       .metric-bar-row { grid-template-columns: 70px 1fr 70px; }
       .transition-hero-value { font-size: 32px; }
@@ -1491,80 +1550,84 @@
 
     <div class="card" id="transitionAnalyticsCard">
       <h2>Dispatch Efficiency — Job-to-Job Transition / GPS Travel</h2>
-      <p class="dashboard-note">This is the travel and downtime metric. It is calculated from same-day reports by the same truck: previous finish time to next job start time, with GPS distance between job pins.</p>
+      <p class="dashboard-note">Compact summary shown by default. Open details only when you need route charts, longest gaps, and the full transition log.</p>
 
-      <div class="transition-hero">
-        <div class="transition-hero-grid">
-          <div class="transition-hero-main">
-            <div class="transition-hero-label">Average Transition Time</div>
-            <div class="transition-hero-value" id="dashAvgTransitionHero">0 min</div>
-            <div class="transition-hero-sub" id="dashTransitionSummaryText">Waiting for at least two same-day jobs from the same truck.</div>
-          </div>
-          <div class="transition-hero-stat">
-            <div class="transition-hero-label">Avg GPS Miles</div>
-            <div class="transition-hero-value" id="dashAvgTransitionMilesHero">0</div>
-            <div class="transition-hero-sub">between job pins</div>
-          </div>
-          <div class="transition-hero-stat">
-            <div class="transition-hero-label">Avg Travel MPH</div>
-            <div class="transition-hero-value" id="dashAvgTravelMphHero">0</div>
-            <div class="transition-hero-sub">based on GPS miles/time</div>
-          </div>
-          <div class="transition-hero-stat">
-            <div class="transition-hero-label">Longest Transition</div>
-            <div class="transition-hero-value" id="dashLongestTransitionHero">0 min</div>
-            <div class="transition-hero-sub">same-day truck gap</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid">
+      <div class="transition-compact-grid">
         <div class="calc-box">
           <div class="calc-label">Avg Transition</div>
-          <div class="calc-value" id="dashAvgTransition">0 min</div>
+          <div class="calc-value" id="dashAvgTransitionHero">0 min</div>
         </div>
         <div class="calc-box">
           <div class="calc-label">Avg GPS Miles</div>
-          <div class="calc-value" id="dashAvgTransitionMiles">0</div>
+          <div class="calc-value" id="dashAvgTransitionMilesHero">0</div>
         </div>
         <div class="calc-box">
           <div class="calc-label">Avg Travel MPH</div>
-          <div class="calc-value" id="dashAvgTravelMph">0</div>
+          <div class="calc-value" id="dashAvgTravelMphHero">0</div>
         </div>
         <div class="calc-box">
           <div class="calc-label">Longest Transition</div>
-          <div class="calc-value" id="dashLongestTransition">0 min</div>
+          <div class="calc-value" id="dashLongestTransitionHero">0 min</div>
         </div>
       </div>
 
-      <div id="transitionAlert" class="transition-alert" style="display:none;"></div>
-
-      <div class="visual-metric-grid">
-        <div class="visual-panel">
-          <div class="visual-panel-title">Average Transition Time by Truck</div>
-          <div id="transitionTruckChart" class="empty-state">No transition data yet.</div>
-        </div>
-        <div class="visual-panel">
-          <div class="visual-panel-title">Average GPS Miles by Truck</div>
-          <div id="transitionMilesChart" class="empty-state">No GPS transition data yet.</div>
-        </div>
+      <div class="transition-compact-note" id="dashTransitionSummaryText">
+        Waiting for at least two same-day jobs from the same truck.
       </div>
 
-      <div class="visual-metric-grid">
-        <div class="visual-panel">
-          <div class="visual-panel-title">Longest Job-to-Job Gaps</div>
-          <div id="transitionLongestList" class="empty-state">No transition data yet.</div>
-        </div>
-        <div class="visual-panel">
-          <div class="visual-panel-title">Most Recent Job-to-Job Routes</div>
-          <div id="transitionRecentRoutes" class="empty-state">No route data yet.</div>
-        </div>
-      </div>
+      <details id="transitionDetailsPanel">
+        <summary class="transition-details-toggle">Show Dispatch Details</summary>
 
-      <div style="margin-top:16px;">
-        <h3 style="margin:0 0 8px; color:var(--kke-dark-blue);">Detailed Transition Log</h3>
-        <div id="transitionMetrics" class="empty-state">No transition data yet.</div>
-      </div>
+        <div class="transition-details-content">
+          <div class="grid">
+            <div class="calc-box">
+              <div class="calc-label">Avg Transition</div>
+              <div class="calc-value" id="dashAvgTransition">0 min</div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-label">Avg GPS Miles</div>
+              <div class="calc-value" id="dashAvgTransitionMiles">0</div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-label">Avg Travel MPH</div>
+              <div class="calc-value" id="dashAvgTravelMph">0</div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-label">Longest Transition</div>
+              <div class="calc-value" id="dashLongestTransition">0 min</div>
+            </div>
+          </div>
+
+          <div id="transitionAlert" class="transition-alert" style="display:none;"></div>
+
+          <div class="visual-metric-grid">
+            <div class="visual-panel">
+              <div class="visual-panel-title">Average Transition Time by Truck</div>
+              <div id="transitionTruckChart" class="empty-state">No transition data yet.</div>
+            </div>
+            <div class="visual-panel">
+              <div class="visual-panel-title">Average GPS Miles by Truck</div>
+              <div id="transitionMilesChart" class="empty-state">No GPS transition data yet.</div>
+            </div>
+          </div>
+
+          <div class="visual-metric-grid">
+            <div class="visual-panel">
+              <div class="visual-panel-title">Longest Job-to-Job Gaps</div>
+              <div id="transitionLongestList" class="empty-state">No transition data yet.</div>
+            </div>
+            <div class="visual-panel">
+              <div class="visual-panel-title">Most Recent Job-to-Job Routes</div>
+              <div id="transitionRecentRoutes" class="empty-state">No route data yet.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;">
+            <h3 style="margin:0 0 8px; color:var(--kke-dark-blue);">Detailed Transition Log</h3>
+            <div id="transitionMetrics" class="empty-state">No transition data yet.</div>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="card">
@@ -1838,6 +1901,7 @@
     "Frisco Parks Department": "#16a34a",
     "Garland": "#dc2626",
     "Highland Village": "#2563eb",
+    "McKinney": "#ca8a04",
     "Mckinney": "#ca8a04",
     "Prosper": "#0891b2",
     "Richardson": "#7c3aed",
@@ -2046,6 +2110,93 @@ document.addEventListener("change", (e) => {
       .replaceAll("'", '&#039;');
   }
 
+  // --- DATA NORMALIZATION ---
+  // Keeps dashboard totals from splitting when users type different capitalization.
+  function titleCaseWords(value = "") {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .replace(/\b[a-z]/g, char => char.toUpperCase());
+  }
+
+  function normalizeCityName(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const key = raw.toLowerCase();
+
+    const cityMap = {
+      "celina": "Celina",
+      "the colony": "The Colony",
+      "coppel": "Coppel",
+      "coppell": "Coppel",
+      "frisco": "Frisco",
+      "frisco parks department": "Frisco Parks Department",
+      "garland": "Garland",
+      "highland village": "Highland Village",
+      "mckinney": "McKinney",
+      "mc kinney": "McKinney",
+      "prosper": "Prosper",
+      "richardson": "Richardson",
+      "sachse": "Sachse",
+      "saginaw": "Saginaw",
+      "corinth": "Corinth",
+      "other": "Other"
+    };
+
+    return cityMap[key] || titleCaseWords(raw);
+  }
+
+  function normalizeInjectionType(value = "") {
+    const raw = String(value || "").trim();
+    const key = raw.toLowerCase();
+    if (!key) return "";
+    if (key === "di" || key.includes("deep")) return "Deep Injection";
+    if (key.includes("method")) return "Method";
+    return titleCaseWords(raw);
+  }
+
+  function normalizeWorkAreaType(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const key = raw.toLowerCase();
+
+    const areaMap = {
+      "alley": "Alley",
+      "driveway": "Driveway",
+      "leadwalk": "Leadwalk",
+      "lead walk": "Leadwalk",
+      "sidewalk": "Sidewalk",
+      "ada": "ADA",
+      "street": "Street",
+      "parking lot": "Parking Lot",
+      "pool": "Pool",
+      "deck": "Deck",
+      "patio": "Patio",
+      "sport court": "Sport Court",
+      "sports court": "Sport Court",
+      "other": "Other"
+    };
+
+    return areaMap[key] || titleCaseWords(raw);
+  }
+
+  function normalizePersonName(value = "") {
+    return titleCaseWords(value);
+  }
+
+  function getNormalizedCity(report) {
+    return normalizeCityName(report?.city) || "Unknown City";
+  }
+
+  function getNormalizedTruck(report) {
+    return String(report?.truckNumber || "").trim() || "Unknown Truck";
+  }
+
+  function getNormalizedCrew(report) {
+    return normalizePersonName(report?.crewLead) || "Unknown Crew";
+  }
+
   function fmtNumber(value, decimals = 0) {
     const num = Number(value);
     if (!Number.isFinite(num)) return decimals > 0 ? (0).toFixed(decimals) : '0';
@@ -2167,7 +2318,7 @@ document.addEventListener("change", (e) => {
 
       const pounds = getReportPounds(report);
       const hours = getReportHours(report);
-      const truck = report.truckNumber || 'Unknown Truck';
+      const truck = getNormalizedTruck(report);
 
       metrics.pounds += pounds;
       metrics.hours += hours;
@@ -2270,9 +2421,9 @@ document.addEventListener("change", (e) => {
       const comparison = getPoundComparison(report);
       const pounds = comparison.estimatedPounds;
       const hours = getReportHours(report);
-      const city = report.city || 'Unknown City';
-      const truck = report.truckNumber || 'Unknown Truck';
-      const crew = report.crewLead || 'Unknown Crew';
+      const city = getNormalizedCity(report);
+      const truck = getNormalizedTruck(report);
+      const crew = getNormalizedCrew(report);
       const injectionKey = getInjectionInfo(report).key;
 
       if (injectionStats[injectionKey]) {
@@ -2301,7 +2452,7 @@ document.addEventListener("change", (e) => {
       crewStats[crew].hours += hours;
       crewStats[crew].reports += 1;
 
-      const reportName = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.crewLead || 'No Lead'}`;
+      const reportName = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${getNormalizedCrew(report)}`;
       if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
       if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
       if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
@@ -2442,8 +2593,8 @@ document.addEventListener("change", (e) => {
 
 
   function getWorkAreaDisplay(report) {
-    const areaType = report.workAreaType || '';
-    if (areaType === 'Other' && report.workAreaOther) return report.workAreaOther;
+    const areaType = normalizeWorkAreaType(report.workAreaType || '');
+    if (areaType === 'Other' && report.workAreaOther) return titleCaseWords(report.workAreaOther);
     return areaType || 'Not Listed';
   }
 
@@ -2629,12 +2780,23 @@ document.addEventListener("change", (e) => {
 
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
+
+    // Normalize typed/select values before saving to Firestore so dashboard totals do not split by capitalization.
+    data.city = normalizeCityName(data.city);
+    data.crewLead = normalizePersonName(data.crewLead);
+    data.helper1 = normalizePersonName(data.helper1);
+    data.helper2 = normalizePersonName(data.helper2);
+    data.helper3 = normalizePersonName(data.helper3);
+    data.helper4 = normalizePersonName(data.helper4);
+    data.workAreaType = normalizeWorkAreaType(data.workAreaType);
+    data.injectionType = normalizeInjectionType(data.injectionType);
+
     delete data.jobPhotos;
     data.totalHours = document.getElementById('totalHoursDisplay')?.textContent || "0";
     data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
     data.profileInterval = document.getElementById('profileInterval')?.value || "";
     data.workAreaType = data.workAreaType || "";
-    data.workAreaOther = data.workAreaType === "Other" ? (data.workAreaOther || "") : "";
+    data.workAreaOther = data.workAreaType === "Other" ? titleCaseWords(data.workAreaOther || "") : "";
     data.workAreaDisplay = data.workAreaType === "Other" && data.workAreaOther ? data.workAreaOther : data.workAreaType;
     data.liftAreaLength = data.liftAreaLength || "";
     data.liftAreaWidth = data.liftAreaWidth || "";
@@ -2791,7 +2953,7 @@ try {
   }
 
   function getInjectionInfo(report) {
-    const raw = String(report?.injectionType || '').trim();
+    const raw = normalizeInjectionType(report?.injectionType || '');
     const normalized = raw.toLowerCase();
 
     if (normalized === 'di' || normalized.includes('deep')) {
@@ -2838,8 +3000,8 @@ try {
 
     const currentCity = citySelect.value;
     const currentTruck = truckSelect.value;
-    const cities = [...new Set(activeDocs.map(d => d.city).filter(Boolean))].sort();
-    const trucks = [...new Set(activeDocs.map(d => d.truckNumber).filter(Boolean))].sort();
+    const cities = [...new Set(activeDocs.map(d => getNormalizedCity(d)).filter(Boolean))].sort();
+    const trucks = [...new Set(activeDocs.map(d => getNormalizedTruck(d)).filter(Boolean))].sort();
 
     citySelect.innerHTML = '<option value="">All Cities</option>' + cities.map(city => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`).join('');
     truckSelect.innerHTML = '<option value="">All Trucks</option>' + trucks.map(truck => `<option value="${escapeHtml(truck)}">${escapeHtml(truck)}</option>`).join('');
@@ -2868,15 +3030,15 @@ try {
         if (status && approvalStatus !== status) return false;
       }
 
-      if (city && report.city !== city) return false;
-      if (truck && report.truckNumber !== truck) return false;
+      if (city && getNormalizedCity(report) !== city) return false;
+      if (truck && getNormalizedTruck(report) !== truck) return false;
       if (injection && getInjectionInfo(report).key !== injection) return false;
 
       if (search) {
         const haystack = [
-          report.city,
-          report.truckNumber,
-          report.crewLead,
+          getNormalizedCity(report),
+          getNormalizedTruck(report),
+          getNormalizedCrew(report),
           report.address,
           report.date,
           report.submittedBy,
@@ -2938,11 +3100,11 @@ try {
         <div class="history-item ${injectionInfo.key === 'di' ? 'di-report' : injectionInfo.key === 'method' ? 'method-report' : ''}">
           <div style="flex:1;">
             <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">
-              ${escapeHtml(report.city || 'Unknown City')} - ${escapeHtml(report.address || 'No Address')}
+              ${escapeHtml(getNormalizedCity(report))} - ${escapeHtml(report.address || 'No Address')}
               ${injectionBadge}${statusPill}${deletedLabel}
             </div>
             <div style="font-size:13px; color:var(--gray); margin-top:2px;">
-              ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(report.crewLead || 'None')} | Truck: ${escapeHtml(report.truckNumber || 'N/A')} | Type: ${injectionBadgeSmall}
+              ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(getNormalizedCrew(report))} | Truck: ${escapeHtml(getNormalizedTruck(report))} | Type: ${injectionBadgeSmall}
             </div>
             <div style="font-size:12px; color:#374151; margin-top:6px;">
               <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))} | <strong>Injection:</strong> ${escapeHtml(injectionInfo.fullLabel)}
@@ -3015,7 +3177,7 @@ try {
   function calculateTransitions(reports) {
     const byTruckDate = {};
     activeReportsOnly(reports).forEach(report => {
-      const truck = report.truckNumber || 'Unknown Truck';
+      const truck = getNormalizedTruck(report);
       const date = report.date || '';
       const startMs = parseDateTimeMinutes(report, 'startTime');
       const finishMs = parseDateTimeMinutes(report, 'finishTime');
@@ -3230,6 +3392,11 @@ try {
   };
 
   function recalcReportFields(patch) {
+    patch.city = normalizeCityName(patch.city);
+    patch.crewLead = normalizePersonName(patch.crewLead);
+    patch.workAreaType = normalizeWorkAreaType(patch.workAreaType);
+    patch.injectionType = normalizeInjectionType(patch.injectionType);
+
     const aStart = Number(patch.aMeterStart || 0);
     const aFinish = Number(patch.aMeterFinish || 0);
     const bStart = Number(patch.bMeterStart || 0);
@@ -3243,7 +3410,7 @@ try {
     patch.differencePercent = patch.flowMeterPounds > 0 ? (patch.differencePounds / patch.flowMeterPounds) * 100 : 0;
     patch.totalPounds = patch.estimatedPounds;
     patch.poundsPerHour = Number(patch.totalHours || 0) > 0 ? patch.estimatedPounds / Number(patch.totalHours || 0) : 0;
-    patch.workAreaOther = patch.workAreaType === 'Other' ? (patch.workAreaOther || '') : '';
+    patch.workAreaOther = patch.workAreaType === 'Other' ? titleCaseWords(patch.workAreaOther || '') : '';
     patch.workAreaDisplay = patch.workAreaType === 'Other' && patch.workAreaOther ? patch.workAreaOther : (patch.workAreaType || '');
     patch.liftAreaSqFt = calculateLiftAreaSqFt(patch.liftAreaLength, patch.liftAreaWidth);
     return patch;
@@ -3273,7 +3440,7 @@ try {
 
     currentEditReport = report;
     document.getElementById('editDocId').value = report.id;
-    document.getElementById('editModalSub').textContent = `${report.date || 'No Date'} | ${report.city || 'Unknown City'} | ${report.address || 'No Address'}`;
+    document.getElementById('editModalSub').textContent = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${report.address || 'No Address'}`;
     document.getElementById('editDate').value = report.date || '';
     document.getElementById('editCity').value = report.city || '';
     document.getElementById('editTruckNumber').value = report.truckNumber || '';
@@ -3360,7 +3527,7 @@ try {
   window.softDeleteReport = async function(reportId) {
     if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
     const report = allReports.find(item => item.id === reportId);
-    const label = report ? `${report.date || ''} ${report.city || ''} ${report.address || ''}` : reportId;
+    const label = report ? `${report.date || ''} ${getNormalizedCity(report)} ${report.address || ''}` : reportId;
     const typed = prompt(`Type DELETE to move this report to recovery:\n${label}`);
     if (typed !== 'DELETE') return;
 
@@ -3491,15 +3658,15 @@ try {
         <div class="top">
           <img src="logo.png" class="logo" onerror="this.src='logo.jpg'">
           <h1>Crew Profile Report</h1>
-          <div style="color:#6b7280; font-weight:bold; margin-top:6px;">${safe(report.city || '')} ${report.date ? '| ' + safe(report.date) : ''}</div>
+          <div style="color:#6b7280; font-weight:bold; margin-top:6px;">${safe(getNormalizedCity(report))} ${report.date ? '| ' + safe(report.date) : ''}</div>
         </div>
 
         <h2>Job Summary</h2>
         <div class="grid">
           ${metricBox('Date', report.date || '')}
-          ${metricBox('City', report.city || '')}
+          ${metricBox('City', getNormalizedCity(report))}
           ${metricBox('Truck #', report.truckNumber || '')}
-          ${metricBox('Crew Lead / Truck Boss', report.crewLead || '')}
+          ${metricBox('Crew Lead / Truck Boss', getNormalizedCrew(report))}
           ${metricBox('Helper 1', report.helper1 || '')}
           ${metricBox('Helper 2', report.helper2 || '')}
           ${metricBox('Helper 3', report.helper3 || '')}
