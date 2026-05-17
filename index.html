@@ -963,19 +963,6 @@
 <div class="page" id="main-content">
   <!-- Navigation Tabs -->
   <div class="tabs">
-    <button onclick="backfillReportsToGoogleSheet()"
-style="
-background:#0b5cab;
-color:white;
-padding:10px 16px;
-border:none;
-border-radius:8px;
-font-weight:700;
-cursor:pointer;
-margin-left:10px;
-">
-IMPORT HISTORICAL REPORTS
-</button>
     <button id="tabNew" class="tab-btn active">New Report</button>
     <button id="tabHistory" class="tab-btn">History</button>
     <button id="tabDashboard" class="tab-btn" style="display:none;">Dashboard</button>
@@ -1715,7 +1702,7 @@ IMPORT HISTORICAL REPORTS
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  window.backfillReportsToGoogleSheet = async function () {
+  async function backfillReportsToGoogleSheet() {
 
   try {
 
@@ -1773,7 +1760,7 @@ IMPORT HISTORICAL REPORTS
     console.error(err);
     alert("Import failed. Check console.");
   }
-};
+}
   const storage = getStorage(app);
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
