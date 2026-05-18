@@ -1929,6 +1929,8 @@
   let allReports = [];
   let dashboardReports = [];
   let currentEditReport = null;
+  let isSubmittingReport = false;
+
 
   // --- AUTH LOGIC ---
   const authOverlay = document.getElementById('auth-overlay');
@@ -2837,195 +2839,210 @@ document.addEventListener("change", (e) => {
   generateProfileRows();
 
   // --- SUBMISSION ---
-  document.getElementById('crewForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!auth.currentUser) return showMessage("You must be logged in to submit.", "error");
-    if (!document.getElementById('locationConfirmed')?.checked) return showMessage("Please confirm the GPS location.", "error");
+  const crewForm = document.getElementById('crewForm');
 
-    const submitBtn = document.getElementById('submitBtn');
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Uploading Report...";
-    }
+  if (crewForm && !crewForm.dataset.submitListenerAttached) {
+    crewForm.dataset.submitListenerAttached = "true";
 
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData.entries());
+    crewForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-    // Normalize typed/select values before saving to Firestore so dashboard totals do not split by capitalization.
-    data.city = normalizeCityName(data.city);
-    data.crewLead = normalizePersonName(data.crewLead);
-    data.helper1 = normalizePersonName(data.helper1);
-    data.helper2 = normalizePersonName(data.helper2);
-    data.helper3 = normalizePersonName(data.helper3);
-    data.helper4 = normalizePersonName(data.helper4);
-    data.workAreaType = normalizeWorkAreaType(data.workAreaType);
-    data.injectionType = normalizeInjectionType(data.injectionType);
-
-    delete data.jobPhotos;
-
-    const calculatedHours = calculateHoursFromTimes(data.startTime, data.finishTime);
-    if (calculatedHours === null) {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Save & Submit Report";
+      if (isSubmittingReport) {
+        console.warn("Duplicate submit blocked: report is already being submitted.");
+        return;
       }
-      return showMessage("Start Time and Finish Time did not calculate correctly. Please reselect both times before submitting.", "error");
-    }
 
-    data.totalHours = calculatedHours.toFixed(2);
-    const totalHoursDisplay = document.getElementById('totalHoursDisplay');
-    if (totalHoursDisplay) totalHoursDisplay.textContent = data.totalHours;
-    data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
-    data.profileInterval = document.getElementById('profileInterval')?.value || "";
-    data.workAreaType = data.workAreaType || "";
-    data.workAreaOther = data.workAreaType === "Other" ? titleCaseWords(data.workAreaOther || "") : "";
-    data.workAreaDisplay = data.workAreaType === "Other" && data.workAreaOther ? data.workAreaOther : data.workAreaType;
-    data.liftAreaLength = data.liftAreaLength || "";
-    data.liftAreaWidth = data.liftAreaWidth || "";
-    data.liftAreaSqFt = calculateLiftAreaSqFt(data.liftAreaLength, data.liftAreaWidth);
-    data.liftAreaNotes = data.liftAreaNotes || "";
-data.addressLatitude = data.addressLatitude || "";
-data.addressLongitude = data.addressLongitude || "";
-data.googlePlaceId = data.googlePlaceId || "";
-    
-    const aStart = Number(data.aMeterStart || 0);
-    const aFinish = Number(data.aMeterFinish || 0);
-    const bStart = Number(data.bMeterStart || 0);
-    const bFinish = Number(data.bMeterFinish || 0);
-    data.aPounds = Math.max(0, aFinish - aStart);
-    data.bPounds = Math.max(0, bFinish - bStart);
-    data.clicks = Number(data.clicks || 0);
-    data.estimatedPounds = data.clicks * 0.6;
-    data.flowMeterPounds = data.aPounds + data.bPounds;
-    data.differencePounds = data.estimatedPounds - data.flowMeterPounds;
-    data.differencePercent = data.flowMeterPounds > 0 ? (data.differencePounds / data.flowMeterPounds) * 100 : 0;
-    data.totalPounds = data.estimatedPounds;
-    data.poundsPerHour = Number(data.totalHours) > 0 ? data.estimatedPounds / Number(data.totalHours) : 0;
-    
-    const profileData = [];
-    document.querySelectorAll('#profileRows tr').forEach(tr => {
-      const inputs = tr.querySelectorAll('input');
-      profileData.push({
-        station: tr.querySelector('.station-cell')?.textContent || "",
-        d1Before: inputs[0]?.value || "",
-        d1After: inputs[1]?.value || "",
-        d2Before: inputs[2]?.value || "",
-        d2After: inputs[3]?.value || ""
-      });
+      const submitBtn = document.getElementById('submitBtn');
+
+      try {
+        isSubmittingReport = true;
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Uploading Report...";
+        }
+
+        if (!auth.currentUser) {
+          showMessage("You must be logged in to submit.", "error");
+          return;
+        }
+
+        if (!document.getElementById('locationConfirmed')?.checked) {
+          showMessage("Please confirm the GPS location.", "error");
+          return;
+        }
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        // Normalize typed/select values before saving to Firestore so dashboard totals do not split by capitalization.
+        data.city = normalizeCityName(data.city);
+        data.crewLead = normalizePersonName(data.crewLead);
+        data.helper1 = normalizePersonName(data.helper1);
+        data.helper2 = normalizePersonName(data.helper2);
+        data.helper3 = normalizePersonName(data.helper3);
+        data.helper4 = normalizePersonName(data.helper4);
+        data.workAreaType = normalizeWorkAreaType(data.workAreaType);
+        data.injectionType = normalizeInjectionType(data.injectionType);
+
+        delete data.jobPhotos;
+
+        const calculatedHours = calculateHoursFromTimes(data.startTime, data.finishTime);
+        if (calculatedHours === null) {
+          showMessage("Start Time and Finish Time did not calculate correctly. Please reselect both times before submitting.", "error");
+          return;
+        }
+
+        data.totalHours = calculatedHours.toFixed(2);
+        const totalHoursDisplay = document.getElementById('totalHoursDisplay');
+        if (totalHoursDisplay) totalHoursDisplay.textContent = data.totalHours;
+
+        data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
+        data.profileInterval = document.getElementById('profileInterval')?.value || "";
+        data.workAreaType = data.workAreaType || "";
+        data.workAreaOther = data.workAreaType === "Other" ? titleCaseWords(data.workAreaOther || "") : "";
+        data.workAreaDisplay = data.workAreaType === "Other" && data.workAreaOther ? data.workAreaOther : data.workAreaType;
+        data.liftAreaLength = data.liftAreaLength || "";
+        data.liftAreaWidth = data.liftAreaWidth || "";
+        data.liftAreaSqFt = calculateLiftAreaSqFt(data.liftAreaLength, data.liftAreaWidth);
+        data.liftAreaNotes = data.liftAreaNotes || "";
+        data.addressLatitude = data.addressLatitude || "";
+        data.addressLongitude = data.addressLongitude || "";
+        data.googlePlaceId = data.googlePlaceId || "";
+
+        const aStart = Number(data.aMeterStart || 0);
+        const aFinish = Number(data.aMeterFinish || 0);
+        const bStart = Number(data.bMeterStart || 0);
+        const bFinish = Number(data.bMeterFinish || 0);
+
+        data.aPounds = Math.max(0, aFinish - aStart);
+        data.bPounds = Math.max(0, bFinish - bStart);
+        data.clicks = Number(data.clicks || 0);
+        data.estimatedPounds = data.clicks * 0.6;
+        data.flowMeterPounds = data.aPounds + data.bPounds;
+        data.differencePounds = data.estimatedPounds - data.flowMeterPounds;
+        data.differencePercent = data.flowMeterPounds > 0 ? (data.differencePounds / data.flowMeterPounds) * 100 : 0;
+        data.totalPounds = data.estimatedPounds;
+        data.poundsPerHour = Number(data.totalHours) > 0 ? data.estimatedPounds / Number(data.totalHours) : 0;
+
+        const profileData = [];
+        document.querySelectorAll('#profileRows tr').forEach(tr => {
+          const inputs = tr.querySelectorAll('input');
+          profileData.push({
+            station: tr.querySelector('.station-cell')?.textContent || "",
+            d1Before: inputs[0]?.value || "",
+            d1After: inputs[1]?.value || "",
+            d2Before: inputs[2]?.value || "",
+            d2After: inputs[3]?.value || ""
+          });
+        });
+        data.profile = profileData;
+
+        const photoFiles = Array.from(document.getElementById('jobPhotos')?.files || []);
+        const reportPhotoKey = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        data.photos = [];
+        data.photoCount = 0;
+
+        data.clientSubmissionId = `${auth.currentUser.uid}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        data.timestamp = serverTimestamp();
+        data.userId = auth.currentUser.uid;
+        data.submittedBy = auth.currentUser.email;
+        data.approvalStatus = data.approvalStatus || "Needs Review";
+        data.managerNotes = "";
+        data.deleted = false;
+        data.auditTrail = [{
+          action: "Created",
+          by: auth.currentUser.email,
+          at: new Date().toISOString(),
+          note: "Report submitted from field form."
+        }];
+
+        if (photoFiles.length) {
+          showMessage(`Uploading ${photoFiles.length} photo${photoFiles.length === 1 ? '' : 's'}...`, "success");
+          data.photos = await uploadReportPhotos(photoFiles, reportPhotoKey);
+          data.photoCount = data.photos.length;
+        }
+
+        const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+        const docRef = await addDoc(collRef, data);
+
+        // --- SEND REPORT TO GOOGLE SHEETS ---
+        // This intentionally runs once, after Firestore save succeeds.
+        try {
+          await fetch("https://script.google.com/macros/s/AKfycbwWsh5VBAuy13ecYbWEuqaJu6awT2ZMzlobytoTfKx5IFs2Kx-6aWeUy1XqS7UfMEyTLw/exec", {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify({
+              submissionId: docRef.id,
+              clientSubmissionId: data.clientSubmissionId,
+              timestamp: new Date().toISOString(),
+
+              date: data.date || "",
+              city: data.city || "",
+              address: data.address || "",
+
+              truckNumber: data.truckNumber || "",
+              crewLead: data.crewLead || "",
+
+              workAreaType: data.workAreaType || "",
+              injectionType: data.injectionType || "",
+
+              aMeterStart: data.aMeterStart || "",
+              aMeterFinish: data.aMeterFinish || "",
+              bMeterStart: data.bMeterStart || "",
+              bMeterFinish: data.bMeterFinish || "",
+
+              aPounds: data.aPounds || "",
+              bPounds: data.bPounds || "",
+              clicks: Number(data.clicks || 0),
+
+              estimatedLbs: data.estimatedPounds,
+              flowMeterLbs: data.flowMeterPounds,
+              totalHours: Number(data.totalHours || 0),
+
+              notes: data.notes || ""
+            })
+          });
+
+          console.log("Google Sheet export request sent once.");
+        } catch (sheetError) {
+          console.error("Google Sheet export failed:", sheetError);
+        }
+
+        showMessage("Report saved to cloud successfully!");
+        clearLocalDraft();
+        e.target.reset();
+
+        if (dateInput) dateInput.valueAsDate = new Date();
+
+        const aStartInput = document.getElementById('aMeterStart');
+        const bStartInput = document.getElementById('bMeterStart');
+        if (aStartInput) aStartInput.value = 0;
+        if (bStartInput) bStartInput.value = 0;
+
+        generateProfileRows();
+
+        const hrs = document.getElementById('totalHoursDisplay');
+        if (hrs) hrs.textContent = "—";
+
+        toggleWorkAreaFields();
+        updateLiftAreaSqFtDisplay();
+        renderSelectedPhotoNames();
+        switchTab('history');
+
+      } catch (err) {
+        console.error(err);
+        showMessage("Error saving to cloud. Ensure internet connection and Firebase permissions.", "error");
+      } finally {
+        isSubmittingReport = false;
+
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save & Submit Report";
+        }
+      }
     });
-    data.profile = profileData;
-
-    const photoFiles = Array.from(document.getElementById('jobPhotos')?.files || []);
-    const reportPhotoKey = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    data.photos = [];
-    data.photoCount = 0;
-
-    data.timestamp = serverTimestamp();
-    data.userId = auth.currentUser.uid;
-    data.submittedBy = auth.currentUser.email;
-    data.approvalStatus = data.approvalStatus || "Needs Review";
-    data.managerNotes = "";
-    data.deleted = false;
-    data.auditTrail = [{
-      action: "Created",
-      by: auth.currentUser.email,
-      at: new Date().toISOString(),
-      note: "Report submitted from field form."
-    }];
-
-    try {
-      if (photoFiles.length) {
-        showMessage(`Uploading ${photoFiles.length} photo${photoFiles.length === 1 ? '' : 's'}...`, "success");
-        data.photos = await uploadReportPhotos(photoFiles, reportPhotoKey);
-        data.photoCount = data.photos.length;
-      }
-
-      const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
-      await addDoc(collRef, data);
-      // --- SEND REPORT TO GOOGLE SHETS ---
-try {
-
-  const estimatedLbs = Number(data.clicks || 0) * 0.6;
-
-  const flowMeterLbs =
-    (
-      (Number(data.aMeterFinish || 0) - Number(data.aMeterStart || 0)) +
-      (Number(data.bMeterFinish || 0) - Number(data.bMeterStart || 0))
-    ) / 2;
-
-  await fetch("https://script.google.com/macros/s/AKfycbwWsh5VBAuy13ecYbWEuqaJu6awT2ZMzlobytoTfKx5IFs2Kx-6aWeUy1XqS7UfMEyTLw/exec", {
-  method: "POST",
-  mode: "no-cors",
-  body: JSON.stringify({
-
-      timestamp: new Date().toISOString(),
-
-      date: data.date || "",
-      city: data.city || "",
-      address: data.address || "",
-
-      truckNumber: data.truckNumber || "",
-      crewLead: data.crewLead || "",
-
-      workAreaType: data.workAreaType || "",
-      injectionType: data.injectionType || "",
-
-      aMeterStart: data.aMeterStart || "",
-
-      aMeterFinish: data.aMeterFinish || "",
-
-      bMeterStart: data.bMeterStart || "",
-
-      bMeterFinish: data.bMeterFinish || "",
-
-    aPounds: data.aPounds || "",
-    bPounds: data.bPounds || "",
-  
-    clicks: Number(data.clicks || 0),
-
-      estimatedLbs: estimatedLbs,
-
-      flowMeterLbs: flowMeterLbs,
-
-      totalHours: Number(data.totalHours || 0),
-
-      notes: data.notes || ""
-
-    })
-  });
-
-  console.log("Google Sheet export successful");
-
-} catch (sheetError) {
-
-  console.error("Google Sheet export failed:", sheetError);
-
-}
-      showMessage("Report saved to cloud successfully!");
-      clearLocalDraft();
-      e.target.reset();
-      if (dateInput) dateInput.valueAsDate = new Date();
-      const aStartInput = document.getElementById('aMeterStart');
-      const bStartInput = document.getElementById('bMeterStart');
-      if (aStartInput) aStartInput.value = 0;
-      if (bStartInput) bStartInput.value = 0;
-      generateProfileRows();
-      const hrs = document.getElementById('totalHoursDisplay');
-      if (hrs) hrs.textContent = "—";
-      toggleWorkAreaFields();
-      updateLiftAreaSqFtDisplay();
-      renderSelectedPhotoNames();
-      switchTab('history');
-    } catch (err) {
-      console.error(err);
-      showMessage("Error saving to cloud. Ensure internet connection and Firebase permissions.", "error");
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Save & Submit Report";
-      }
-    }
-  });
+  }
 
   function statusClass(status) {
     if (status === 'Approved') return 'status-approved';
