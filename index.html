@@ -2269,8 +2269,12 @@ document.addEventListener("change", (e) => {
     const clicks = getReportClicks(doc);
     const estimatedPounds = getReportEstimatedPounds(doc);
     const flowMeterPounds = getReportFlowMeterPounds(doc);
-    const differencePounds = estimatedPounds - flowMeterPounds;
-    const differencePercent = flowMeterPounds > 0 ? (differencePounds / flowMeterPounds) * 100 : 0;
+    const differencePounds = flowMeterPounds - estimatedPounds;
+
+const differencePercent =
+  estimatedPounds > 0
+    ? (differencePounds / estimatedPounds) * 100
+    : 0;
     return { clicks, estimatedPounds, flowMeterPounds, differencePounds, differencePercent };
   }
 
