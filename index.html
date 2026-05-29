@@ -608,6 +608,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
+      touch-action: none;
     }
 
     .photo-gallery-image {
@@ -618,6 +620,20 @@
       box-shadow: 0 18px 55px rgba(0, 0, 0, 0.45);
       background: #111827;
       user-select: none;
+      cursor: zoom-in;
+      transform: translate(0px, 0px) scale(1);
+      transform-origin: center center;
+      transition: transform 0.14s ease;
+      touch-action: none;
+    }
+
+    .photo-gallery-image.is-zoomed {
+      cursor: grab;
+    }
+
+    .photo-gallery-image.is-dragging {
+      cursor: grabbing;
+      transition: none;
     }
 
     .photo-gallery-close,
@@ -692,6 +708,47 @@
       text-shadow: 0 2px 8px rgba(0,0,0,0.7);
     }
 
+    .photo-gallery-zoom-controls {
+      position: absolute;
+      left: 50%;
+      bottom: 62px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 3;
+      background: rgba(0, 0, 0, 0.42);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      padding: 7px;
+    }
+
+    .photo-gallery-zoom-btn {
+      width: 38px;
+      height: 38px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      color: white;
+      font-size: 22px;
+      font-weight: 950;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .photo-gallery-zoom-btn:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .photo-gallery-zoom-label {
+      min-width: 54px;
+      text-align: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
 
     @media (max-width: 768px) {
       .tabs { overflow-x: auto; }
@@ -714,6 +771,7 @@
       .photo-gallery-next { right: 8px; }
       .photo-gallery-close { top: 10px; right: 10px; }
       .photo-gallery-counter { bottom: 12px; }
+      .photo-gallery-zoom-controls { bottom: 52px; }
       .photo-gallery-caption { top: 14px; font-size: 12px; padding: 0 52px; }
     }
 
@@ -1810,6 +1868,12 @@
     <img id="photoGalleryImage" class="photo-gallery-image" alt="Job photo">
     <button id="photoGalleryNext" class="photo-gallery-nav photo-gallery-next" type="button" aria-label="Next photo">›</button>
     <div id="photoGalleryCaption" class="photo-gallery-caption"></div>
+    <div id="photoGalleryZoomControls" class="photo-gallery-zoom-controls" aria-label="Photo zoom controls">
+      <button id="photoGalleryZoomOut" class="photo-gallery-zoom-btn" type="button" aria-label="Zoom out">−</button>
+      <button id="photoGalleryZoomReset" class="photo-gallery-zoom-btn" type="button" aria-label="Reset zoom">1×</button>
+      <button id="photoGalleryZoomIn" class="photo-gallery-zoom-btn" type="button" aria-label="Zoom in">+</button>
+      <span id="photoGalleryZoomLabel" class="photo-gallery-zoom-label">100%</span>
+    </div>
     <div id="photoGalleryCounter" class="photo-gallery-counter"></div>
   </div>
 </div>
@@ -2915,6 +2979,16 @@ const differencePercent =
   let photoGalleryReportTitle = '';
   let photoGalleryTouchStartX = 0;
   let photoGalleryTouchStartY = 0;
+  let photoGalleryZoom = 1;
+  let photoGalleryPanX = 0;
+  let photoGalleryPanY = 0;
+  let photoGalleryDragStartX = 0;
+  let photoGalleryDragStartY = 0;
+  let photoGalleryDragPanStartX = 0;
+  let photoGalleryDragPanStartY = 0;
+  let photoGalleryDragging = false;
+  let photoGalleryPinchStartDistance = 0;
+  let photoGalleryPinchStartZoom = 1;
 
   function getReportPhotosForGallery(report) {
     if (!Array.isArray(report?.photos)) return [];
@@ -2955,6 +3029,60 @@ const differencePercent =
     document.body.style.overflow = '';
   }
 
+  function clampPhotoGalleryZoom(value) {
+    return Math.max(1, Math.min(Number(value) || 1, 5));
+  }
+
+  function applyPhotoGalleryZoom() {
+    const image = document.getElementById('photoGalleryImage');
+    const label = document.getElementById('photoGalleryZoomLabel');
+    if (!image) return;
+
+    photoGalleryZoom = clampPhotoGalleryZoom(photoGalleryZoom);
+
+    if (photoGalleryZoom <= 1.01) {
+      photoGalleryZoom = 1;
+      photoGalleryPanX = 0;
+      photoGalleryPanY = 0;
+      image.classList.remove('is-zoomed', 'is-dragging');
+    } else {
+      image.classList.add('is-zoomed');
+    }
+
+    image.style.transform = `translate(${photoGalleryPanX}px, ${photoGalleryPanY}px) scale(${photoGalleryZoom})`;
+    image.style.cursor = photoGalleryZoom > 1 ? 'grab' : 'zoom-in';
+    if (label) label.textContent = `${Math.round(photoGalleryZoom * 100)}%`;
+  }
+
+  function resetPhotoGalleryZoom() {
+    photoGalleryZoom = 1;
+    photoGalleryPanX = 0;
+    photoGalleryPanY = 0;
+    photoGalleryDragging = false;
+    applyPhotoGalleryZoom();
+  }
+
+  function changePhotoGalleryZoom(amount) {
+    photoGalleryZoom = clampPhotoGalleryZoom(photoGalleryZoom + amount);
+    applyPhotoGalleryZoom();
+  }
+
+  function togglePhotoGalleryZoom() {
+    if (photoGalleryZoom > 1.01) {
+      resetPhotoGalleryZoom();
+    } else {
+      photoGalleryZoom = 2;
+      applyPhotoGalleryZoom();
+    }
+  }
+
+  function getTouchDistance(touches) {
+    if (!touches || touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
   function updatePhotoGallery() {
     if (!photoGalleryPhotos.length) return;
 
@@ -2970,6 +3098,7 @@ const differencePercent =
     }
     if (counter) counter.textContent = `${photoGalleryIndex + 1} of ${photoGalleryPhotos.length}`;
     if (caption) caption.textContent = photoGalleryReportTitle;
+    resetPhotoGalleryZoom();
   }
 
   function showNextGalleryPhoto() {
@@ -2989,10 +3118,16 @@ const differencePercent =
     const closeBtn = document.getElementById('photoGalleryClose');
     const prevBtn = document.getElementById('photoGalleryPrev');
     const nextBtn = document.getElementById('photoGalleryNext');
+    const zoomInBtn = document.getElementById('photoGalleryZoomIn');
+    const zoomOutBtn = document.getElementById('photoGalleryZoomOut');
+    const zoomResetBtn = document.getElementById('photoGalleryZoomReset');
 
     closeBtn?.addEventListener('click', closePhotoGallery);
     prevBtn?.addEventListener('click', showPreviousGalleryPhoto);
     nextBtn?.addEventListener('click', showNextGalleryPhoto);
+    zoomInBtn?.addEventListener('click', (event) => { event.stopPropagation(); changePhotoGalleryZoom(0.5); });
+    zoomOutBtn?.addEventListener('click', (event) => { event.stopPropagation(); changePhotoGalleryZoom(-0.5); });
+    zoomResetBtn?.addEventListener('click', (event) => { event.stopPropagation(); resetPhotoGalleryZoom(); });
 
     const image = document.getElementById('photoGalleryImage');
     image?.addEventListener('error', () => {
@@ -3001,18 +3136,99 @@ const differencePercent =
       console.warn('Photo gallery image failed to load:', photoGalleryPhotos[photoGalleryIndex]?.url);
     });
 
+    image?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      togglePhotoGalleryZoom();
+    });
+
+    image?.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      changePhotoGalleryZoom(event.deltaY < 0 ? 0.25 : -0.25);
+    }, { passive: false });
+
+    image?.addEventListener('mousedown', (event) => {
+      if (photoGalleryZoom <= 1.01) return;
+      event.preventDefault();
+      photoGalleryDragging = true;
+      photoGalleryDragStartX = event.clientX;
+      photoGalleryDragStartY = event.clientY;
+      photoGalleryDragPanStartX = photoGalleryPanX;
+      photoGalleryDragPanStartY = photoGalleryPanY;
+      image.classList.add('is-dragging');
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!photoGalleryDragging) return;
+      photoGalleryPanX = photoGalleryDragPanStartX + (event.clientX - photoGalleryDragStartX);
+      photoGalleryPanY = photoGalleryDragPanStartY + (event.clientY - photoGalleryDragStartY);
+      applyPhotoGalleryZoom();
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!photoGalleryDragging) return;
+      photoGalleryDragging = false;
+      image?.classList.remove('is-dragging');
+    });
+
     modal?.addEventListener('click', (event) => {
       if (event.target.id === 'photoGalleryModal') closePhotoGallery();
     });
 
     modal?.addEventListener('touchstart', (event) => {
-      const touch = event.changedTouches?.[0];
+      const touch = event.touches?.[0] || event.changedTouches?.[0];
       if (!touch) return;
+
+      if (event.touches?.length === 2) {
+        photoGalleryPinchStartDistance = getTouchDistance(event.touches);
+        photoGalleryPinchStartZoom = photoGalleryZoom;
+        return;
+      }
+
       photoGalleryTouchStartX = touch.clientX;
       photoGalleryTouchStartY = touch.clientY;
-    }, { passive: true });
+
+      if (photoGalleryZoom > 1.01) {
+        photoGalleryDragging = true;
+        photoGalleryDragStartX = touch.clientX;
+        photoGalleryDragStartY = touch.clientY;
+        photoGalleryDragPanStartX = photoGalleryPanX;
+        photoGalleryDragPanStartY = photoGalleryPanY;
+        image?.classList.add('is-dragging');
+      }
+    }, { passive: false });
+
+    modal?.addEventListener('touchmove', (event) => {
+      if (event.touches?.length === 2 && photoGalleryPinchStartDistance > 0) {
+        event.preventDefault();
+        const currentDistance = getTouchDistance(event.touches);
+        const ratio = currentDistance / photoGalleryPinchStartDistance;
+        photoGalleryZoom = clampPhotoGalleryZoom(photoGalleryPinchStartZoom * ratio);
+        applyPhotoGalleryZoom();
+        return;
+      }
+
+      if (photoGalleryDragging && photoGalleryZoom > 1.01) {
+        event.preventDefault();
+        const touch = event.touches?.[0];
+        if (!touch) return;
+        photoGalleryPanX = photoGalleryDragPanStartX + (touch.clientX - photoGalleryDragStartX);
+        photoGalleryPanY = photoGalleryDragPanStartY + (touch.clientY - photoGalleryDragStartY);
+        applyPhotoGalleryZoom();
+      }
+    }, { passive: false });
 
     modal?.addEventListener('touchend', (event) => {
+      if (photoGalleryPinchStartDistance > 0 && event.touches?.length < 2) {
+        photoGalleryPinchStartDistance = 0;
+      }
+
+      if (photoGalleryDragging) {
+        photoGalleryDragging = false;
+        image?.classList.remove('is-dragging');
+        return;
+      }
+
       const touch = event.changedTouches?.[0];
       if (!touch) return;
 
@@ -3022,7 +3238,7 @@ const differencePercent =
       if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY)) return;
       if (deltaX < 0) showNextGalleryPhoto();
       if (deltaX > 0) showPreviousGalleryPhoto();
-    }, { passive: true });
+    }, { passive: false });
 
     document.addEventListener('click', (event) => {
       const button = event.target.closest('[data-gallery-report-id]');
@@ -3041,6 +3257,9 @@ const differencePercent =
       if (event.key === 'Escape') closePhotoGallery();
       if (event.key === 'ArrowRight') showNextGalleryPhoto();
       if (event.key === 'ArrowLeft') showPreviousGalleryPhoto();
+      if (event.key === '+' || event.key === '=') changePhotoGalleryZoom(0.5);
+      if (event.key === '-' || event.key === '_') changePhotoGalleryZoom(-0.5);
+      if (event.key === '0') resetPhotoGalleryZoom();
     });
   }
 
