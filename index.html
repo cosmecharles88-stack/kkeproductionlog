@@ -2858,22 +2858,53 @@ const differencePercent =
     return uploaded;
   }
 
+  function getPhotoUrl(photo) {
+    if (!photo) return '';
+
+    // New reports store photos as objects: { url, downloadURL, name, ... }.
+    // This also supports older/simple records that may store the URL as a plain string.
+    let url = '';
+    if (typeof photo === 'string') {
+      url = photo;
+    } else if (typeof photo === 'object') {
+      url = photo.url || photo.downloadURL || photo.downloadUrl || photo.href || photo.link || '';
+    }
+
+    // If a URL was copied through HTML at any point, undo common entity escaping
+    // so Firebase tokens like &token=... still load correctly in an <img>.
+    return String(url || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&#38;/g, '&')
+      .trim();
+  }
+
+  function getPhotoName(photo, fallback = 'Job photo') {
+    if (photo && typeof photo === 'object' && photo.name) return String(photo.name);
+    return fallback;
+  }
+
   function renderPhotoLinks(report) {
     const photos = Array.isArray(report.photos) ? report.photos : [];
-    if (!photos.length) return '';
+    const usablePhotos = photos
+      .map((photo, originalIndex) => ({ photo, originalIndex, url: getPhotoUrl(photo) }))
+      .filter(item => item.url);
+
+    if (!usablePhotos.length) return '';
 
     const reportId = escapeHtml(report.id || '');
 
     return `
       <div class="photo-link-list">
-        ${photos.map((photo, index) => `
-          <button
+        ${usablePhotos.map((item, displayIndex) => `
+          <a
             class="photo-link"
-            type="button"
+            href="${escapeHtml(item.url)}"
             data-gallery-report-id="${reportId}"
-            data-gallery-photo-index="${index}"
+            data-gallery-photo-index="${displayIndex}"
+            target="_blank"
+            rel="noopener"
             title="Open photo gallery"
-          >Photo ${index + 1}</button>
+          >Photo ${displayIndex + 1}</a>
         `).join('')}
       </div>
     `;
@@ -2886,9 +2917,15 @@ const differencePercent =
   let photoGalleryTouchStartY = 0;
 
   function getReportPhotosForGallery(report) {
-    return Array.isArray(report?.photos)
-      ? report.photos.filter(photo => photo && photo.url)
-      : [];
+    if (!Array.isArray(report?.photos)) return [];
+
+    return report.photos
+      .map((photo, index) => ({
+        url: getPhotoUrl(photo),
+        name: getPhotoName(photo, `Photo ${index + 1}`),
+        original: photo
+      }))
+      .filter(photo => photo.url);
   }
 
   function openPhotoGallery(reportId, startIndex = 0) {
@@ -2926,7 +2963,11 @@ const differencePercent =
     const counter = document.getElementById('photoGalleryCounter');
     const caption = document.getElementById('photoGalleryCaption');
 
-    if (image) image.src = currentPhoto.url;
+    if (image) {
+      image.alt = currentPhoto.name || 'Job photo';
+      image.removeAttribute('src');
+      image.src = currentPhoto.url;
+    }
     if (counter) counter.textContent = `${photoGalleryIndex + 1} of ${photoGalleryPhotos.length}`;
     if (caption) caption.textContent = photoGalleryReportTitle;
   }
@@ -2952,6 +2993,13 @@ const differencePercent =
     closeBtn?.addEventListener('click', closePhotoGallery);
     prevBtn?.addEventListener('click', showPreviousGalleryPhoto);
     nextBtn?.addEventListener('click', showNextGalleryPhoto);
+
+    const image = document.getElementById('photoGalleryImage');
+    image?.addEventListener('error', () => {
+      const caption = document.getElementById('photoGalleryCaption');
+      if (caption) caption.textContent = 'This photo link could not load. Use the Photo button link as a backup, or check Firebase Storage access for this image.';
+      console.warn('Photo gallery image failed to load:', photoGalleryPhotos[photoGalleryIndex]?.url);
+    });
 
     modal?.addEventListener('click', (event) => {
       if (event.target.id === 'photoGalleryModal') closePhotoGallery();
@@ -2980,6 +3028,7 @@ const differencePercent =
       const button = event.target.closest('[data-gallery-report-id]');
       if (!button) return;
 
+      event.preventDefault();
       const reportId = button.dataset.galleryReportId || '';
       const photoIndex = Number(button.dataset.galleryPhotoIndex || 0);
       openPhotoGallery(reportId, photoIndex);
