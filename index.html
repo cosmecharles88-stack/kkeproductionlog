@@ -955,6 +955,10 @@
       padding-top: 20px;
     }
 
+    .six-month-trend-grid {
+      grid-template-columns: repeat(6, 1fr);
+    }
+
     .trend-bar-wrap {
       display: flex;
       flex-direction: column;
@@ -1239,6 +1243,7 @@
       .history-item { flex-direction: column; align-items: stretch; gap: 10px; }
       .history-actions { justify-content: flex-start; }
       .trend-grid { grid-template-columns: repeat(2, 1fr); }
+      .six-month-trend-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
   </style>
@@ -1899,6 +1904,12 @@
     <div class="card">
       <h2>Production Trend — Last 7 Report Days</h2>
       <div id="trendMetrics" class="empty-state">No trend data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Production Trend — Last 6 Months</h2>
+      <p class="dashboard-note">Calendar-month production totals from active reports, including the current month-to-date.</p>
+      <div id="sixMonthTrendMetrics" class="empty-state">No monthly trend data yet.</div>
     </div>
 
     <div class="card">
@@ -2705,13 +2716,66 @@ const differencePercent =
     if (wrap) wrap.classList.toggle('active', selected === 'customMonth');
   }
 
-  function getDashboardMonthComparisonRange() {
+  function addDays(date, days) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
+  function getElapsedDaysInRange(range, today = new Date()) {
+    const end = range?.end instanceof Date ? range.end : null;
+    const start = range?.start instanceof Date ? range.start : null;
+    if (!start || !end) return 0;
+
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = addDays(todayStart, 1);
+    const proportionalEnd = tomorrowStart < end ? tomorrowStart : end;
+    return Math.max(1, Math.round((proportionalEnd - start) / 86400000));
+  }
+
+  function getMonthOverMonthRanges() {
     const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
-    if (selected === 'customMonth') return getSelectedCustomMonthRange();
+
+    if (selected === 'customMonth') {
+      const currentRange = getSelectedCustomMonthRange();
+      const previousRange = getPreviousMonthRange(currentRange);
+      return {
+        mode: 'full-month',
+        currentRange,
+        previousRange,
+        currentLabel: formatMonthLabel(currentRange.start),
+        previousLabel: formatMonthLabel(previousRange.start),
+        note: 'Full selected month compared to the full previous month.'
+      };
+    }
 
     const now = new Date();
     const currentMonth = getMonthRange(now.getFullYear(), now.getMonth());
-    return { key: 'month', label: formatMonthLabel(currentMonth.start), ...currentMonth };
+    const elapsedDays = getElapsedDaysInRange(currentMonth, now);
+    const currentRange = {
+      key: 'month-to-date',
+      label: `${formatMonthLabel(currentMonth.start)} month-to-date`,
+      start: currentMonth.start,
+      end: addDays(currentMonth.start, elapsedDays)
+    };
+
+    const previousFullMonth = getPreviousMonthRange(currentMonth);
+    const previousRange = {
+      key: 'previous-month-proportional',
+      label: `${formatMonthLabel(previousFullMonth.start)} same ${elapsedDays} day${elapsedDays === 1 ? '' : 's'}`,
+      start: previousFullMonth.start,
+      end: addDays(previousFullMonth.start, elapsedDays)
+    };
+
+    return {
+      mode: 'month-to-date',
+      currentRange,
+      previousRange,
+      currentLabel: currentRange.label,
+      previousLabel: previousRange.label,
+      note: `Proportional comparison: first ${elapsedDays} day${elapsedDays === 1 ? '' : 's'} of each month.`
+    };
   }
 
   function percentChange(current, previous) {
@@ -2784,14 +2848,15 @@ const differencePercent =
 
   function updateMonthOverMonthCard(rawDocs) {
     const activeDocs = activeReportsOnly(rawDocs || []);
-    const currentRange = getDashboardMonthComparisonRange();
-    const previousRange = getPreviousMonthRange(currentRange);
+    const comparisonRanges = getMonthOverMonthRanges();
+    const currentRange = comparisonRanges.currentRange;
+    const previousRange = comparisonRanges.previousRange;
     const current = summarizeReportsForMonthComparison(activeDocs, currentRange);
     const previous = summarizeReportsForMonthComparison(activeDocs, previousRange);
-    const currentLabel = formatMonthLabel(currentRange.start);
-    const previousLabel = formatMonthLabel(previousRange.start);
+    const currentLabel = comparisonRanges.currentLabel;
+    const previousLabel = comparisonRanges.previousLabel;
 
-    setText('momComparisonLabel', `${currentLabel} compared to ${previousLabel}. This follows the selected Custom Month when Custom Month is selected.`);
+    setText('momComparisonLabel', `${currentLabel} compared to ${previousLabel}. ${comparisonRanges.note}`);
 
     const poundsChange = percentChange(current.estimatedPounds, previous.estimatedPounds);
     const reportsChange = current.reports - previous.reports;
@@ -3023,6 +3088,9 @@ const differencePercent =
 
     const trendBox = document.getElementById('trendMetrics');
     if (trendBox) trendBox.innerHTML = renderTrendChart(docs);
+
+    const sixMonthTrendBox = document.getElementById('sixMonthTrendMetrics');
+    if (sixMonthTrendBox) sixMonthTrendBox.innerHTML = renderSixMonthTrendChart(rawDocs || []);
 
     document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 30).map(flag => `
       <div class="flag-item">${escapeHtml(flag)}</div>
@@ -4043,6 +4111,55 @@ const differencePercent =
           <div class="trend-value">${fmtNumber(item.pounds, 0)}</div>
           <div class="trend-bar" style="height:${height}px"></div>
           <div class="trend-label">${escapeHtml(label)}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+
+  function renderSixMonthTrendChart(docs) {
+    const now = new Date();
+    const months = [];
+
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+      months.push({
+        key: `${start.getFullYear()}-${pad2(start.getMonth() + 1)}`,
+        label: start.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+        start,
+        end,
+        pounds: 0,
+        reports: 0,
+        hours: 0
+      });
+    }
+
+    const monthMap = Object.fromEntries(months.map(month => [month.key, month]));
+
+    activeReportsOnly(docs || []).forEach(report => {
+      const date = parseReportDate(report.date);
+      if (!date) return;
+      const key = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+      const month = monthMap[key];
+      if (!month) return;
+      month.pounds += getReportPounds(report);
+      month.reports += 1;
+      month.hours += getReportHours(report);
+    });
+
+    const hasData = months.some(month => month.pounds > 0 || month.reports > 0);
+    if (!hasData) return `<div class="empty-state">No monthly trend data yet.</div>`;
+
+    const max = Math.max(...months.map(month => month.pounds), 1);
+    return `<div class="trend-grid six-month-trend-grid">${months.map(month => {
+      const height = Math.max(4, (month.pounds / max) * 140);
+      return `
+        <div class="trend-bar-wrap" title="${escapeHtml(month.label)}: ${fmtNumber(month.pounds, 0)} lbs, ${fmtNumber(month.reports, 0)} reports">
+          <div class="trend-value">${fmtNumber(month.pounds, 0)}</div>
+          <div class="trend-bar" style="height:${height}px"></div>
+          <div class="trend-label">${escapeHtml(month.label)}</div>
+          <div class="trend-label">${fmtNumber(month.reports, 0)} reports</div>
         </div>
       `;
     }).join('')}</div>`;
