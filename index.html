@@ -577,6 +577,9 @@
       text-decoration: none;
       cursor: pointer;
       font-family: inherit;
+      appearance: none;
+      -webkit-appearance: none;
+      touch-action: manipulation;
     }
 
     .photo-link:hover {
@@ -594,7 +597,7 @@
       align-items: center;
       justify-content: center;
       padding: 18px;
-      touch-action: pan-y;
+      touch-action: none;
     }
 
     .photo-gallery-modal.active {
@@ -2960,15 +2963,14 @@ const differencePercent =
     return `
       <div class="photo-link-list">
         ${usablePhotos.map((item, displayIndex) => `
-          <a
+          <button
             class="photo-link"
-            href="${escapeHtml(item.url)}"
+            type="button"
             data-gallery-report-id="${reportId}"
             data-gallery-photo-index="${displayIndex}"
-            target="_blank"
-            rel="noopener"
+            data-gallery-photo-url="${escapeHtml(item.url)}"
             title="Open photo gallery"
-          >Photo ${displayIndex + 1}</a>
+          >Photo ${displayIndex + 1}</button>
         `).join('')}
       </div>
     `;
@@ -3240,15 +3242,23 @@ const differencePercent =
       if (deltaX > 0) showPreviousGalleryPhoto();
     }, { passive: false });
 
-    document.addEventListener('click', (event) => {
+    function handleGalleryLauncher(event) {
       const button = event.target.closest('[data-gallery-report-id]');
       if (!button) return;
 
       event.preventDefault();
+      event.stopPropagation();
+
       const reportId = button.dataset.galleryReportId || '';
       const photoIndex = Number(button.dataset.galleryPhotoIndex || 0);
       openPhotoGallery(reportId, photoIndex);
-    });
+    }
+
+    // Desktop/laptop browsers use click. iPhone/Safari can be stubborn with
+    // dynamically-rendered elements, so touchend is wired too. This prevents
+    // the old behavior where the phone treated the photo like a normal link.
+    document.addEventListener('click', handleGalleryLauncher);
+    document.addEventListener('touchend', handleGalleryLauncher, { passive: false });
 
     document.addEventListener('keydown', (event) => {
       const isOpen = modal?.classList.contains('active');
