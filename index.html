@@ -594,7 +594,8 @@
       align-items: center;
       justify-content: center;
       padding: 18px;
-      touch-action: pan-y;
+      touch-action: none;
+      overflow: hidden;
     }
 
     .photo-gallery-modal.active {
@@ -608,6 +609,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
     }
 
     .photo-gallery-image {
@@ -618,6 +620,12 @@
       box-shadow: 0 18px 55px rgba(0, 0, 0, 0.45);
       background: #111827;
       user-select: none;
+      cursor: zoom-in;
+      transform: scale(1);
+      transform-origin: center center;
+      transition: transform 0.12s ease;
+      touch-action: none;
+      will-change: transform;
     }
 
     .photo-gallery-close,
@@ -690,6 +698,50 @@
       pointer-events: none;
       padding: 0 62px;
       text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+    }
+
+    .photo-gallery-zoom-controls {
+      position: absolute;
+      right: 22px;
+      bottom: 18px;
+      display: flex;
+      gap: 8px;
+      z-index: 3;
+    }
+
+    .photo-gallery-zoom-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.16);
+      color: white;
+      font-size: 22px;
+      font-weight: 950;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .photo-gallery-zoom-btn:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .photo-gallery-zoom-hint {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      color: white;
+      background: rgba(0, 0, 0, 0.42);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
     }
 
 
@@ -769,6 +821,21 @@
       .photo-gallery-close { top: 10px; right: 10px; }
       .photo-gallery-counter { bottom: 12px; }
       .photo-gallery-caption { top: 14px; font-size: 12px; padding: 0 52px; }
+      .photo-gallery-zoom-controls {
+        right: 10px;
+        bottom: 58px;
+      }
+      .photo-gallery-zoom-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+      }
+      .photo-gallery-zoom-hint {
+        left: 10px;
+        bottom: 58px;
+        font-size: 11px;
+        padding: 7px 10px;
+      }
     }
 
     /* Manager Tools / Filters / Modal */
@@ -1928,6 +1995,12 @@
     <button id="photoGalleryNext" class="photo-gallery-nav photo-gallery-next" type="button" aria-label="Next photo">›</button>
     <div id="photoGalleryCaption" class="photo-gallery-caption"></div>
     <div id="photoGalleryCounter" class="photo-gallery-counter"></div>
+    <div class="photo-gallery-zoom-hint">Click / pinch to zoom</div>
+    <div class="photo-gallery-zoom-controls" aria-label="Photo zoom controls">
+      <button id="photoGalleryZoomOut" class="photo-gallery-zoom-btn" type="button" aria-label="Zoom out">−</button>
+      <button id="photoGalleryZoomReset" class="photo-gallery-zoom-btn" type="button" aria-label="Reset zoom">1×</button>
+      <button id="photoGalleryZoomIn" class="photo-gallery-zoom-btn" type="button" aria-label="Zoom in">+</button>
+    </div>
   </div>
 </div>
 
@@ -3281,6 +3354,9 @@ const differencePercent =
   let photoGalleryReportTitle = '';
   let photoGalleryTouchStartX = 0;
   let photoGalleryTouchStartY = 0;
+  let photoGalleryZoom = 1;
+  let photoGalleryPinchStartDistance = 0;
+  let photoGalleryPinchStartZoom = 1;
 
   function getReportPhotosForGallery(report) {
     if (!Array.isArray(report?.photos)) return [];
@@ -3292,6 +3368,47 @@ const differencePercent =
         original: photo
       }))
       .filter(photo => photo.url);
+  }
+
+
+  function clampPhotoGalleryZoom(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 1;
+    return Math.max(1, Math.min(numericValue, 5));
+  }
+
+  function applyPhotoGalleryZoom() {
+    const image = document.getElementById('photoGalleryImage');
+    const resetBtn = document.getElementById('photoGalleryZoomReset');
+    if (!image) return;
+
+    image.style.transform = `scale(${photoGalleryZoom})`;
+    image.style.cursor = photoGalleryZoom > 1.05 ? 'zoom-out' : 'zoom-in';
+
+    if (resetBtn) {
+      resetBtn.textContent = photoGalleryZoom > 1.05 ? `${photoGalleryZoom.toFixed(1)}×` : '1×';
+      resetBtn.title = 'Reset zoom';
+    }
+  }
+
+  function setPhotoGalleryZoom(value) {
+    photoGalleryZoom = clampPhotoGalleryZoom(value);
+    applyPhotoGalleryZoom();
+  }
+
+  function zoomPhotoGalleryBy(delta) {
+    setPhotoGalleryZoom(photoGalleryZoom + delta);
+  }
+
+  function resetPhotoGalleryZoom() {
+    setPhotoGalleryZoom(1);
+  }
+
+  function getPhotoGalleryPinchDistance(touches) {
+    if (!touches || touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt((dx * dx) + (dy * dy));
   }
 
   function openPhotoGallery(reportId, startIndex = 0) {
@@ -3319,6 +3436,7 @@ const differencePercent =
     modal.classList.remove('active');
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
+    resetPhotoGalleryZoom();
   }
 
   function updatePhotoGallery() {
@@ -3336,6 +3454,7 @@ const differencePercent =
     }
     if (counter) counter.textContent = `${photoGalleryIndex + 1} of ${photoGalleryPhotos.length}`;
     if (caption) caption.textContent = photoGalleryReportTitle;
+    resetPhotoGalleryZoom();
   }
 
   function showNextGalleryPhoto() {
@@ -3355,12 +3474,45 @@ const differencePercent =
     const closeBtn = document.getElementById('photoGalleryClose');
     const prevBtn = document.getElementById('photoGalleryPrev');
     const nextBtn = document.getElementById('photoGalleryNext');
+    const image = document.getElementById('photoGalleryImage');
+    const zoomInBtn = document.getElementById('photoGalleryZoomIn');
+    const zoomOutBtn = document.getElementById('photoGalleryZoomOut');
+    const zoomResetBtn = document.getElementById('photoGalleryZoomReset');
 
     closeBtn?.addEventListener('click', closePhotoGallery);
     prevBtn?.addEventListener('click', showPreviousGalleryPhoto);
     nextBtn?.addEventListener('click', showNextGalleryPhoto);
 
-    const image = document.getElementById('photoGalleryImage');
+    zoomInBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zoomPhotoGalleryBy(0.5);
+    });
+
+    zoomOutBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zoomPhotoGalleryBy(-0.5);
+    });
+
+    zoomResetBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      resetPhotoGalleryZoom();
+    });
+
+    image?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setPhotoGalleryZoom(photoGalleryZoom > 1.05 ? 1 : 2);
+    });
+
+    image?.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zoomPhotoGalleryBy(event.deltaY < 0 ? 0.25 : -0.25);
+    }, { passive: false });
+
     image?.addEventListener('error', () => {
       const caption = document.getElementById('photoGalleryCaption');
       if (caption) caption.textContent = 'This photo link could not load. Use the Photo button link as a backup, or check Firebase Storage access for this image.';
@@ -3372,13 +3524,32 @@ const differencePercent =
     });
 
     modal?.addEventListener('touchstart', (event) => {
+      if (event.touches?.length === 2) {
+        photoGalleryPinchStartDistance = getPhotoGalleryPinchDistance(event.touches);
+        photoGalleryPinchStartZoom = photoGalleryZoom;
+        return;
+      }
+
       const touch = event.changedTouches?.[0];
       if (!touch) return;
       photoGalleryTouchStartX = touch.clientX;
       photoGalleryTouchStartY = touch.clientY;
     }, { passive: true });
 
+    modal?.addEventListener('touchmove', (event) => {
+      if (event.touches?.length !== 2) return;
+      const distance = getPhotoGalleryPinchDistance(event.touches);
+      if (!distance || !photoGalleryPinchStartDistance) return;
+
+      event.preventDefault();
+      const scaleChange = distance / photoGalleryPinchStartDistance;
+      setPhotoGalleryZoom(photoGalleryPinchStartZoom * scaleChange);
+    }, { passive: false });
+
     modal?.addEventListener('touchend', (event) => {
+      if (event.touches?.length) return;
+      if (photoGalleryZoom > 1.05) return;
+
       const touch = event.changedTouches?.[0];
       if (!touch) return;
 
@@ -3400,13 +3571,26 @@ const differencePercent =
       openPhotoGallery(reportId, photoIndex);
     });
 
+    document.addEventListener('touchend', (event) => {
+      const button = event.target.closest('[data-gallery-report-id]');
+      if (!button) return;
+
+      event.preventDefault();
+      const reportId = button.dataset.galleryReportId || '';
+      const photoIndex = Number(button.dataset.galleryPhotoIndex || 0);
+      openPhotoGallery(reportId, photoIndex);
+    }, { passive: false });
+
     document.addEventListener('keydown', (event) => {
       const isOpen = modal?.classList.contains('active');
       if (!isOpen) return;
 
       if (event.key === 'Escape') closePhotoGallery();
-      if (event.key === 'ArrowRight') showNextGalleryPhoto();
-      if (event.key === 'ArrowLeft') showPreviousGalleryPhoto();
+      if (event.key === 'ArrowRight' && photoGalleryZoom <= 1.05) showNextGalleryPhoto();
+      if (event.key === 'ArrowLeft' && photoGalleryZoom <= 1.05) showPreviousGalleryPhoto();
+      if (event.key === '+' || event.key === '=') zoomPhotoGalleryBy(0.5);
+      if (event.key === '-' || event.key === '_') zoomPhotoGalleryBy(-0.5);
+      if (event.key === '0') resetPhotoGalleryZoom();
     });
   }
 
