@@ -745,41 +745,87 @@
     }
 
 
-    /* Fleet GPS Manager Tab */
+    /* Fleet Operations Manager Tab */
     .fleet-summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 16px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
     }
 
-    .fleet-truck-grid {
+    .fleet-command-layout {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      grid-template-columns: 300px minmax(420px, 1fr) 310px;
       gap: 14px;
+      align-items: stretch;
     }
 
-    .fleet-truck-card {
+    .fleet-panel {
+      background: white;
       border: 1px solid #dbeafe;
-      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
       border-radius: 16px;
-      padding: 15px;
-      box-shadow: 0 4px 12px rgba(0, 87, 168, 0.05);
+      overflow: hidden;
+      min-height: 520px;
     }
 
-    .fleet-truck-top {
+    .fleet-panel-header {
+      background: #f8fbff;
+      border-bottom: 1px solid #dbeafe;
+      padding: 12px 14px;
+      color: var(--kke-dark-blue);
+      font-weight: 950;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .fleet-list {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      max-height: 590px;
+      overflow: auto;
+    }
+
+    .fleet-list-item {
+      width: 100%;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 11px;
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+      display: grid;
+      gap: 6px;
+    }
+
+    .fleet-list-item:hover,
+    .fleet-list-item.active {
+      border-color: var(--kke-blue);
+      box-shadow: 0 5px 14px rgba(0, 87, 168, 0.10);
+      background: #f8fbff;
+    }
+
+    .fleet-list-top {
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 8px;
     }
 
     .fleet-truck-name {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 950;
       color: var(--kke-dark-blue);
       overflow-wrap: anywhere;
+    }
+
+    .fleet-list-meta {
+      color: var(--gray);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
     }
 
     .fleet-status-pill {
@@ -787,36 +833,60 @@
       align-items: center;
       justify-content: center;
       border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 11px;
+      padding: 5px 9px;
+      font-size: 10px;
       font-weight: 950;
       text-transform: uppercase;
       border: 1px solid transparent;
       white-space: nowrap;
     }
 
-    .fleet-status-moving {
-      background: #dcfce7;
-      color: #166534;
-      border-color: #86efac;
+    .fleet-status-moving { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .fleet-status-stopped { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+    .fleet-status-idle { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .fleet-status-stale { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+    .fleet-status-offline { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+    .fleet-map-panel {
+      position: relative;
+      min-height: 600px;
+      border: 1px solid #dbeafe;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #e5e7eb;
     }
 
-    .fleet-status-stopped {
-      background: #f3f4f6;
-      color: #374151;
-      border-color: #d1d5db;
+    #fleetMap {
+      width: 100%;
+      height: 600px;
+      min-height: 600px;
     }
 
-    .fleet-status-stale {
-      background: #ffedd5;
-      color: #9a3412;
-      border-color: #fdba74;
+    .fleet-map-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      color: var(--gray);
+      font-weight: 800;
+      background: #f8fafc;
     }
 
-    .fleet-status-offline {
-      background: #fee2e2;
-      color: #991b1b;
-      border-color: #fca5a5;
+    .fleet-detail-body,
+    .fleet-maintenance-body {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .fleet-detail-title {
+      font-size: 20px;
+      font-weight: 950;
+      color: var(--kke-dark-blue);
+      margin-bottom: 2px;
     }
 
     .fleet-mini-grid {
@@ -848,6 +918,45 @@
       overflow-wrap: anywhere;
     }
 
+    .fleet-maintenance-card {
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      border-radius: 14px;
+      padding: 11px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .fleet-maintenance-card.due-soon {
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+
+    .fleet-maintenance-card.overdue {
+      border-color: #fca5a5;
+      background: #fef2f2;
+    }
+
+    .fleet-maintenance-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .fleet-maintenance-title {
+      color: var(--kke-dark-blue);
+      font-weight: 950;
+      font-size: 13px;
+    }
+
+    .fleet-maintenance-meta {
+      color: var(--gray);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
     .fleet-event-list {
       display: grid;
       gap: 10px;
@@ -859,7 +968,7 @@
       border-radius: 14px;
       padding: 12px;
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr 1fr;
+      grid-template-columns: 1.1fr 0.9fr 0.9fr 0.8fr;
       gap: 10px;
       align-items: center;
       font-size: 13px;
@@ -876,9 +985,6 @@
       font-weight: 750;
       overflow-wrap: anywhere;
     }
-
-
-
 
     /* Custom Month / Month-over-Month Dashboard */
     .dashboard-month-picker-wrap {
@@ -1436,6 +1542,9 @@
       .dashboard-range-pill { border-radius: 12px; }
       .mom-grid { grid-template-columns: 1fr 1fr; }
       .fleet-summary-grid { grid-template-columns: 1fr 1fr; }
+      .fleet-command-layout { grid-template-columns: 1fr; }
+      .fleet-panel, .fleet-map-panel { min-height: auto; }
+      #fleetMap { height: 420px; min-height: 420px; }
       .fleet-event-item { grid-template-columns: 1fr; gap: 4px; }
     }
 
@@ -1475,7 +1584,7 @@
     <button id="tabNew" class="tab-btn active">New Report</button>
     <button id="tabHistory" class="tab-btn">History</button>
     <button id="tabDashboard" class="tab-btn" style="display:none;">Dashboard</button>
-    <button id="tabFleetGPS" class="tab-btn" style="display:none;">Fleet GPS</button>
+    <button id="tabFleetGPS" class="tab-btn" style="display:none;">Fleet Operations</button>
     <button id="btnLogout" class="tab-btn" style="color: var(--danger); flex: 0.4;">Logout</button>
   </div>
 
@@ -2121,7 +2230,7 @@
     </div>
   </div>
 
-  <!-- Fleet GPS Tab -->
+  <!-- Fleet Operations Tab -->
   <div id="fleetGPS" class="tab-content">
     <div class="header">
       <div class="header-topline"></div>
@@ -2131,16 +2240,16 @@
           <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
         </div>
         <div class="title-box">
-          <p class="eyebrow">Fleet Tracking</p>
-          <h1>Live Fleet GPS</h1>
-          <p>Real-time truck movement, ignition status, and OneStep GPS event tracking.</p>
+          <p class="eyebrow">Fleet Operations</p>
+          <h1>Fleet Operations Command</h1>
+          <p>Live OneStep GPS, dispatch movement, truck status, and maintenance visibility.</p>
         </div>
       </div>
     </div>
 
     <div class="card">
       <h2>Fleet Snapshot</h2>
-      <p class="dashboard-note">Live from OneStep GPS webhook data stored in Firestore.</p>
+      <p class="dashboard-note">Live from OneStep GPS DataQueue/webhook data stored in Firestore.</p>
       <div class="fleet-summary-grid">
         <div class="calc-box">
           <div class="calc-label">Tracked Trucks</div>
@@ -2158,12 +2267,40 @@
           <div class="calc-label">Stale / Offline</div>
           <div class="calc-value" id="fleetStaleCount">0</div>
         </div>
+        <div class="calc-box">
+          <div class="calc-label">Maintenance Due</div>
+          <div class="calc-value" id="fleetMaintenanceDueCount">0</div>
+        </div>
       </div>
     </div>
 
     <div class="card">
-      <h2>Live Truck Status</h2>
-      <div id="fleetTruckCards" class="empty-state">Waiting for OneStep GPS truck data.</div>
+      <h2>Live Fleet Map</h2>
+      <p class="dashboard-note">Map-first dispatch view. Click a truck in the list or on the map to inspect status and maintenance.</p>
+      <div class="fleet-command-layout">
+        <div class="fleet-panel">
+          <div class="fleet-panel-header">Truck List</div>
+          <div id="fleetTruckList" class="fleet-list">
+            <div class="empty-state">Waiting for OneStep GPS truck data.</div>
+          </div>
+        </div>
+
+        <div class="fleet-map-panel">
+          <div id="fleetMap"></div>
+          <div id="fleetMapEmpty" class="fleet-map-empty">Waiting for GPS points to draw the fleet map.</div>
+        </div>
+
+        <div class="fleet-panel">
+          <div class="fleet-panel-header">Selected Truck</div>
+          <div id="fleetSelectedTruck" class="fleet-detail-body">
+            <div class="empty-state">Select a truck to view details.</div>
+          </div>
+          <div class="fleet-panel-header">Maintenance Schedule</div>
+          <div id="fleetMaintenancePanel" class="fleet-maintenance-body">
+            <div class="empty-state">Waiting for truck odometer data.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -2171,8 +2308,6 @@
       <div id="fleetRecentEvents" class="empty-state">Waiting for OneStep GPS events.</div>
     </div>
   </div>
-
-</div>
 
 <!-- Photo Gallery Modal -->
 <div id="photoGalleryModal" class="photo-gallery-modal" aria-hidden="true">
@@ -2445,6 +2580,9 @@
   let fleetEventsUnsubscribe = null;
   let fleetLocations = [];
   let fleetEvents = [];
+  let selectedFleetTruckId = null;
+  let fleetMap = null;
+  let fleetMarkers = {};
   let allReports = [];
   let dashboardReports = [];
   let currentEditReport = null;
@@ -2636,6 +2774,10 @@ document.addEventListener("change", (e) => {
       return;
     }
     switchTab('fleetGPS');
+    setTimeout(() => {
+      renderFleetMap();
+      if (fleetMap && window.google?.maps) google.maps.event.trigger(fleetMap, 'resize');
+    }, 150);
   });
 
   const dashboardMonthPicker = document.getElementById('dashboardMonthPicker');
@@ -2674,6 +2816,17 @@ document.addEventListener("change", (e) => {
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
   }
+
+  function escapeAttr(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[ch]));
+  }
+
 
   // --- DATA NORMALIZATION ---
   // Keeps dashboard totals from splitting when users type different capitalization.
@@ -4566,11 +4719,62 @@ const differencePercent =
   }
 
 
+  const FLEET_MAINTENANCE_DEFAULTS = {
+    serviceIntervalMiles: 5000,
+    serviceIntervalDays: 180,
+    generatorIntervalDays: 180
+  };
+
+  const FLEET_MAINTENANCE_CONFIG = {
+    "102": { displayName: "Truck 102", lastServiceOdometer: null, lastServiceDate: null },
+    "106": { displayName: "Truck 106", lastServiceOdometer: null, lastServiceDate: null },
+    "107": { displayName: "Truck 107", lastServiceOdometer: null, lastServiceDate: null },
+    "118": { displayName: "Truck 118", lastServiceOdometer: null, lastServiceDate: null },
+    "119": { displayName: "Truck 119", lastServiceOdometer: null, lastServiceDate: null },
+    "203": { displayName: "Truck 203", lastServiceOdometer: null, lastServiceDate: null }
+  };
+
+  function readNested(obj, path) {
+    if (!obj || !path) return undefined;
+    return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
+  }
+
+  function fleetField(item, paths, fallback = null) {
+    for (const path of paths) {
+      const direct = readNested(item, path);
+      if (direct !== undefined && direct !== null && direct !== '') return direct;
+      const raw = readNested(item.raw || {}, path);
+      if (raw !== undefined && raw !== null && raw !== '') return raw;
+      const rawValue = readNested(item.raw?.value || {}, path);
+      if (rawValue !== undefined && rawValue !== null && rawValue !== '') return rawValue;
+      const value = readNested(item.value || {}, path);
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return fallback;
+  }
+
   function parseFleetTimestamp(value) {
     if (!value) return null;
     if (typeof value?.toDate === 'function') return value.toDate();
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getFleetTimestamp(item) {
+    return fleetField(item, [
+      'receivedAt',
+      'deviceTimeUtc',
+      'device_time_utc',
+      'point_time_utc',
+      'timestamp_utc',
+      'timestamp',
+      'event_time_utc',
+      'alertTimeUtc',
+      'alert_time_utc',
+      'start_time_utc',
+      'stop_time_utc',
+      'created_at'
+    ]);
   }
 
   function formatFleetDateTime(value) {
@@ -4603,23 +4807,111 @@ const differencePercent =
     return `${days} day${days === 1 ? '' : 's'} ago`;
   }
 
+  function getFleetName(item) {
+    const name = fleetField(item, [
+      'deviceName', 'device_name', 'displayName', 'display_name', 'vehicleName', 'vehicle_name',
+      'name', 'device.name', 'vehicle.name', 'asset.name'
+    ]);
+    if (name) return String(name);
+    const id = fleetField(item, ['deviceId', 'device_id', 'device_point_id', 'id']);
+    return id ? `Device ${String(id).slice(0, 8)}` : 'Unknown Truck';
+  }
+
+  function getFleetTruckNumber(item) {
+    const name = getFleetName(item);
+    const match = name.match(/\b(102|106|107|118|119|203)\b|truck\s*#?\s*(\d{3})/i);
+    return match ? (match[1] || match[2]) : null;
+  }
+
+  function getFleetDisplayName(item) {
+    const truckNo = getFleetTruckNumber(item);
+    if (truckNo && FLEET_MAINTENANCE_CONFIG[truckNo]?.displayName) return FLEET_MAINTENANCE_CONFIG[truckNo].displayName;
+    return getFleetName(item);
+  }
+
+  function getFleetLatLng(item) {
+    const lat = Number(fleetField(item, ['lat', 'latitude', 'location.lat', 'location.latitude', 'gps.lat', 'gps.latitude']));
+    const lng = Number(fleetField(item, ['lng', 'lon', 'longitude', 'location.lng', 'location.lon', 'location.longitude', 'gps.lng', 'gps.lon', 'gps.longitude']));
+    return {
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null
+    };
+  }
+
+  function getFleetSpeed(item) {
+    return Number(fleetField(item, ['speedMph', 'speed_mph', 'speed', 'speedMPH'], 0)) || 0;
+  }
+
+  function getFleetOdometer(item) {
+    const value = Number(fleetField(item, ['odometer', 'odometer_mi', 'odometerMiles', 'meter', 'mileage']));
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function getFleetIgnition(item) {
+    const value = fleetField(item, ['ignitionOn', 'ignition_on', 'ignition', 'engine_on'], false);
+    return value === true || value === 'true' || value === 'on' || value === 1;
+  }
+
+  function getFleetDriveStatus(item) {
+    return String(fleetField(item, ['driveStatus', 'drive_status', 'status', 'motionStatus'], '') || '').toLowerCase();
+  }
+
   function getFleetStatus(item) {
-    const speed = Number(item.speedMph ?? item.speed_mph ?? 0) || 0;
-    const mins = fleetMinutesAgo(item.receivedAt || item.alertTimeUtc || item.alert_time_utc);
-    if (mins !== null && mins > 60) return { label: 'Offline', className: 'fleet-status-offline' };
-    if (mins !== null && mins > 15) return { label: 'Stale', className: 'fleet-status-stale' };
-    if (speed > 2) return { label: 'Moving', className: 'fleet-status-moving' };
-    return { label: 'Stopped', className: 'fleet-status-stopped' };
+    const speed = getFleetSpeed(item);
+    const ignition = getFleetIgnition(item);
+    const driveStatus = getFleetDriveStatus(item);
+    const mins = fleetMinutesAgo(getFleetTimestamp(item));
+    if (mins !== null && mins > 60) return { label: 'Offline', className: 'fleet-status-offline', mapColor: '#991b1b' };
+    if (mins !== null && mins > 15) return { label: 'Stale', className: 'fleet-status-stale', mapColor: '#f97316' };
+    if (speed > 2 || driveStatus.includes('driv') || driveStatus.includes('mov')) return { label: 'Moving', className: 'fleet-status-moving', mapColor: '#16a34a' };
+    if (ignition) return { label: 'Idle', className: 'fleet-status-idle', mapColor: '#f59e0b' };
+    return { label: 'Stopped', className: 'fleet-status-stopped', mapColor: '#2563eb' };
+  }
+
+  function getFleetMaintenance(item) {
+    const truckNo = getFleetTruckNumber(item);
+    const config = truckNo ? (FLEET_MAINTENANCE_CONFIG[truckNo] || {}) : {};
+    const odometer = getFleetOdometer(item);
+    const intervalMiles = config.serviceIntervalMiles || FLEET_MAINTENANCE_DEFAULTS.serviceIntervalMiles;
+    const intervalDays = config.serviceIntervalDays || FLEET_MAINTENANCE_DEFAULTS.serviceIntervalDays;
+    const lastServiceOdometer = Number(config.lastServiceOdometer);
+    const lastServiceDate = config.lastServiceDate ? new Date(config.lastServiceDate) : null;
+
+    let milesRemaining = null;
+    let mileageStatus = 'baseline';
+    if (Number.isFinite(odometer) && Number.isFinite(lastServiceOdometer)) {
+      const nextService = lastServiceOdometer + intervalMiles;
+      milesRemaining = Math.round(nextService - odometer);
+      mileageStatus = milesRemaining < 0 ? 'overdue' : milesRemaining <= 500 ? 'due-soon' : 'ok';
+    }
+
+    let daysRemaining = null;
+    let dateStatus = 'baseline';
+    if (lastServiceDate && !Number.isNaN(lastServiceDate.getTime())) {
+      const nextDate = new Date(lastServiceDate.getTime() + intervalDays * 86400000);
+      daysRemaining = Math.ceil((nextDate.getTime() - Date.now()) / 86400000);
+      dateStatus = daysRemaining < 0 ? 'overdue' : daysRemaining <= 30 ? 'due-soon' : 'ok';
+    }
+
+    const statusRank = { overdue: 3, 'due-soon': 2, baseline: 1, ok: 0 };
+    const status = statusRank[mileageStatus] >= statusRank[dateStatus] ? mileageStatus : dateStatus;
+
+    return {
+      truckNo,
+      odometer,
+      milesRemaining,
+      daysRemaining,
+      status,
+      needsBaseline: status === 'baseline'
+    };
   }
 
   function updateFleetSummary(locations) {
     const tracked = locations.length;
-    const moving = locations.filter(item => (Number(item.speedMph ?? item.speed_mph ?? 0) || 0) > 2).length;
-    const ignition = locations.filter(item => Boolean(item.ignitionOn ?? item.ignition_on)).length;
-    const stale = locations.filter(item => {
-      const status = getFleetStatus(item).label;
-      return status === 'Stale' || status === 'Offline';
-    }).length;
+    const moving = locations.filter(item => getFleetStatus(item).label === 'Moving').length;
+    const ignition = locations.filter(item => getFleetIgnition(item)).length;
+    const stale = locations.filter(item => ['Stale', 'Offline'].includes(getFleetStatus(item).label)).length;
+    const maintenanceDue = locations.filter(item => ['due-soon', 'overdue', 'baseline'].includes(getFleetMaintenance(item).status)).length;
 
     const setText = (id, value) => {
       const el = document.getElementById(id);
@@ -4630,63 +4922,263 @@ const differencePercent =
     setText('fleetMovingCount', moving);
     setText('fleetIgnitionCount', ignition);
     setText('fleetStaleCount', stale);
+    setText('fleetMaintenanceDueCount', maintenanceDue);
   }
 
-  function renderFleetTruckCards() {
-    const box = document.getElementById('fleetTruckCards');
+  function ensureFleetMap() {
+    const mapEl = document.getElementById('fleetMap');
+    if (!mapEl || !window.google?.maps) return null;
+    if (!fleetMap) {
+      fleetMap = new google.maps.Map(mapEl, {
+        center: { lat: 32.7767, lng: -96.7970 },
+        zoom: 9,
+        mapTypeId: 'satellite',
+        fullscreenControl: true,
+        streetViewControl: false,
+        mapTypeControl: true
+      });
+    }
+    return fleetMap;
+  }
+
+  function renderFleetMap() {
+    const map = ensureFleetMap();
+    const empty = document.getElementById('fleetMapEmpty');
+    if (!map) return;
+
+    const withGps = fleetLocations.filter(item => {
+      const pos = getFleetLatLng(item);
+      return Number.isFinite(pos.lat) && Number.isFinite(pos.lng);
+    });
+
+    if (empty) empty.style.display = withGps.length ? 'none' : 'flex';
+
+    const currentIds = new Set();
+    const bounds = new google.maps.LatLngBounds();
+
+    withGps.forEach(item => {
+      const key = item.id || getFleetName(item);
+      currentIds.add(key);
+      const pos = getFleetLatLng(item);
+      const name = getFleetDisplayName(item);
+      const status = getFleetStatus(item);
+      const truckNo = getFleetTruckNumber(item) || String(name).replace(/\D/g, '').slice(-3) || 'GPS';
+      const position = { lat: pos.lat, lng: pos.lng };
+      bounds.extend(position);
+
+      const markerOptions = {
+        position,
+        map,
+        title: name,
+        label: {
+          text: truckNo,
+          color: '#ffffff',
+          fontWeight: '900',
+          fontSize: '12px'
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 16,
+          fillColor: status.mapColor,
+          fillOpacity: 0.95,
+          strokeColor: '#ffffff',
+          strokeWeight: 3
+        }
+      };
+
+      if (!fleetMarkers[key]) {
+        const marker = new google.maps.Marker(markerOptions);
+        marker.addListener('click', () => selectFleetTruck(key, true));
+        fleetMarkers[key] = marker;
+      } else {
+        fleetMarkers[key].setOptions(markerOptions);
+      }
+    });
+
+    Object.keys(fleetMarkers).forEach(key => {
+      if (!currentIds.has(key)) {
+        fleetMarkers[key].setMap(null);
+        delete fleetMarkers[key];
+      }
+    });
+
+    if (withGps.length === 1) {
+      const pos = getFleetLatLng(withGps[0]);
+      map.setCenter({ lat: pos.lat, lng: pos.lng });
+      map.setZoom(15);
+    } else if (withGps.length > 1) {
+      map.fitBounds(bounds);
+    }
+  }
+
+  function selectFleetTruck(key, centerMap = false) {
+    selectedFleetTruckId = key;
+    renderFleetTruckList();
+    renderFleetSelectedTruck();
+    renderFleetMaintenancePanel();
+
+    if (centerMap) {
+      const item = fleetLocations.find(t => (t.id || getFleetName(t)) === key);
+      const pos = item ? getFleetLatLng(item) : null;
+      if (item && pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng)) {
+        const map = ensureFleetMap();
+        if (map) {
+          map.setCenter({ lat: pos.lat, lng: pos.lng });
+          map.setZoom(16);
+        }
+      }
+    }
+  }
+
+  window.focusFleetTruck = function(key) {
+    selectFleetTruck(key, true);
+  };
+
+  function renderFleetTruckList() {
+    const box = document.getElementById('fleetTruckList');
     if (!box) return;
 
     updateFleetSummary(fleetLocations);
 
     if (!fleetLocations.length) {
-      box.className = 'empty-state';
-      box.innerHTML = 'Waiting for OneStep GPS truck data.';
+      box.className = 'fleet-list';
+      box.innerHTML = '<div class="empty-state">Waiting for OneStep GPS truck data.</div>';
       return;
     }
 
-    const sorted = [...fleetLocations].sort((a, b) => String(a.deviceName || a.id || '').localeCompare(String(b.deviceName || b.id || '')));
-    box.className = 'fleet-truck-grid';
-    box.innerHTML = sorted.map(item => {
-      const name = item.deviceName || item.device_name || item.id || 'Unknown Truck';
-      const speed = Number(item.speedMph ?? item.speed_mph ?? 0) || 0;
-      const ignition = Boolean(item.ignitionOn ?? item.ignition_on);
-      const lat = Number(item.lat);
-      const lng = Number(item.lng);
-      const timestamp = item.receivedAt || item.alertTimeUtc || item.alert_time_utc;
-      const status = getFleetStatus(item);
-      const mapsUrl = Number.isFinite(lat) && Number.isFinite(lng)
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`
-        : '';
+    const sorted = [...fleetLocations].sort((a, b) => getFleetDisplayName(a).localeCompare(getFleetDisplayName(b)));
+    if (!selectedFleetTruckId && sorted.length) selectedFleetTruckId = sorted[0].id || getFleetName(sorted[0]);
 
+    box.className = 'fleet-list';
+    box.innerHTML = sorted.map(item => {
+      const key = item.id || getFleetName(item);
+      const name = getFleetDisplayName(item);
+      const status = getFleetStatus(item);
+      const speed = getFleetSpeed(item);
+      const ignition = getFleetIgnition(item);
+      const timestamp = getFleetTimestamp(item);
+      const active = key === selectedFleetTruckId ? ' active' : '';
       return `
-        <div class="fleet-truck-card">
-          <div class="fleet-truck-top">
+        <button class="fleet-list-item${active}" type="button" onclick="focusFleetTruck('${escapeAttr(key)}')">
+          <div class="fleet-list-top">
             <div class="fleet-truck-name">${escapeHtml(name)}</div>
             <span class="fleet-status-pill ${status.className}">${escapeHtml(status.label)}</span>
           </div>
-          <div class="fleet-mini-grid">
-            <div class="fleet-mini">
-              <div class="fleet-mini-label">Ignition</div>
-              <div class="fleet-mini-value">${ignition ? 'On' : 'Off'}</div>
-            </div>
-            <div class="fleet-mini">
-              <div class="fleet-mini-label">Speed</div>
-              <div class="fleet-mini-value">${fmtNumber(speed, 0)} mph</div>
-            </div>
-            <div class="fleet-mini">
-              <div class="fleet-mini-label">Last Update</div>
-              <div class="fleet-mini-value">${escapeHtml(formatFleetAge(timestamp))}</div>
-            </div>
-            <div class="fleet-mini">
-              <div class="fleet-mini-label">GPS</div>
-              <div class="fleet-mini-value">
-                ${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener">Open Map</a>` : '—'}
-              </div>
-            </div>
+          <div class="fleet-list-meta">${ignition ? 'Ignition On' : 'Ignition Off'} · ${fmtNumber(speed, 0)} mph</div>
+          <div class="fleet-list-meta">Updated ${escapeHtml(formatFleetAge(timestamp))}</div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  function renderFleetSelectedTruck() {
+    const box = document.getElementById('fleetSelectedTruck');
+    if (!box) return;
+    const item = fleetLocations.find(t => (t.id || getFleetName(t)) === selectedFleetTruckId) || fleetLocations[0];
+    if (!item) {
+      box.innerHTML = '<div class="empty-state">Select a truck to view details.</div>';
+      return;
+    }
+
+    const key = item.id || getFleetName(item);
+    selectedFleetTruckId = key;
+    const name = getFleetDisplayName(item);
+    const status = getFleetStatus(item);
+    const speed = getFleetSpeed(item);
+    const ignition = getFleetIgnition(item);
+    const pos = getFleetLatLng(item);
+    const timestamp = getFleetTimestamp(item);
+    const odometer = getFleetOdometer(item);
+    const driveStatus = getFleetDriveStatus(item) || '—';
+    const duration = Number(fleetField(item, ['driveStatusDurationSeconds', 'drive_status_duration_s', 'drive_status_duration_seconds'], 0)) || 0;
+    const mapsUrl = Number.isFinite(pos.lat) && Number.isFinite(pos.lng)
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pos.lat},${pos.lng}`)}`
+      : '';
+
+    box.innerHTML = `
+      <div>
+        <div class="fleet-detail-title">${escapeHtml(name)}</div>
+        <span class="fleet-status-pill ${status.className}">${escapeHtml(status.label)}</span>
+      </div>
+      <div class="fleet-mini-grid">
+        <div class="fleet-mini"><div class="fleet-mini-label">Ignition</div><div class="fleet-mini-value">${ignition ? 'On' : 'Off'}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Speed</div><div class="fleet-mini-value">${fmtNumber(speed, 0)} mph</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Drive Status</div><div class="fleet-mini-value">${escapeHtml(driveStatus || '—')}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Status Duration</div><div class="fleet-mini-value">${duration ? fmtDuration(duration) : '—'}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Odometer</div><div class="fleet-mini-value">${odometer !== null ? `${fmtNumber(odometer, 0)} mi` : '—'}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Last Update</div><div class="fleet-mini-value">${escapeHtml(formatFleetAge(timestamp))}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">GPS</div><div class="fleet-mini-value">${Number.isFinite(pos.lat) && Number.isFinite(pos.lng) ? `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}` : '—'}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Map</div><div class="fleet-mini-value">${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener">Open Google Maps</a>` : '—'}</div></div>
+      </div>
+    `;
+  }
+
+  function fmtDuration(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    if (total < 60) return `${total}s`;
+    const mins = Math.floor(total / 60);
+    if (mins < 60) return `${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
+  }
+
+  function renderFleetMaintenancePanel() {
+    const box = document.getElementById('fleetMaintenancePanel');
+    if (!box) return;
+    if (!fleetLocations.length) {
+      box.innerHTML = '<div class="empty-state">Waiting for truck odometer data.</div>';
+      return;
+    }
+
+    const sorted = [...fleetLocations].sort((a, b) => {
+      const rank = { overdue: 0, 'due-soon': 1, baseline: 2, ok: 3 };
+      return (rank[getFleetMaintenance(a).status] ?? 9) - (rank[getFleetMaintenance(b).status] ?? 9);
+    });
+
+    box.innerHTML = sorted.map(item => {
+      const name = getFleetDisplayName(item);
+      const maint = getFleetMaintenance(item);
+      let label = 'OK';
+      let detail = 'Maintenance schedule baseline not set yet.';
+      let cls = '';
+      if (maint.status === 'overdue') {
+        label = 'OVERDUE';
+        cls = 'overdue';
+        detail = maint.milesRemaining !== null
+          ? `${Math.abs(maint.milesRemaining)} miles past service target.`
+          : `${Math.abs(maint.daysRemaining || 0)} days past 6-month service target.`;
+      } else if (maint.status === 'due-soon') {
+        label = 'DUE SOON';
+        cls = 'due-soon';
+        detail = maint.milesRemaining !== null
+          ? `${maint.milesRemaining} miles remaining until next service.`
+          : `${maint.daysRemaining} days remaining until 6-month service.`;
+      } else if (maint.status === 'ok') {
+        label = 'OK';
+        detail = maint.milesRemaining !== null
+          ? `${maint.milesRemaining} miles remaining until next service.`
+          : `${maint.daysRemaining} days remaining until 6-month service.`;
+      }
+
+      return `
+        <div class="fleet-maintenance-card ${cls}">
+          <div class="fleet-maintenance-top">
+            <div class="fleet-maintenance-title">${escapeHtml(name)}</div>
+            <span class="fleet-status-pill ${maint.status === 'overdue' ? 'fleet-status-offline' : maint.status === 'due-soon' ? 'fleet-status-idle' : 'fleet-status-stopped'}">${escapeHtml(label)}</span>
           </div>
+          <div class="fleet-maintenance-meta">${escapeHtml(detail)}</div>
+          <div class="fleet-maintenance-meta">Odometer: ${maint.odometer !== null ? `${fmtNumber(maint.odometer, 0)} mi` : 'No odometer from GPS yet'}</div>
         </div>
       `;
     }).join('');
+  }
+
+  function renderFleetTruckCards() {
+    renderFleetTruckList();
+    renderFleetSelectedTruck();
+    renderFleetMaintenancePanel();
+    renderFleetMap();
   }
 
   function renderFleetRecentEvents() {
@@ -4700,23 +5192,24 @@ const differencePercent =
     }
 
     const sorted = [...fleetEvents].sort((a, b) => {
-      const aDate = parseFleetTimestamp(a.receivedAt || a.alertTimeUtc || a.alert_time_utc)?.getTime() || 0;
-      const bDate = parseFleetTimestamp(b.receivedAt || b.alertTimeUtc || b.alert_time_utc)?.getTime() || 0;
+      const aDate = parseFleetTimestamp(getFleetTimestamp(a))?.getTime() || 0;
+      const bDate = parseFleetTimestamp(getFleetTimestamp(b))?.getTime() || 0;
       return bDate - aDate;
     }).slice(0, 20);
 
     box.className = 'fleet-event-list';
     box.innerHTML = sorted.map(item => {
-      const name = item.deviceName || item.device_name || 'Unknown Truck';
-      const alert = item.alertName || item.alert_name || 'GPS Event';
-      const speed = Number(item.speedMph ?? item.speed_mph ?? 0) || 0;
-      const ignition = Boolean(item.ignitionOn ?? item.ignition_on);
-      const timestamp = item.receivedAt || item.alertTimeUtc || item.alert_time_utc;
+      const name = getFleetDisplayName(item);
+      const schema = fleetField(item, ['schema'], 'GPS Event');
+      const alert = fleetField(item, ['alertName', 'alert_name', 'eventType', 'event_type', 'type'], schema || 'GPS Event');
+      const speed = getFleetSpeed(item);
+      const ignition = getFleetIgnition(item);
+      const timestamp = getFleetTimestamp(item);
 
       return `
         <div class="fleet-event-item">
           <div class="fleet-event-main">${escapeHtml(name)}</div>
-          <div class="fleet-event-detail">${escapeHtml(alert)}</div>
+          <div class="fleet-event-detail">${escapeHtml(alert || 'GPS Event')}</div>
           <div class="fleet-event-detail">${ignition ? 'Ignition On' : 'Ignition Off'} · ${fmtNumber(speed, 0)} mph</div>
           <div class="fleet-event-detail">${escapeHtml(formatFleetAge(timestamp))}</div>
         </div>
@@ -4733,11 +5226,8 @@ const differencePercent =
       renderFleetTruckCards();
     }, (err) => {
       console.error(err);
-      const box = document.getElementById('fleetTruckCards');
-      if (box) {
-        box.className = 'empty-state';
-        box.innerHTML = 'Error loading truck GPS data. Check Firestore rules for truckLocations.';
-      }
+      const box = document.getElementById('fleetTruckList');
+      if (box) box.innerHTML = '<div class="empty-state">Error loading truck GPS data. Check Firestore rules for truckLocations.</div>';
     });
 
     const eventsRef = collection(db, 'gpsEvents');
