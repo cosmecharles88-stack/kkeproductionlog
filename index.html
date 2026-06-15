@@ -1112,6 +1112,7 @@
     #fleetGPS .fleet-list-item.status-stopped { border-left-color: #2563eb; }
     #fleetGPS .fleet-list-item.status-stale { border-left-color: #f97316; }
     #fleetGPS .fleet-list-item.status-offline { border-left-color: #991b1b; }
+    #fleetGPS .fleet-list-item.status-no-gps { border-left-color: #64748b; opacity: 0.88; }
 
     #fleetGPS .fleet-truck-name {
       font-size: 13px;
@@ -4994,6 +4995,7 @@ const differencePercent =
     "3HAEUMML7LL704690": { unitNumber: "120", displayName: "Unit #120 Isaiah CAM" }
   };
 
+  const APPROVED_FLEET_ROSTER = Object.entries(APPROVED_FLEET_BY_VIN).map(([vin, unit]) => ({ vin, ...unit }));
   const APPROVED_FLEET_VINS = new Set(Object.keys(APPROVED_FLEET_BY_VIN));
   const APPROVED_FLEET_BY_UNIT = Object.fromEntries(
     Object.values(APPROVED_FLEET_BY_VIN).map(unit => [unit.unitNumber, unit])
@@ -5110,6 +5112,30 @@ const differencePercent =
     return fleetLocations.filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
   }
 
+  function createFleetRosterItem(unit) {
+    return {
+      id: `roster-${unit.unitNumber}`,
+      unitNumber: unit.unitNumber,
+      vin: unit.vin,
+      displayName: unit.displayName,
+      deviceName: unit.displayName,
+      rosterOnly: true
+    };
+  }
+
+  function getFleetRailItems() {
+    return APPROVED_FLEET_ROSTER.map(unit => {
+      const matches = fleetLocations.filter(item => {
+        const vin = getFleetVin(item);
+        const truckNo = getFleetTruckNumber(item);
+        return vin === unit.vin || truckNo === unit.unitNumber || String(item.id || '') === unit.unitNumber;
+      });
+
+      const withTexasGps = matches.find(item => isTexasFleetCoordinate(getFleetLatLng(item)));
+      return withTexasGps || matches[0] || createFleetRosterItem(unit);
+    });
+  }
+
   function getFleetMaintenanceRecord(unitNumber) {
     return fleetMaintenance.find(record => String(record.unitNumber || record.id || '') === String(unitNumber || '')) || null;
   }
@@ -5149,8 +5175,24 @@ const differencePercent =
   }
 
   function getFleetLatLng(item) {
-    const lat = Number(fleetField(item, ['lat', 'latitude', 'location.lat', 'location.latitude', 'gps.lat', 'gps.latitude']));
-    const lng = Number(fleetField(item, ['lng', 'lon', 'longitude', 'location.lng', 'location.lon', 'location.longitude', 'gps.lng', 'gps.lon', 'gps.longitude']));
+    const lat = Number(fleetField(item, [
+      'lat', 'latitude',
+      'location.lat', 'location.latitude', 'location._lat',
+      'gps.lat', 'gps.latitude',
+      'position.lat', 'position.latitude',
+      'coordinates.lat', 'coordinates.latitude',
+      'lastLocation.lat', 'lastLocation.latitude',
+      'geoPoint.latitude', 'geopoint.latitude'
+    ]));
+    const lng = Number(fleetField(item, [
+      'lng', 'lon', 'longitude',
+      'location.lng', 'location.lon', 'location.longitude', 'location._long', 'location._lng',
+      'gps.lng', 'gps.lon', 'gps.longitude',
+      'position.lng', 'position.lon', 'position.longitude',
+      'coordinates.lng', 'coordinates.lon', 'coordinates.longitude',
+      'lastLocation.lng', 'lastLocation.lon', 'lastLocation.longitude',
+      'geoPoint.longitude', 'geopoint.longitude'
+    ]));
     return {
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
@@ -5176,6 +5218,7 @@ const differencePercent =
   }
 
   function getFleetStatus(item) {
+    if (item?.rosterOnly) return { label: 'No GPS', className: 'fleet-status-stale', mapColor: '#64748b' };
     const speed = getFleetSpeed(item);
     const ignition = getFleetIgnition(item);
     const driveStatus = getFleetDriveStatus(item);
@@ -5250,11 +5293,16 @@ const differencePercent =
 
   function fleetStatusSortRank(item) {
     const label = getFleetStatus(item).label;
-    return { Moving: 0, Idle: 1, Stopped: 2, Stale: 3, Offline: 4 }[label] ?? 9;
+    return { Moving: 0, Idle: 1, Stopped: 2, Stale: 3, Offline: 4, 'No GPS': 5 }[label] ?? 9;
   }
 
   function getFleetStatusSlug(item) {
-    return String(getFleetStatus(item).label || '').toLowerCase();
+    return String(getFleetStatus(item).label || '').toLowerCase().replace(/\s+/g, '-');
+  }
+
+  function getFleetItemKey(item) {
+    const truckNo = getFleetTruckNumber(item);
+    return truckNo ? `unit-${truckNo}` : String(item.id || getFleetName(item));
   }
 
   
@@ -5287,7 +5335,7 @@ function ensureFleetMap() {
     const bounds = new google.maps.LatLngBounds();
 
     withGps.forEach(item => {
-      const key = item.id || getFleetName(item);
+      const key = getFleetItemKey(item);
       currentIds.add(key);
       const pos = getFleetLatLng(item);
       const name = getFleetDisplayName(item);
@@ -5352,7 +5400,7 @@ function selectFleetTruck(key, centerMap = false) {
     renderFleetMaintenancePanel();
 
     if (centerMap) {
-      const item = getValidFleetLocations().find(t => (t.id || getFleetName(t)) === key);
+      const item = getFleetRailItems().find(t => getFleetItemKey(t) === key);
       const pos = item ? getFleetLatLng(item) : null;
       if (item && pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng)) {
         const map = ensureFleetMap();
@@ -5372,7 +5420,7 @@ function selectFleetTruck(key, centerMap = false) {
     const box = document.getElementById('fleetTruckList');
     if (!box) return;
 
-    const approved = getValidFleetLocations();
+    const approved = getFleetRailItems();
     updateFleetSummary(fleetLocations);
 
     if (!approved.length) {
@@ -5386,16 +5434,18 @@ function selectFleetTruck(key, centerMap = false) {
     const sorted = [...approved].sort((a, b) => {
       const rank = fleetStatusSortRank(a) - fleetStatusSortRank(b);
       if (rank) return rank;
-      return getFleetDisplayName(a).localeCompare(getFleetDisplayName(b));
+      return String(getFleetTruckNumber(a) || '').localeCompare(String(getFleetTruckNumber(b) || ''));
     });
 
-    if (!selectedFleetTruckId || !sorted.some(item => (item.id || getFleetName(item)) === selectedFleetTruckId)) {
-      selectedFleetTruckId = sorted[0].id || getFleetName(sorted[0]);
+    if (!selectedFleetTruckId || !sorted.some(item => getFleetItemKey(item) === selectedFleetTruckId)) {
+      selectedFleetTruckId = getFleetItemKey(sorted[0]);
     }
 
     box.className = 'fleet-list';
+    const railCount = document.getElementById('fleetRailCount');
+    if (railCount) railCount.textContent = sorted.length;
     box.innerHTML = sorted.map(item => {
-      const key = item.id || getFleetName(item);
+      const key = getFleetItemKey(item);
       const name = getFleetDisplayName(item);
       const status = getFleetStatus(item);
       const speed = getFleetSpeed(item);
@@ -5422,14 +5472,14 @@ function selectFleetTruck(key, centerMap = false) {
 function renderFleetSelectedTruck() {
     const box = document.getElementById('fleetSelectedTruck');
     if (!box) return;
-    const approved = getValidFleetLocations();
-    const item = approved.find(t => (t.id || getFleetName(t)) === selectedFleetTruckId) || approved[0];
+    const approved = getFleetRailItems();
+    const item = approved.find(t => getFleetItemKey(t) === selectedFleetTruckId) || approved[0];
     if (!item) {
       box.innerHTML = '<div class="empty-state">Select a truck to view details.</div>';
       return;
     }
 
-    const key = item.id || getFleetName(item);
+    const key = getFleetItemKey(item);
     selectedFleetTruckId = key;
     const name = getFleetDisplayName(item);
     const status = getFleetStatus(item);
