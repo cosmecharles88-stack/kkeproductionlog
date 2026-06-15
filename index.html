@@ -2823,8 +2823,10 @@
   let dashboardUnsubscribe = null;
   let fleetLocationsUnsubscribe = null;
   let fleetEventsUnsubscribe = null;
+  let fleetMaintenanceUnsubscribe = null;
   let fleetLocations = [];
   let fleetEvents = [];
+  let fleetMaintenance = [];
   let selectedFleetTruckId = null;
   let fleetMap = null;
   let fleetMarkers = {};
@@ -2887,6 +2889,10 @@
     if (fleetEventsUnsubscribe) {
       fleetEventsUnsubscribe();
       fleetEventsUnsubscribe = null;
+    }
+    if (fleetMaintenanceUnsubscribe) {
+      fleetMaintenanceUnsubscribe();
+      fleetMaintenanceUnsubscribe = null;
     }
 
     if (user) {
@@ -4971,26 +4977,24 @@ const differencePercent =
     generatorIntervalDays: 180
   };
 
-  const FLEET_MAINTENANCE_CONFIG = {
-    "104": { displayName: "Unit #104 F-250 CAM", lastServiceOdometer: null, lastServiceDate: null },
-    "106": { displayName: "Unit #106 Ford F450", lastServiceOdometer: null, lastServiceDate: null },
-    "112": { displayName: "Unit #112 2022 Volvo CAM", lastServiceOdometer: null, lastServiceDate: null },
-    "117": { displayName: "Unit #117 Ranger", lastServiceOdometer: null, lastServiceDate: null },
-    "118": { displayName: "Unit #118 Int. Box CAM", lastServiceOdometer: null, lastServiceDate: null },
-    "119": { displayName: "Unit #119 Ford E-450 CAM", lastServiceOdometer: null, lastServiceDate: null },
-    "120": { displayName: "Unit #120 Isaiah CAM", lastServiceOdometer: null, lastServiceDate: null }
+  const TEXAS_GPS_BOUNDS = {
+    minLat: 25.7,
+    maxLat: 36.6,
+    minLng: -106.7,
+    maxLng: -93.4
   };
 
-  const APPROVED_FLEET_UNIT_NUMBERS = new Set(Object.keys(FLEET_MAINTENANCE_CONFIG));
-  const APPROVED_FLEET_VINS = new Set([
-    "1FT7W2A69CEA85715",
-    "1FD0W4HT5JEB72383",
-    "4V4W19EG5NN285696",
-    "1FTER1EH9LLA73886",
-    "3HAMMMML3JL342933",
-    "1FDXE4FS0KDC34520",
-    "3HAEUMML7LL704690"
-  ]);
+  const APPROVED_FLEET_BY_VIN = {
+    "1FT7W2A69CEA85715": { unitNumber: "104", displayName: "Unit #104 F-250 CAM" },
+    "1FD0W4HT5JEB72383": { unitNumber: "106", displayName: "Unit #106 Ford F450" },
+    "4V4W19EG5NN285696": { unitNumber: "112", displayName: "Unit #112 2022 Volvo CAM" },
+    "1FTER1EH9LLA73886": { unitNumber: "117", displayName: "Unit #117 Ranger" },
+    "3HAMMMML3JL342933": { unitNumber: "118", displayName: "Unit #118 Int. Box CAM" },
+    "1FDXE4FS0KDC34520": { unitNumber: "119", displayName: "Unit #119 Ford E-450 CAM" },
+    "3HAEUMML7LL704690": { unitNumber: "120", displayName: "Unit #120 Isaiah CAM" }
+  };
+
+  const APPROVED_FLEET_VINS = new Set(Object.keys(APPROVED_FLEET_BY_VIN));
 
   function readNested(obj, path) {
     if (!obj || !path) return undefined;
@@ -5083,10 +5087,25 @@ const differencePercent =
   }
 
   function isApprovedFleetItem(item) {
-    const truckNo = getFleetTruckNumber(item);
-    if (truckNo && APPROVED_FLEET_UNIT_NUMBERS.has(truckNo)) return true;
     const vin = getFleetVin(item);
     return !!vin && APPROVED_FLEET_VINS.has(vin);
+  }
+
+  function isTexasFleetCoordinate(pos) {
+    return Number.isFinite(pos?.lat) &&
+      Number.isFinite(pos?.lng) &&
+      pos.lat >= TEXAS_GPS_BOUNDS.minLat &&
+      pos.lat <= TEXAS_GPS_BOUNDS.maxLat &&
+      pos.lng >= TEXAS_GPS_BOUNDS.minLng &&
+      pos.lng <= TEXAS_GPS_BOUNDS.maxLng;
+  }
+
+  function getValidFleetLocations() {
+    return fleetLocations.filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
+  }
+
+  function getFleetMaintenanceRecord(unitNumber) {
+    return fleetMaintenance.find(record => String(record.unitNumber || record.id || '') === String(unitNumber || '')) || null;
   }
 
   function getFleetShortLabel(item) {
@@ -5106,14 +5125,18 @@ const differencePercent =
   }
 
   function getFleetTruckNumber(item) {
+    const vin = getFleetVin(item);
+    if (APPROVED_FLEET_BY_VIN[vin]?.unitNumber) return APPROVED_FLEET_BY_VIN[vin].unitNumber;
+    const explicit = fleetField(item, ['unitNumber', 'truckNumber', 'truck_number', 'vehicleNumber', 'vehicle_number']);
+    if (explicit && /^\d{3}$/.test(String(explicit).trim())) return String(explicit).trim();
     const name = getFleetName(item);
-    const match = name.match(/\b(102|106|107|118|119|203)\b|truck\s*#?\s*(\d{3})/i);
+    const match = name.match(/\b(104|106|112|117|118|119|120)\b|truck\s*#?\s*(\d{3})/i);
     return match ? (match[1] || match[2]) : null;
   }
 
   function getFleetDisplayName(item) {
-    const truckNo = getFleetTruckNumber(item);
-    if (truckNo && FLEET_MAINTENANCE_CONFIG[truckNo]?.displayName) return FLEET_MAINTENANCE_CONFIG[truckNo].displayName;
+    const vin = getFleetVin(item);
+    if (APPROVED_FLEET_BY_VIN[vin]?.displayName) return APPROVED_FLEET_BY_VIN[vin].displayName;
     return getFleetName(item);
   }
 
@@ -5158,12 +5181,13 @@ const differencePercent =
 
   function getFleetMaintenance(item) {
     const truckNo = getFleetTruckNumber(item);
-    const config = truckNo ? (FLEET_MAINTENANCE_CONFIG[truckNo] || {}) : {};
+    const config = truckNo ? (getFleetMaintenanceRecord(truckNo) || {}) : {};
     const odometer = getFleetOdometer(item);
     const intervalMiles = config.serviceIntervalMiles || FLEET_MAINTENANCE_DEFAULTS.serviceIntervalMiles;
     const intervalDays = config.serviceIntervalDays || FLEET_MAINTENANCE_DEFAULTS.serviceIntervalDays;
     const lastServiceOdometer = Number(config.lastServiceOdometer);
-    const lastServiceDate = config.lastServiceDate ? new Date(config.lastServiceDate) : null;
+    const lastServiceDateRaw = config.lastServiceDate || config.lastServiceAt || null;
+    const lastServiceDate = lastServiceDateRaw?.toDate ? lastServiceDateRaw.toDate() : (lastServiceDateRaw ? new Date(lastServiceDateRaw) : null);
 
     let milesRemaining = null;
     let mileageStatus = 'baseline';
@@ -5190,17 +5214,18 @@ const differencePercent =
       milesRemaining,
       daysRemaining,
       status,
-      needsBaseline: status === 'baseline'
+      needsBaseline: !config || status === 'baseline',
+      record: config
     };
   }
 
   function updateFleetSummary(locations) {
-    const approved = (locations || []).filter(isApprovedFleetItem);
+    const approved = (locations || []).filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
     const tracked = approved.length;
     const moving = approved.filter(item => getFleetStatus(item).label === 'Moving').length;
     const ignition = approved.filter(item => getFleetIgnition(item)).length;
     const stale = approved.filter(item => ['Stale', 'Offline'].includes(getFleetStatus(item).label)).length;
-    const maintenanceDue = approved.filter(item => ['due-soon', 'overdue', 'baseline'].includes(getFleetMaintenance(item).status)).length;
+    const maintenanceDue = approved.filter(item => ['due-soon', 'overdue'].includes(getFleetMaintenance(item).status)).length;
 
     const setText = (id, value) => {
       const el = document.getElementById(id);
@@ -5231,7 +5256,7 @@ function ensureFleetMap() {
     if (!fleetMap) {
       fleetMap = new google.maps.Map(mapEl, {
         center: { lat: 32.7767, lng: -96.7970 },
-        zoom: 9,
+        zoom: 7,
         mapTypeId: 'satellite',
         fullscreenControl: true,
         streetViewControl: false,
@@ -5246,11 +5271,7 @@ function ensureFleetMap() {
     const empty = document.getElementById('fleetMapEmpty');
     if (!map) return;
 
-    const approved = fleetLocations.filter(isApprovedFleetItem);
-    const withGps = approved.filter(item => {
-      const pos = getFleetLatLng(item);
-      return Number.isFinite(pos.lat) && Number.isFinite(pos.lng);
-    });
+    const withGps = getValidFleetLocations();
 
     if (empty) empty.style.display = withGps.length ? 'none' : 'flex';
 
@@ -5309,6 +5330,9 @@ function ensureFleetMap() {
       map.setZoom(15);
     } else if (withGps.length > 1) {
       map.fitBounds(bounds, { top: 40, right: 390, bottom: 40, left: 40 });
+    } else {
+      map.setCenter({ lat: 32.7767, lng: -96.7970 });
+      map.setZoom(7);
     }
   }
 
@@ -5320,7 +5344,7 @@ function selectFleetTruck(key, centerMap = false) {
     renderFleetMaintenancePanel();
 
     if (centerMap) {
-      const item = fleetLocations.find(t => (t.id || getFleetName(t)) === key);
+      const item = getValidFleetLocations().find(t => (t.id || getFleetName(t)) === key);
       const pos = item ? getFleetLatLng(item) : null;
       if (item && pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng)) {
         const map = ensureFleetMap();
@@ -5340,8 +5364,8 @@ function selectFleetTruck(key, centerMap = false) {
     const box = document.getElementById('fleetTruckList');
     if (!box) return;
 
-    const approved = fleetLocations.filter(isApprovedFleetItem);
-    updateFleetSummary(approved);
+    const approved = getValidFleetLocations();
+    updateFleetSummary(fleetLocations);
 
     if (!approved.length) {
       box.className = 'fleet-list';
@@ -5351,7 +5375,13 @@ function selectFleetTruck(key, centerMap = false) {
       return;
     }
 
-    const sorted = [...approved].sort((a, b) => {
+    const withMaintenanceRecords = approved.filter(item => getFleetMaintenanceRecord(getFleetTruckNumber(item)));
+    if (!withMaintenanceRecords.length) {
+      box.innerHTML = '<div class="empty-state">Waiting for fleetMaintenance records.</div>';
+      return;
+    }
+
+    const sorted = [...withMaintenanceRecords].sort((a, b) => {
       const rank = fleetStatusSortRank(a) - fleetStatusSortRank(b);
       if (rank) return rank;
       return getFleetDisplayName(a).localeCompare(getFleetDisplayName(b));
@@ -5390,7 +5420,7 @@ function selectFleetTruck(key, centerMap = false) {
 function renderFleetSelectedTruck() {
     const box = document.getElementById('fleetSelectedTruck');
     if (!box) return;
-    const approved = fleetLocations.filter(isApprovedFleetItem);
+    const approved = getValidFleetLocations();
     const item = approved.find(t => (t.id || getFleetName(t)) === selectedFleetTruckId) || approved[0];
     if (!item) {
       box.innerHTML = '<div class="empty-state">Select a truck to view details.</div>';
@@ -5447,7 +5477,7 @@ function fmtDuration(seconds) {
   function renderFleetMaintenancePanel() {
     const box = document.getElementById('fleetMaintenancePanel');
     if (!box) return;
-    const approved = fleetLocations.filter(isApprovedFleetItem);
+    const approved = getValidFleetLocations();
     if (!approved.length) {
       box.innerHTML = '<div class="empty-state">Waiting for approved KKE truck odometer data.</div>';
       return;
@@ -5462,6 +5492,7 @@ function fmtDuration(seconds) {
       const name = getFleetDisplayName(item);
       const maint = getFleetMaintenance(item);
       const status = getFleetStatus(item);
+      const record = maint.record || {};
       let label = 'OK';
       let detail = 'Maintenance schedule baseline not set yet.';
       let cls = '';
@@ -5491,7 +5522,7 @@ function fmtDuration(seconds) {
             <span class="fleet-status-pill ${maint.status === 'overdue' ? 'fleet-status-offline' : maint.status === 'due-soon' ? 'fleet-status-idle' : 'fleet-status-stopped'}">${escapeHtml(label)}</span>
           </div>
           <div class="fleet-maintenance-meta">${escapeHtml(status.label)} · ${escapeHtml(detail)}</div>
-          <div class="fleet-maintenance-meta">Odometer: ${maint.odometer !== null ? `${fmtNumber(maint.odometer, 0)} mi` : 'No odometer from GPS yet'}</div>
+          <div class="fleet-maintenance-meta">Last service: ${record.lastServiceDate ? escapeHtml(formatFleetDateTime(record.lastServiceDate)) : 'Not recorded'} Â· Odometer: ${maint.odometer !== null ? `${fmtNumber(maint.odometer, 0)} mi` : 'No odometer from GPS yet'}</div>
         </div>
       `;
     }).join('');
@@ -5509,7 +5540,7 @@ function renderFleetTruckCards() {
     const box = document.getElementById('fleetRecentEvents');
     if (!box) return;
 
-    const approvedEvents = fleetEvents.filter(isApprovedFleetItem);
+    const approvedEvents = fleetEvents.filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
     if (!approvedEvents.length) {
       box.className = 'empty-state';
       box.innerHTML = 'Waiting for approved KKE OneStep GPS events.';
@@ -5567,6 +5598,16 @@ function loadFleetGPS() {
         box.className = 'empty-state';
         box.innerHTML = 'Error loading GPS events. Check Firestore rules for gpsEvents.';
       }
+    });
+
+    const maintenanceRef = collection(db, 'fleetMaintenance');
+    fleetMaintenanceUnsubscribe = onSnapshot(maintenanceRef, (snapshot) => {
+      fleetMaintenance = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderFleetTruckCards();
+    }, (err) => {
+      console.error(err);
+      const box = document.getElementById('fleetMaintenancePanel');
+      if (box) box.innerHTML = '<div class="empty-state">Error loading fleetMaintenance. Check Firestore rules.</div>';
     });
   }
 
