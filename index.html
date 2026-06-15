@@ -4995,6 +4995,10 @@ const differencePercent =
   };
 
   const APPROVED_FLEET_VINS = new Set(Object.keys(APPROVED_FLEET_BY_VIN));
+  const APPROVED_FLEET_BY_UNIT = Object.fromEntries(
+    Object.values(APPROVED_FLEET_BY_VIN).map(unit => [unit.unitNumber, unit])
+  );
+  const APPROVED_FLEET_UNIT_NUMBERS = new Set(Object.keys(APPROVED_FLEET_BY_UNIT));
 
   function readNested(obj, path) {
     if (!obj || !path) return undefined;
@@ -5088,7 +5092,9 @@ const differencePercent =
 
   function isApprovedFleetItem(item) {
     const vin = getFleetVin(item);
-    return !!vin && APPROVED_FLEET_VINS.has(vin);
+    if (vin && APPROVED_FLEET_VINS.has(vin)) return true;
+    const truckNo = getFleetTruckNumber(item);
+    return !!truckNo && APPROVED_FLEET_UNIT_NUMBERS.has(truckNo);
   }
 
   function isTexasFleetCoordinate(pos) {
@@ -5127,7 +5133,7 @@ const differencePercent =
   function getFleetTruckNumber(item) {
     const vin = getFleetVin(item);
     if (APPROVED_FLEET_BY_VIN[vin]?.unitNumber) return APPROVED_FLEET_BY_VIN[vin].unitNumber;
-    const explicit = fleetField(item, ['unitNumber', 'truckNumber', 'truck_number', 'vehicleNumber', 'vehicle_number']);
+    const explicit = fleetField(item, ['unitNumber', 'truckNumber', 'truck_number', 'vehicleNumber', 'vehicle_number', 'id']);
     if (explicit && /^\d{3}$/.test(String(explicit).trim())) return String(explicit).trim();
     const name = getFleetName(item);
     const match = name.match(/\b(104|106|112|117|118|119|120)\b|truck\s*#?\s*(\d{3})/i);
@@ -5137,6 +5143,8 @@ const differencePercent =
   function getFleetDisplayName(item) {
     const vin = getFleetVin(item);
     if (APPROVED_FLEET_BY_VIN[vin]?.displayName) return APPROVED_FLEET_BY_VIN[vin].displayName;
+    const truckNo = getFleetTruckNumber(item);
+    if (APPROVED_FLEET_BY_UNIT[truckNo]?.displayName) return APPROVED_FLEET_BY_UNIT[truckNo].displayName;
     return getFleetName(item);
   }
 
@@ -5375,13 +5383,7 @@ function selectFleetTruck(key, centerMap = false) {
       return;
     }
 
-    const withMaintenanceRecords = approved.filter(item => getFleetMaintenanceRecord(getFleetTruckNumber(item)));
-    if (!withMaintenanceRecords.length) {
-      box.innerHTML = '<div class="empty-state">Waiting for fleetMaintenance records.</div>';
-      return;
-    }
-
-    const sorted = [...withMaintenanceRecords].sort((a, b) => {
+    const sorted = [...approved].sort((a, b) => {
       const rank = fleetStatusSortRank(a) - fleetStatusSortRank(b);
       if (rank) return rank;
       return getFleetDisplayName(a).localeCompare(getFleetDisplayName(b));
@@ -5483,7 +5485,13 @@ function fmtDuration(seconds) {
       return;
     }
 
-    const sorted = [...approved].sort((a, b) => {
+    const withMaintenanceRecords = approved.filter(item => getFleetMaintenanceRecord(getFleetTruckNumber(item)));
+    if (!withMaintenanceRecords.length) {
+      box.innerHTML = '<div class="empty-state">Waiting for fleetMaintenance records.</div>';
+      return;
+    }
+
+    const sorted = [...withMaintenanceRecords].sort((a, b) => {
       const rank = { overdue: 0, 'due-soon': 1, baseline: 2, ok: 3 };
       return (rank[getFleetMaintenance(a).status] ?? 9) - (rank[getFleetMaintenance(b).status] ?? 9);
     });
