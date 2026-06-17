@@ -2458,7 +2458,13 @@
     </div>
 
     <div class="card">
-      <h2>Production Trend — Last 6 Months</h2>
+      <h2>Week-over-Week Production Trend</h2>
+      <p class="dashboard-note">Sunday-to-Saturday production totals for the last 8 weeks, including the current week-to-date.</p>
+      <div id="weekOverWeekTrendMetrics" class="empty-state">No weekly trend data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Production Trend - Last 6 Months</h2>
       <p class="dashboard-note">Calendar-month production totals from active reports, including the current month-to-date.</p>
       <div id="sixMonthTrendMetrics" class="empty-state">No monthly trend data yet.</div>
     </div>
@@ -3784,6 +3790,9 @@ const differencePercent =
     const trendBox = document.getElementById('trendMetrics');
     if (trendBox) trendBox.innerHTML = renderTrendChart(docs);
 
+    const weekOverWeekTrendBox = document.getElementById('weekOverWeekTrendMetrics');
+    if (weekOverWeekTrendBox) weekOverWeekTrendBox.innerHTML = renderWeekOverWeekTrendChart(rawDocs || docs || []);
+
     const sixMonthTrendBox = document.getElementById('sixMonthTrendMetrics');
     if (sixMonthTrendBox) sixMonthTrendBox.innerHTML = renderSixMonthTrendChart(rawDocs || []);
 
@@ -4917,6 +4926,64 @@ const differencePercent =
           <div class="trend-value">${fmtNumber(item.pounds, 0)}</div>
           <div class="trend-bar" style="height:${height}px"></div>
           <div class="trend-label">${escapeHtml(label)}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function formatWeekLabel(start, end) {
+    const startLabel = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endLabel = new Date(end.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `${startLabel}-${endLabel}`;
+  }
+
+  function renderWeekOverWeekTrendChart(docs) {
+    const ranges = getPeriodRanges();
+    const weeks = [];
+
+    for (let offset = 7; offset >= 0; offset -= 1) {
+      const start = new Date(ranges.week.start);
+      start.setDate(start.getDate() - offset * 7);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 7);
+      weeks.push({
+        label: formatWeekLabel(start, end),
+        start,
+        end,
+        pounds: 0,
+        reports: 0,
+        hours: 0
+      });
+    }
+
+    activeReportsOnly(docs || []).forEach(report => {
+      const date = parseReportDate(report.date);
+      if (!date) return;
+      const week = weeks.find(item => date >= item.start && date < item.end);
+      if (!week) return;
+      week.pounds += getReportPounds(report);
+      week.reports += 1;
+      week.hours += getReportHours(report);
+    });
+
+    const hasData = weeks.some(week => week.pounds > 0 || week.reports > 0);
+    if (!hasData) return `<div class="empty-state">No weekly trend data yet.</div>`;
+
+    const max = Math.max(...weeks.map(week => week.pounds), 1);
+    return `<div class="trend-grid six-month-trend-grid">${weeks.map((week, index) => {
+      const previous = index > 0 ? weeks[index - 1] : null;
+      const change = previous && previous.pounds > 0
+        ? ((week.pounds - previous.pounds) / previous.pounds) * 100
+        : null;
+      const changeText = change === null ? 'new baseline' : `${change >= 0 ? '+' : ''}${fmtNumber(change, 1)}% WoW`;
+      const height = Math.max(4, (week.pounds / max) * 140);
+      return `
+        <div class="trend-bar-wrap" title="${escapeHtml(week.label)}: ${fmtNumber(week.pounds, 0)} lbs, ${fmtNumber(week.reports, 0)} reports">
+          <div class="trend-value">${fmtNumber(week.pounds, 0)}</div>
+          <div class="trend-bar" style="height:${height}px"></div>
+          <div class="trend-label">${escapeHtml(week.label)}</div>
+          <div class="trend-label">${fmtNumber(week.reports, 0)} reports</div>
+          <div class="trend-label">${escapeHtml(changeText)}</div>
         </div>
       `;
     }).join('')}</div>`;
