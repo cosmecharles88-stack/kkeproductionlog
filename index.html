@@ -5271,11 +5271,11 @@ const differencePercent =
   }
 
   function updateFleetSummary(locations) {
-    const approved = (locations || []).filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
+    const approved = getFleetRailItems();
     const tracked = approved.length;
     const moving = approved.filter(item => getFleetStatus(item).label === 'Moving').length;
     const ignition = approved.filter(item => getFleetIgnition(item)).length;
-    const stale = approved.filter(item => ['Stale', 'Offline'].includes(getFleetStatus(item).label)).length;
+    const stale = approved.filter(item => ['Stale', 'Offline', 'No GPS'].includes(getFleetStatus(item).label)).length;
     const maintenanceDue = approved.filter(item => ['due-soon', 'overdue'].includes(getFleetMaintenance(item).status)).length;
 
     const setText = (id, value) => {
@@ -5288,7 +5288,7 @@ const differencePercent =
     setText('fleetIgnitionCount', ignition);
     setText('fleetStaleCount', stale);
     setText('fleetMaintenanceDueCount', maintenanceDue);
-    setText('fleetRailCount', tracked);
+    setText('fleetRailCount', APPROVED_FLEET_ROSTER.length);
   }
 
   function fleetStatusSortRank(item) {
