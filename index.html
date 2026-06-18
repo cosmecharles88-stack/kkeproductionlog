@@ -1857,7 +1857,7 @@
     </div>
     <h1 style="color: var(--kke-blue); margin: 0 0 8px;">KKE Concrete</h1>
     <p style="color: var(--gray); margin-bottom: 30px;">Field Operations Portal</p>
-    <button id="btnGoogleLogin" class="btn btn-primary" style="width: 100%; padding: 15px;">
+    <button id="btnGoogleLogin" class="btn btn-primary" type="button" style="width: 100%; padding: 15px;">
       Sign in with Google
     </button>
     <p id="authError" style="color: var(--danger); font-size: 12px; margin-top: 15px;"></p>
@@ -2812,7 +2812,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
@@ -2931,15 +2931,46 @@
     return message;
   }
 
-  document.getElementById('btnGoogleLogin').addEventListener('click', async () => {
+  const googleLoginButton = document.getElementById('btnGoogleLogin');
+
+  async function startGoogleLogin() {
+    if (!googleLoginButton) return;
+    const originalText = googleLoginButton.textContent;
+
     try {
+      googleLoginButton.disabled = true;
+      googleLoginButton.textContent = "Opening Google...";
       loginError.textContent = "Opening Google sign-in...";
       await signInWithPopup(auth, provider);
       loginError.textContent = "";
     } catch (err) {
       console.error(err);
+      const code = err?.code || "";
+      const shouldRedirect = code.includes("popup") ||
+        code.includes("cancelled-popup-request") ||
+        code.includes("operation-not-supported") ||
+        String(err?.message || "").includes("blocked");
+
+      if (shouldRedirect) {
+        loginError.textContent = "Popup did not open. Redirecting to Google sign-in...";
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
       loginError.textContent = "Sign-in failed: " + getFriendlyAuthError(err);
+    } finally {
+      if (!auth.currentUser && googleLoginButton) {
+        googleLoginButton.disabled = false;
+        googleLoginButton.textContent = originalText || "Sign in with Google";
+      }
     }
+  }
+
+  googleLoginButton?.addEventListener('click', startGoogleLogin);
+
+  getRedirectResult(auth).catch((err) => {
+    console.error(err);
+    if (loginError) loginError.textContent = "Sign-in failed: " + getFriendlyAuthError(err);
   });
 
   document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
@@ -6384,4 +6415,14 @@ function loadFleetGPS() {
     const id = document.getElementById('editDocId')?.value;
     if (id) window.printReport(id);
   });
-  document.getElementById('editModal'
+  document.getElementById('editModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'editModal') closeEditModal();
+  });
+
+</script>
+
+</body>
+</html>
+ 
+
+          
