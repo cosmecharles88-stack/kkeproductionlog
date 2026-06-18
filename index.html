@@ -2350,12 +2350,6 @@
     </div>
 
     <div class="card">
-      <h2>New Service Cities</h2>
-      <p class="dashboard-note">Cities with first recorded work in the last 60 days, sorted newest first.</p>
-      <div id="newServiceCitiesMetrics" class="empty-state">No new city data yet.</div>
-    </div>
-
-    <div class="card">
       <h2>Top Efficiency</h2>
       <div class="grid">
         <div class="calc-box">
@@ -2482,6 +2476,12 @@
           </div>
         </div>
       </details>
+    </div>
+
+    <div class="card">
+      <h2>New Service Cities</h2>
+      <p class="dashboard-note">Cities started or restarted this month after 60+ days without recorded work.</p>
+      <div id="newServiceCitiesMetrics" class="empty-state">No new city data yet.</div>
     </div>
 
     <div class="card">
@@ -3255,8 +3255,63 @@ document.addEventListener("change", (e) => {
     return nameMap[key] || titleCaseWords(raw);
   }
 
+  const ACTIVE_TRUCK_BOSSES = new Set([
+    "Walter Timms",
+    "Isaiah",
+    "Jeremy",
+    "Kyle Teel",
+    "Logan",
+    "Osvaldo"
+  ]);
+
+  function isActiveTruckBoss(name) {
+    return ACTIVE_TRUCK_BOSSES.has(normalizePersonName(name));
+  }
+
   function getNormalizedCity(report) {
     return normalizeCityName(report?.city) || "Unknown City";
+  }
+
+  function inferKnownCityFromAddress(address = "") {
+    const text = String(address || "").toLowerCase();
+    if (!text) return "";
+    const normalizedText = ` ${text.replace(/[^a-z]+/g, " ").trim()} `;
+
+    const cityAliases = {
+      "celina": "Celina",
+      "the colony": "The Colony",
+      "coppel": "Coppel",
+      "coppell": "Coppel",
+      "denison": "Denison",
+      "dennison": "Denison",
+      "frisco": "Frisco",
+      "garland": "Garland",
+      "highland village": "Highland Village",
+      "keller": "Keller",
+      "mckinney": "McKinney",
+      "mc kinney": "McKinney",
+      "princeton": "Princeton",
+      "prosper": "Prosper",
+      "richardson": "Richardson",
+      "sachse": "Sachse",
+      "saginaw": "Saginaw",
+      "burleson": "Burleson",
+      "corinth": "Corinth"
+    };
+
+    for (const [alias, city] of Object.entries(cityAliases)) {
+      const normalizedAlias = ` ${alias.replace(/[^a-z]+/g, " ").trim()} `;
+      if (normalizedText.includes(normalizedAlias)) return city;
+    }
+
+    const commaCityMatch = String(address || "").match(/,\s*([^,]+),\s*(TX|Texas)\b/i);
+    return commaCityMatch ? normalizeCityName(commaCityMatch[1]) : "";
+  }
+
+  function getDashboardCity(report) {
+    const normalized = getNormalizedCity(report);
+    if (normalized !== "Other" && normalized !== "Unknown City") return normalized;
+    return inferKnownCityFromAddress(report?.address) || normalized;
   }
 
   function getNormalizedTruck(report) {
@@ -3439,61 +3494,86 @@ const differencePercent =
 
   function renderNewServiceCities(docs) {
     const active = activeReportsOnly(docs || []);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const cutoff = new Date(today);
-    cutoff.setDate(cutoff.getDate() - 60);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     const byCity = {};
     active.forEach(report => {
-      const city = getNormalizedCity(report);
+      const city = getDashboardCity(report);
       if (!city || city === 'Other' || city === 'Unknown City') return;
       const date = parseReportDate(report.date);
       if (!date) return;
       if (!byCity[city]) {
         byCity[city] = {
           city,
-          firstDate: date,
-          lastDate: date,
-          reports: 0,
-          pounds: 0,
-          latestTruck: getNormalizedTruck(report),
-          latestCrew: getNormalizedCrew(report)
+          allDates: [],
+          monthReports: 0,
+          monthPounds: 0,
+          firstThisMonth: null,
+          latestThisMonth: null,
+          latestTruck: '',
+          latestCrew: ''
         };
       }
 
       const item = byCity[city];
-      item.reports += 1;
-      item.pounds += getReportPounds(report);
+      item.allDates.push(date);
 
-      if (date < item.firstDate) item.firstDate = date;
-      if (date >= item.lastDate) {
-        item.lastDate = date;
-        item.latestTruck = getNormalizedTruck(report);
-        item.latestCrew = getNormalizedCrew(report);
+      if (date >= monthStart && date < nextMonthStart) {
+        item.monthReports += 1;
+        item.monthPounds += getReportPounds(report);
+        if (!item.firstThisMonth || date < item.firstThisMonth) item.firstThisMonth = date;
+        if (!item.latestThisMonth || date >= item.latestThisMonth) {
+          item.latestThisMonth = date;
+          item.latestTruck = getNormalizedTruck(report);
+          item.latestCrew = getNormalizedCrew(report);
+        }
       }
     });
 
-    const newCities = Object.values(byCity)
-      .filter(item => item.firstDate >= cutoff)
-      .sort((a, b) => b.firstDate - a.firstDate || b.pounds - a.pounds)
+    const newCities = Object.values(byCity).map(item => {
+      if (!item.firstThisMonth) return null;
+      const priorDates = item.allDates
+        .filter(date => date < item.firstThisMonth)
+        .sort((a, b) => b - a);
+      const lastPriorDate = priorDates[0] || null;
+      const inactiveDays = lastPriorDate
+        ? Math.floor((item.firstThisMonth.getTime() - lastPriorDate.getTime()) / 86400000)
+        : null;
+
+      return {
+        ...item,
+        lastPriorDate,
+        inactiveDays,
+        isNew: !lastPriorDate || inactiveDays > 60
+      };
+    })
+      .filter(item => item && item.isNew)
+      .sort((a, b) => b.firstThisMonth - a.firstThisMonth || b.monthPounds - a.monthPounds)
       .slice(0, 8);
 
     if (!newCities.length) {
-      return `<div class="empty-state">No first-time service cities in the last 60 days.</div>`;
+      return `<div class="empty-state">No cities started or restarted this month after a 60+ day gap.</div>`;
     }
 
-    return `<div class="new-city-grid">${newCities.map(item => `
+    return `<div class="new-city-grid">${newCities.map(item => {
+      const statusText = item.lastPriorDate
+        ? `Restarted after ${fmtNumber(item.inactiveDays, 0)} days idle`
+        : 'First recorded job';
+      return `
       <div class="new-city-card">
         <div class="new-city-top">
           <div class="new-city-name">${escapeHtml(item.city)}</div>
           <span class="new-city-badge">New</span>
         </div>
-        <div class="new-city-meta">First job: ${escapeHtml(formatDateForDashboard(item.firstDate))}</div>
-        <div class="new-city-meta">${fmtNumber(item.reports, 0)} report${item.reports === 1 ? '' : 's'} | ${fmtNumber(item.pounds, 0)} lbs</div>
+        <div class="new-city-meta">${escapeHtml(statusText)}</div>
+        <div class="new-city-meta">Started: ${escapeHtml(formatDateForDashboard(item.firstThisMonth))}</div>
+        <div class="new-city-meta">${fmtNumber(item.monthReports, 0)} report${item.monthReports === 1 ? '' : 's'} | ${fmtNumber(item.monthPounds, 0)} lbs this month</div>
         <div class="new-city-meta">Latest: Truck ${escapeHtml(item.latestTruck)} | ${escapeHtml(item.latestCrew)}</div>
       </div>
-    `).join('')}</div>`;
+    `;
+    }).join('')}</div>`;
   }
 
 
@@ -3791,7 +3871,7 @@ const differencePercent =
       const comparison = getPoundComparison(report);
       const pounds = comparison.estimatedPounds;
       const hours = getReportHours(report);
-      const city = getNormalizedCity(report);
+      const city = getDashboardCity(report);
       const truck = getNormalizedTruck(report);
       const crew = getNormalizedCrew(report);
       const injectionKey = getInjectionInfo(report).key;
@@ -3817,10 +3897,12 @@ const differencePercent =
       truckStats[truck].hours += hours;
       truckStats[truck].reports += 1;
 
-      if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
-      crewStats[crew].pounds += pounds;
-      crewStats[crew].hours += hours;
-      crewStats[crew].reports += 1;
+      if (isActiveTruckBoss(crew)) {
+        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        crewStats[crew].pounds += pounds;
+        crewStats[crew].hours += hours;
+        crewStats[crew].reports += 1;
+      }
 
       const reportName = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${getNormalizedCrew(report)}`;
       if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
