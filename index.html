@@ -897,6 +897,8 @@
     .fleet-status-idle { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
     .fleet-status-stale { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
     .fleet-status-offline { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .fleet-status-fresh { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .fleet-status-critical { background: #7f1d1d; color: #ffffff; border-color: #450a0a; }
 
     .fleet-map-panel {
       position: relative;
@@ -1157,8 +1159,10 @@
     #fleetGPS .fleet-list-item.status-moving { border-left-color: #16a34a; }
     #fleetGPS .fleet-list-item.status-idle { border-left-color: #f59e0b; }
     #fleetGPS .fleet-list-item.status-stopped { border-left-color: #2563eb; }
+    #fleetGPS .fleet-list-item.status-fresh { border-left-color: #16a34a; }
     #fleetGPS .fleet-list-item.status-stale { border-left-color: #f97316; }
     #fleetGPS .fleet-list-item.status-offline { border-left-color: #991b1b; }
+    #fleetGPS .fleet-list-item.status-critical-stale { border-left-color: #7f1d1d; }
     #fleetGPS .fleet-list-item.status-no-gps { border-left-color: #64748b; opacity: 0.88; }
 
     #fleetGPS .fleet-truck-name {
@@ -5311,6 +5315,8 @@ const differencePercent =
 
   function getFleetTimestamp(item) {
     return fleetField(item, [
+      'lastSeen',
+      'lastSeenAt',
       'gpsTime',
       'dt_tracker',
       'receivedAt',
@@ -5500,15 +5506,12 @@ const differencePercent =
 
   function getFleetStatus(item) {
     if (item?.rosterOnly) return { label: 'No GPS', className: 'fleet-status-stale', mapColor: '#64748b' };
-    const speed = getFleetSpeed(item);
-    const ignition = getFleetIgnition(item);
-    const driveStatus = getFleetDriveStatus(item);
     const mins = fleetMinutesAgo(getFleetTimestamp(item));
-    if (mins !== null && mins > 60) return { label: 'Offline', className: 'fleet-status-offline', mapColor: '#991b1b' };
-    if (mins !== null && mins > 15) return { label: 'Stale', className: 'fleet-status-stale', mapColor: '#f97316' };
-    if (speed > 2 || driveStatus.includes('driv') || driveStatus.includes('mov')) return { label: 'Moving', className: 'fleet-status-moving', mapColor: '#16a34a' };
-    if (ignition) return { label: 'Idle', className: 'fleet-status-idle', mapColor: '#f59e0b' };
-    return { label: 'Stopped', className: 'fleet-status-stopped', mapColor: '#2563eb' };
+    if (mins === null) return { label: 'No GPS', className: 'fleet-status-stale', mapColor: '#64748b' };
+    if (mins > 1440) return { label: 'Critical stale', className: 'fleet-status-critical', mapColor: '#7f1d1d' };
+    if (mins > 60) return { label: 'Offline', className: 'fleet-status-offline', mapColor: '#991b1b' };
+    if (mins >= 15) return { label: 'Stale', className: 'fleet-status-stale', mapColor: '#f97316' };
+    return { label: 'Fresh', className: 'fleet-status-fresh', mapColor: '#16a34a' };
   }
 
   function getFleetMaintenance(item) {
@@ -5554,9 +5557,9 @@ const differencePercent =
   function updateFleetSummary(locations) {
     const approved = getFleetRailItems();
     const tracked = approved.length;
-    const moving = approved.filter(item => getFleetStatus(item).label === 'Moving').length;
+    const moving = approved.filter(item => getFleetSpeed(item) > 2 || getFleetDriveStatus(item).includes('driv') || getFleetDriveStatus(item).includes('mov')).length;
     const ignition = approved.filter(item => getFleetIgnition(item)).length;
-    const stale = approved.filter(item => ['Stale', 'Offline', 'No GPS'].includes(getFleetStatus(item).label)).length;
+    const stale = approved.filter(item => ['Stale', 'Offline', 'Critical stale', 'No GPS'].includes(getFleetStatus(item).label)).length;
     const maintenanceDue = approved.filter(item => ['due-soon', 'overdue'].includes(getFleetMaintenance(item).status)).length;
 
     const setText = (id, value) => {
@@ -5574,7 +5577,7 @@ const differencePercent =
 
   function fleetStatusSortRank(item) {
     const label = getFleetStatus(item).label;
-    return { Moving: 0, Idle: 1, Stopped: 2, Stale: 3, Offline: 4, 'No GPS': 5 }[label] ?? 9;
+    return { Fresh: 0, Stale: 1, Offline: 2, 'Critical stale': 3, 'No GPS': 4 }[label] ?? 9;
   }
 
   function getFleetStatusSlug(item) {
@@ -5916,14 +5919,14 @@ function renderFleetTruckCards() {
 function loadFleetGPS() {
     if (!auth.currentUser || !isCurrentUserManager) return;
 
-    const locationsRef = collection(db, 'truckLocations');
+    const locationsRef = collection(db, 'fleetUnits');
     fleetLocationsUnsubscribe = onSnapshot(locationsRef, (snapshot) => {
       fleetLocations = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       renderFleetTruckCards();
     }, (err) => {
       console.error(err);
       const box = document.getElementById('fleetTruckList');
-      if (box) box.innerHTML = '<div class="empty-state">Error loading truck GPS data. Check Firestore rules for truckLocations.</div>';
+      if (box) box.innerHTML = '<div class="empty-state">Error loading fleet unit data. Check Firestore rules for fleetUnits.</div>';
     });
 
     const eventsRef = collection(db, 'gpsEvents');
