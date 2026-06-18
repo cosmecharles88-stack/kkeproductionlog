@@ -1912,6 +1912,7 @@
               <option value="Highland Village">Highland Village</option>
               <option value="Keller">Keller</option>
               <option value="McKinney">McKinney</option>
+              <option value="Melissa">Melissa</option>
               <option value="Princeton">Princeton</option>
               <option value="Prosper">Prosper</option>
               <option value="Richardson">Richardson</option>
@@ -2874,6 +2875,7 @@
     "Keller": "#a21caf",
     "McKinney": "#ca8a04",
     "Mckinney": "#ca8a04",
+    "Melissa": "#be185d",
     "Princeton": "#4f46e5",
     "Prosper": "#0891b2",
     "Richardson": "#7c3aed",
@@ -3178,6 +3180,7 @@ document.addEventListener("change", (e) => {
       "keller": "Keller",
       "mckinney": "McKinney",
       "mc kinney": "McKinney",
+      "melissa": "Melissa",
       "princeton": "Princeton",
       "prosper": "Prosper",
       "richardson": "Richardson",
@@ -3290,6 +3293,7 @@ document.addEventListener("change", (e) => {
       "keller": "Keller",
       "mckinney": "McKinney",
       "mc kinney": "McKinney",
+      "melissa": "Melissa",
       "princeton": "Princeton",
       "prosper": "Prosper",
       "richardson": "Richardson",
@@ -6380,12 +6384,4 @@ function loadFleetGPS() {
     const id = document.getElementById('editDocId')?.value;
     if (id) window.printReport(id);
   });
-  document.getElementById('editModal')?.addEventListener('click', (event) => {
-    if (event.target.id === 'editModal') closeEditModal();
-  });
-
-</script>
-
-</body>
-</html>
- 
+  document.getElementById('editModal'
