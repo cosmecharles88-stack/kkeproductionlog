@@ -498,6 +498,53 @@
       margin-top: 2px;
     }
 
+    .new-city-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .new-city-card {
+      border: 1px solid #bfdbfe;
+      background: #f8fbff;
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .new-city-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .new-city-name {
+      color: var(--kke-dark-blue);
+      font-size: 15px;
+      font-weight: 950;
+    }
+
+    .new-city-badge {
+      border: 1px solid #86efac;
+      background: #dcfce7;
+      color: #166534;
+      border-radius: 999px;
+      padding: 4px 7px;
+      font-size: 10px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .new-city-meta {
+      color: var(--gray);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
 
     /* Work Area / Photo Upload */
     .conditional-field {
@@ -1772,6 +1819,7 @@
       .metric-bar-row { grid-template-columns: 70px 1fr 70px; }
       .transition-hero-value { font-size: 32px; }
       .period-metrics-grid { grid-template-columns: 1fr; }
+      .new-city-grid { grid-template-columns: 1fr; }
       .dashboard-filter-row { grid-template-columns: 1fr; }
       .dashboard-range-pill { border-radius: 12px; }
       .mom-grid { grid-template-columns: 1fr 1fr; }
@@ -1857,15 +1905,19 @@
               <option value="Celina">Celina</option>
               <option value="The Colony">The Colony</option>
               <option value="Coppel">Coppel</option>
+              <option value="Denison">Denison</option>
               <option value="Frisco">Frisco</option>
               <option value="Frisco Parks Department">Frisco Parks Department</option>
               <option value="Garland">Garland</option>
               <option value="Highland Village">Highland Village</option>
+              <option value="Keller">Keller</option>
               <option value="McKinney">McKinney</option>
+              <option value="Princeton">Princeton</option>
               <option value="Prosper">Prosper</option>
               <option value="Richardson">Richardson</option>
               <option value="Sachse">Sachse</option>
               <option value="Saginaw">Saginaw</option>
+              <option value="Burleson">Burleson</option>
               <option value="Corinth">Corinth</option>
               <option value="Other">Other</option>
             </select>
@@ -2164,11 +2216,11 @@
           <div class="calc-value" id="dashFlowMeterLbs">0</div>
         </div>
         <div class="calc-box">
-          <div class="calc-label">Difference %</div>
+          <div class="calc-label">Flux</div>
           <div class="calc-value" id="dashDifferencePercent">0%</div>
         </div>
         <div class="calc-box">
-          <div class="calc-label">Difference Lbs</div>
+          <div class="calc-label">Flux Lbs</div>
           <div class="calc-value" id="dashDifferenceLbs">0</div>
         </div>
       </div>
@@ -2209,7 +2261,7 @@
           <div class="mom-sub" id="momFlowDetail">—</div>
         </div>
         <div class="mom-card">
-          <div class="mom-label">Difference %</div>
+          <div class="mom-label">Flux</div>
           <div class="mom-value" id="momDifferenceChange">—</div>
           <div class="mom-sub" id="momDifferenceDetail">—</div>
         </div>
@@ -2295,6 +2347,12 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>New Service Cities</h2>
+      <p class="dashboard-note">Cities with first recorded work in the last 60 days, sorted newest first.</p>
+      <div id="newServiceCitiesMetrics" class="empty-state">No new city data yet.</div>
     </div>
 
     <div class="card">
@@ -2808,16 +2866,20 @@
     "Celina": "#0057a8",
     "The Colony": "#0f766e",
     "Coppel": "#9333ea",
+    "Denison": "#0d9488",
     "Frisco": "#ea580c",
     "Frisco Parks Department": "#16a34a",
     "Garland": "#dc2626",
     "Highland Village": "#2563eb",
+    "Keller": "#a21caf",
     "McKinney": "#ca8a04",
     "Mckinney": "#ca8a04",
+    "Princeton": "#4f46e5",
     "Prosper": "#0891b2",
     "Richardson": "#7c3aed",
     "Sachse": "#be123c",
     "Saginaw": "#4d7c0f",
+    "Burleson": "#c2410c",
     "Corinth": "#0284c7",
     "Other": "#6b7280",
     "Unknown City": "#6b7280"
@@ -3107,16 +3169,21 @@ document.addEventListener("change", (e) => {
       "the colony": "The Colony",
       "coppel": "Coppel",
       "coppell": "Coppel",
+      "denison": "Denison",
+      "dennison": "Denison",
       "frisco": "Frisco",
       "frisco parks department": "Frisco Parks Department",
       "garland": "Garland",
       "highland village": "Highland Village",
+      "keller": "Keller",
       "mckinney": "McKinney",
       "mc kinney": "McKinney",
+      "princeton": "Princeton",
       "prosper": "Prosper",
       "richardson": "Richardson",
       "sachse": "Sachse",
       "saginaw": "Saginaw",
+      "burleson": "Burleson",
       "corinth": "Corinth",
       "other": "Other"
     };
@@ -3368,6 +3435,65 @@ const differencePercent =
 
     setText('dashMonthPoundsLarge', fmtNumber(periods.Month.pounds, 0));
     setText('dashMonthReportsLarge', fmtNumber(periods.Month.reports, 0));
+  }
+
+  function renderNewServiceCities(docs) {
+    const active = activeReportsOnly(docs || []);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() - 60);
+
+    const byCity = {};
+    active.forEach(report => {
+      const city = getNormalizedCity(report);
+      if (!city || city === 'Other' || city === 'Unknown City') return;
+      const date = parseReportDate(report.date);
+      if (!date) return;
+      if (!byCity[city]) {
+        byCity[city] = {
+          city,
+          firstDate: date,
+          lastDate: date,
+          reports: 0,
+          pounds: 0,
+          latestTruck: getNormalizedTruck(report),
+          latestCrew: getNormalizedCrew(report)
+        };
+      }
+
+      const item = byCity[city];
+      item.reports += 1;
+      item.pounds += getReportPounds(report);
+
+      if (date < item.firstDate) item.firstDate = date;
+      if (date >= item.lastDate) {
+        item.lastDate = date;
+        item.latestTruck = getNormalizedTruck(report);
+        item.latestCrew = getNormalizedCrew(report);
+      }
+    });
+
+    const newCities = Object.values(byCity)
+      .filter(item => item.firstDate >= cutoff)
+      .sort((a, b) => b.firstDate - a.firstDate || b.pounds - a.pounds)
+      .slice(0, 8);
+
+    if (!newCities.length) {
+      return `<div class="empty-state">No first-time service cities in the last 60 days.</div>`;
+    }
+
+    return `<div class="new-city-grid">${newCities.map(item => `
+      <div class="new-city-card">
+        <div class="new-city-top">
+          <div class="new-city-name">${escapeHtml(item.city)}</div>
+          <span class="new-city-badge">New</span>
+        </div>
+        <div class="new-city-meta">First job: ${escapeHtml(formatDateForDashboard(item.firstDate))}</div>
+        <div class="new-city-meta">${fmtNumber(item.reports, 0)} report${item.reports === 1 ? '' : 's'} | ${fmtNumber(item.pounds, 0)} lbs</div>
+        <div class="new-city-meta">Latest: Truck ${escapeHtml(item.latestTruck)} | ${escapeHtml(item.latestCrew)}</div>
+      </div>
+    `).join('')}</div>`;
   }
 
 
@@ -3639,6 +3765,8 @@ const differencePercent =
   function renderDashboardAnalytics(rawDocs) {
     toggleDashboardMonthPicker();
     updateMonthOverMonthCard(rawDocs || []);
+    const newServiceCitiesBox = document.getElementById('newServiceCitiesMetrics');
+    if (newServiceCitiesBox) newServiceCitiesBox.innerHTML = renderNewServiceCities(rawDocs || []);
     const docs = filterReportsForDashboardPeriod(activeReportsOnly(rawDocs || []));
     const transitions = calculateTransitions(docs);
     const transitionStats = buildTransitionStats(transitions);
@@ -6096,8 +6224,8 @@ function loadFleetGPS() {
           ${metricBox('Clicks', fmtNumber(poundComparison.clicks, 0))}
           ${metricBox('Estimated Lbs', `${fmtNumber(poundComparison.estimatedPounds, 0)} lbs`)}
           ${metricBox('Flow Meter Lbs', `${fmtNumber(poundComparison.flowMeterPounds, 0)} lbs`)}
-          ${metricBox('Difference %', `${fmtNumber(poundComparison.differencePercent, 1)}%`)}
-          ${metricBox('Difference Lbs', `${fmtNumber(poundComparison.differencePounds, 0)} lbs`)}
+          ${metricBox('Flux', `${fmtNumber(poundComparison.differencePercent, 1)}%`)}
+          ${metricBox('Flux Lbs', `${fmtNumber(poundComparison.differencePounds, 0)} lbs`)}
           ${metricBox('Lbs / Hour', `${fmtNumber(efficiency, 0)} lbs/hr`)}
           ${metricBox('Lift Height', report.lift || '')}
           ${metricBox('Generator Run Time', report.generatorRunTime || '')}
