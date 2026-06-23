@@ -440,7 +440,7 @@
     /* Daily / Weekly / Monthly Manager Metrics */
     .period-metrics-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
       margin-top: 12px;
     }
@@ -2325,6 +2325,29 @@
         </div>
 
         <div class="period-card">
+          <div class="period-card-title">Yesterday</div>
+          <div class="period-main-value"><span id="dashYesterdayPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashYesterdayHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashYesterdayLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashYesterdayReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashYesterdayBestTruck">â€”</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="period-card">
           <div class="period-card-title">This Week</div>
           <div class="period-main-value"><span id="dashWeekPounds">0</span> lbs</div>
           <div class="period-mini-grid">
@@ -3436,6 +3459,9 @@ const differencePercent =
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
 
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(todayStart.getDate() - 1);
+
     const tomorrowStart = new Date(todayStart);
     tomorrowStart.setDate(todayStart.getDate() + 1);
 
@@ -3450,6 +3476,7 @@ const differencePercent =
 
     return {
       today: { start: todayStart, end: tomorrowStart },
+      yesterday: { start: yesterdayStart, end: todayStart },
       week: { start: weekStart, end: nextWeekStart },
       month: { start: monthStart, end: nextMonthStart }
     };
@@ -3503,6 +3530,7 @@ const differencePercent =
     const ranges = getPeriodRanges(new Date());
     const periods = {
       Today: getPeriodMetrics(docs, ranges.today),
+      Yesterday: getPeriodMetrics(docs, ranges.yesterday),
       Week: getPeriodMetrics(docs, ranges.week),
       Month: getPeriodMetrics(docs, ranges.month)
     };
