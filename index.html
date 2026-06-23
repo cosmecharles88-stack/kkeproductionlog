@@ -1379,7 +1379,7 @@
     /* Manager Tools / Filters / Modal */
     .tool-row {
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr auto;
+      grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr auto;
       gap: 10px;
       align-items: end;
       margin-bottom: 14px;
@@ -1948,6 +1948,7 @@
               <option value="106">106</option>
               <option value="107">107</option>
               <option value="118">118</option>
+              <option value="119">119</option>
               <option value="203">203</option>
             </select>
           </label>
@@ -2155,6 +2156,9 @@
         </label>
         <label>Truck
           <select id="historyTruckFilter"><option value="">All Trucks</option></select>
+        </label>
+        <label>Calendar Day
+          <input id="historyDateFilter" type="date" aria-label="Search reports by calendar day">
         </label>
         <label>Injection Type
           <select id="historyInjectionFilter">
@@ -2877,6 +2881,7 @@
     "106": "#16a34a",
     "107": "#f97316",
     "118": "#7c3aed",
+    "119": "#0891b2",
     "203": "#dc2626",
     "Unknown Truck": "#6b7280"
   };
@@ -4843,6 +4848,7 @@ const differencePercent =
     const search = String(document.getElementById('historySearch')?.value || '').toLowerCase().trim();
     const city = document.getElementById('historyCityFilter')?.value || '';
     const truck = document.getElementById('historyTruckFilter')?.value || '';
+    const selectedDate = document.getElementById('historyDateFilter')?.value || '';
     const injection = document.getElementById('historyInjectionFilter')?.value || '';
     const status = document.getElementById('historyStatusFilter')?.value || '';
 
@@ -4861,6 +4867,7 @@ const differencePercent =
 
       if (city && getNormalizedCity(report) !== city) return false;
       if (truck && getNormalizedTruck(report) !== truck) return false;
+      if (selectedDate && report.date !== selectedDate) return false;
       if (injection && getInjectionInfo(report).key !== injection) return false;
 
       if (search) {
@@ -6384,12 +6391,14 @@ function loadFleetGPS() {
   document.getElementById('historySearch')?.addEventListener('input', renderHistory);
   document.getElementById('historyCityFilter')?.addEventListener('change', renderHistory);
   document.getElementById('historyTruckFilter')?.addEventListener('change', renderHistory);
+  document.getElementById('historyDateFilter')?.addEventListener('change', renderHistory);
   document.getElementById('historyInjectionFilter')?.addEventListener('change', renderHistory);
   document.getElementById('historyStatusFilter')?.addEventListener('change', renderHistory);
   document.getElementById('btnClearFilters')?.addEventListener('click', () => {
     document.getElementById('historySearch').value = '';
     document.getElementById('historyCityFilter').value = '';
     document.getElementById('historyTruckFilter').value = '';
+    document.getElementById('historyDateFilter').value = '';
     document.getElementById('historyInjectionFilter').value = '';
     document.getElementById('historyStatusFilter').value = '';
     renderHistory();
