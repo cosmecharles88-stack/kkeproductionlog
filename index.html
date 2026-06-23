@@ -2531,6 +2531,26 @@
     </div>
 
     <div class="card">
+      <h2>Production Tables Date Range</h2>
+      <p class="dashboard-note">Controls the city, truck, work area, truck efficiency, and crew efficiency tables below.</p>
+      <div class="dashboard-filter-row">
+        <label>Table Date Range
+          <select id="dashboardTableRangeFilter">
+            <option value="yesterday">Yesterday</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month" selected>This Month</option>
+            <option value="all">All Time</option>
+          </select>
+        </label>
+        <div>
+          <div class="calc-label">Current Table View</div>
+          <div id="dashboardTableRangeLabel" class="dashboard-range-pill">This Month</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Pounds Pumped by City</h2>
       <div id="cityMetrics" class="empty-state">No data yet.</div>
     </div>
@@ -3157,6 +3177,11 @@ document.addEventListener("change", (e) => {
   document.getElementById('dashboardPeriodFilter')?.addEventListener('change', () => {
     if (!isCurrentUserManager) return;
     toggleDashboardMonthPicker();
+    renderDashboardAnalytics(dashboardReports);
+  });
+
+  document.getElementById('dashboardTableRangeFilter')?.addEventListener('change', () => {
+    if (!isCurrentUserManager) return;
     renderDashboardAnalytics(dashboardReports);
   });
 
@@ -3876,6 +3901,18 @@ const differencePercent =
     return { key: 'all', label: 'All Time', start: null, end: null };
   }
 
+  function getDashboardTableRange() {
+    const selected = document.getElementById('dashboardTableRangeFilter')?.value || 'month';
+    const ranges = getPeriodRanges(new Date());
+
+    if (selected === 'yesterday') return { key: selected, label: 'Yesterday', ...ranges.yesterday };
+    if (selected === 'today') return { key: selected, label: 'Today', ...ranges.today };
+    if (selected === 'week') return { key: selected, label: 'This Week', ...ranges.week };
+    if (selected === 'month') return { key: selected, label: 'This Month', ...ranges.month };
+
+    return { key: 'all', label: 'All Time', start: null, end: null };
+  }
+
   function formatDateForDashboard(date) {
     if (!date) return '';
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -3897,12 +3934,74 @@ const differencePercent =
     return docs.filter(report => isDateInRange(report.date, range));
   }
 
+  function filterReportsForDashboardTables(docs) {
+    const range = getDashboardTableRange();
+
+    if (range.key === 'all') {
+      setText('dashboardTableRangeLabel', 'All submitted active reports');
+      return docs;
+    }
+
+    setText(
+      'dashboardTableRangeLabel',
+      `${range.label}: ${formatDateForDashboard(range.start)} â€“ ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
+    );
+
+    return docs.filter(report => isDateInRange(report.date, range));
+  }
+
+  function buildDashboardTableStats(docs) {
+    const byCity = {};
+    const byTruck = {};
+    const byArea = {};
+    const truckStats = {};
+    const crewStats = {};
+
+    (docs || []).forEach(report => {
+      const pounds = getReportPounds(report);
+      const hours = getReportHours(report);
+      const city = getDashboardCity(report);
+      const truck = getNormalizedTruck(report);
+      const crew = getNormalizedCrew(report);
+      const workArea = getWorkAreaDisplay(report);
+
+      byCity[city] = (byCity[city] || 0) + pounds;
+      byTruck[truck] = (byTruck[truck] || 0) + pounds;
+      byArea[workArea] = (byArea[workArea] || 0) + pounds;
+
+      if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      truckStats[truck].pounds += pounds;
+      truckStats[truck].hours += hours;
+      truckStats[truck].reports += 1;
+
+      if (isActiveTruckBoss(crew)) {
+        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        crewStats[crew].pounds += pounds;
+        crewStats[crew].hours += hours;
+        crewStats[crew].reports += 1;
+      }
+    });
+
+    const truckEntries = Object.values(truckStats)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    const crewEntries = Object.values(crewStats)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    return { byCity, byTruck, byArea, truckEntries, crewEntries };
+  }
+
   function renderDashboardAnalytics(rawDocs) {
     toggleDashboardMonthPicker();
     updateMonthOverMonthCard(rawDocs || []);
     const newServiceCitiesBox = document.getElementById('newServiceCitiesMetrics');
     if (newServiceCitiesBox) newServiceCitiesBox.innerHTML = renderNewServiceCities(rawDocs || []);
-    const docs = filterReportsForDashboardPeriod(activeReportsOnly(rawDocs || []));
+    const activeDocs = activeReportsOnly(rawDocs || []);
+    const docs = filterReportsForDashboardPeriod(activeDocs);
+    const tableDocs = filterReportsForDashboardTables(activeDocs);
+    const tableStats = buildDashboardTableStats(tableDocs);
     const transitions = calculateTransitions(docs);
     const transitionStats = buildTransitionStats(transitions);
 
@@ -4035,18 +4134,18 @@ const differencePercent =
     document.getElementById('transitionRecentRoutes').innerHTML = renderRecentTransitionRoutes(transitions);
     document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
 
-    document.getElementById('cityMetrics').innerHTML = renderBarChart(byCity, 'lbs', CITY_COLORS);
-    document.getElementById('truckMetrics').innerHTML = renderBarChart(byTruck, 'lbs', TRUCK_COLORS);
+    document.getElementById('cityMetrics').innerHTML = renderBarChart(tableStats.byCity, 'lbs', CITY_COLORS);
+    document.getElementById('truckMetrics').innerHTML = renderBarChart(tableStats.byTruck, 'lbs', TRUCK_COLORS);
 
     const workAreaBox = document.getElementById('workAreaMetrics');
-    if (workAreaBox) workAreaBox.innerHTML = renderBarChart(byArea, 'lbs', {}, 'value');
+    if (workAreaBox) workAreaBox.innerHTML = renderBarChart(tableStats.byArea, 'lbs', {}, 'value');
 
     const truckEfficiencyObject = {};
-    truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
+    tableStats.truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
     document.getElementById('truckEfficiencyMetrics').innerHTML = renderBarChart(truckEfficiencyObject, 'lbs/hr', TRUCK_COLORS);
 
     document.getElementById('crewMetrics').innerHTML = buildLeaderboard(
-      crewEntries,
+      tableStats.crewEntries,
       'poundsPerHour',
       'lbs/hr',
       crew => `${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports`
