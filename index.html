@@ -4211,6 +4211,184 @@ const differencePercent =
       }));
   }
 
+  function getPreviousComparableRange(range) {
+    if (!range?.start || !range?.end || range.key === 'all') return null;
+    const durationMs = range.end.getTime() - range.start.getTime();
+    if (!Number.isFinite(durationMs) || durationMs <= 0) return null;
+    return {
+      key: `previous-${range.key}`,
+      label: `Previous ${range.label || 'Period'}`,
+      start: new Date(range.start.getTime() - durationMs),
+      end: new Date(range.start.getTime())
+    };
+  }
+
+  function getPartialPeriodWarning(range) {
+    if (!range?.start || !range?.end || range.key === 'all') return '';
+    const today = new Date();
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = addDays(todayStart, 1);
+    const isCurrentPeriod = range.start <= todayStart && range.end > todayStart;
+    if (!isCurrentPeriod || range.key === 'today' || range.key === 'yesterday') return '';
+
+    const elapsedDays = Math.max(1, Math.round((Math.min(tomorrowStart.getTime(), range.end.getTime()) - range.start.getTime()) / 86400000));
+    const totalDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86400000));
+    if (elapsedDays >= totalDays) return '';
+
+    return `${range.label} is a partial period: ${elapsedDays} of ${totalDays} calendar days are included. Compare directionally, not as a final full-period result.`;
+  }
+
+  function countWeekdaysInRange(range) {
+    if (!range?.start || !range?.end) return 0;
+    let count = 0;
+    for (let d = new Date(range.start); d < range.end; d = addDays(d, 1)) {
+      const day = d.getDay();
+      if (day !== 0 && day !== 6) count += 1;
+    }
+    return count;
+  }
+
+  function getActiveReportDates(docs) {
+    return new Set((docs || []).map(report => report.date).filter(Boolean));
+  }
+
+  function getZeroReportWorkingDays(docs, range) {
+    if (!range?.start || !range?.end || range.key === 'all') return 0;
+    const reportDates = getActiveReportDates(docs);
+    let count = 0;
+    for (let d = new Date(range.start); d < range.end; d = addDays(d, 1)) {
+      const day = d.getDay();
+      if (day === 0 || day === 6) continue;
+      const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      if (!reportDates.has(key)) count += 1;
+    }
+    return count;
+  }
+
+  function getDuplicateAddressCount(docs) {
+    const seen = {};
+    (docs || []).forEach(report => {
+      const key = [
+        report.date || '',
+        getDashboardCity(report),
+        String(report.address || '').trim().toLowerCase()
+      ].join('|');
+      if (!String(report.address || '').trim()) return;
+      seen[key] = (seen[key] || 0) + 1;
+    });
+    return Object.values(seen).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+  }
+
+  function getDataQualityMetrics(docs, range) {
+    const items = {
+      zeroReportWorkingDays: getZeroReportWorkingDays(docs, range),
+      missingTruckBoss: 0,
+      missingHours: 0,
+      cityOther: 0,
+      duplicateAddressEntries: getDuplicateAddressCount(docs),
+      missingGps: 0,
+      zeroClicks: 0
+    };
+
+    (docs || []).forEach(report => {
+      const crew = getNormalizedCrew(report);
+      if (!crew || crew === 'Unknown Crew') items.missingTruckBoss += 1;
+      if (getReportHours(report) <= 0) items.missingHours += 1;
+      if (getDashboardCity(report) === 'Other' || getDashboardCity(report) === 'Unknown City') items.cityOther += 1;
+      if (!report.gpsLatitude || !report.gpsLongitude) items.missingGps += 1;
+      if (getPoundComparison(report).clicks <= 0) items.zeroClicks += 1;
+    });
+
+    const issueCount = Object.values(items).reduce((sum, value) => sum + value, 0);
+    const possible = Math.max(1, (docs || []).length * 5 + (range?.key === 'all' ? 0 : countWeekdaysInRange(range)));
+    const score = Math.max(0, Math.round(100 - (issueCount / possible) * 100));
+    return { ...items, issueCount, score };
+  }
+
+  function getSmallJobDrag(docs, threshold = 150) {
+    const smallJobs = (docs || []).filter(report => getReportPounds(report) > 0 && getReportPounds(report) < threshold);
+    const pounds = smallJobs.reduce((sum, report) => sum + getReportPounds(report), 0);
+    const hours = smallJobs.reduce((sum, report) => sum + getReportHours(report), 0);
+    return {
+      threshold,
+      count: smallJobs.length,
+      pounds,
+      hours,
+      lbsPerHour: hours > 0 ? pounds / hours : 0
+    };
+  }
+
+  function getProductionConcentrationRisk(entries, totalPounds) {
+    const top = entries?.[0];
+    if (!top || totalPounds <= 0) return { percent: 0, text: 'No concentration risk detected because there is not enough city production data.' };
+    const percent = (Number(top.pounds || top.value || 0) / totalPounds) * 100;
+    const risk = percent >= 55 ? 'High' : percent >= 35 ? 'Moderate' : 'Low';
+    return {
+      percent,
+      risk,
+      text: `${risk} concentration risk: ${top.name} produced ${fmtNumber(percent, 1)}% of selected table-range pounds.`
+    };
+  }
+
+  function getOutlierReason(flag) {
+    const text = String(flag || '').toLowerCase();
+    if (text.includes('gps') || text.includes('transition') || text.includes('travel')) return 'travel / GPS review';
+    if (text.includes('hours')) return 'missing hours / setup time';
+    if (text.includes('clicks') || text.includes('meter')) return 'equipment / meter entry';
+    if (text.includes('revision') || text.includes('approval')) return 'manager review';
+    if (text.includes('high estimated')) return 'small punch-list or data entry check';
+    return 'manual reason needed: traffic control, rain, equipment, small punch-list, DI setup, travel, or customer delay';
+  }
+
+  function getWhatChangedAndWhy(summary, previousSummary, cityEntries, truckEntries) {
+    if (!previousSummary || previousSummary.reports === 0) {
+      const topCity = cityEntries[0];
+      return topCity
+        ? `Production is led by ${topCity.name}, which carried ${fmtNumber(topCity.pounds, 0)} lbs across ${fmtNumber(topCity.reports, 0)} report${topCity.reports === 1 ? '' : 's'}. Method work contributed ${fmtNumber(summary.methodPounds, 0)} lbs while DI contributed ${fmtNumber(summary.diPounds, 0)} lbs.`
+        : 'There is not enough prior-period data to explain movement yet.';
+    }
+
+    const poundChange = summary.pounds - previousSummary.pounds;
+    const reportChange = summary.reports - previousSummary.reports;
+    const direction = poundChange >= 0 ? 'up' : 'down';
+    const topCity = cityEntries[0];
+    const topTruck = truckEntries[0];
+    const drivers = [];
+    if (topCity) drivers.push(`${topCity.name} carried ${fmtNumber(topCity.pounds, 0)} lbs across ${fmtNumber(topCity.reports, 0)} report${topCity.reports === 1 ? '' : 's'}`);
+    if (topTruck) drivers.push(`Truck ${topTruck.name} led efficiency at ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr`);
+    drivers.push(`DI was ${summary.diPounds > previousSummary.diPounds ? 'heavier' : 'lighter'} than the prior comparison period`);
+    return `Production is ${direction} ${fmtNumber(Math.abs(poundChange), 0)} lbs versus the prior comparable period, with report count ${reportChange >= 0 ? 'up' : 'down'} ${fmtNumber(Math.abs(reportChange), 0)}. Primary drivers: ${drivers.join('; ')}.`;
+  }
+
+  function getTopWinsAndConcerns(summary, tableSummary, transitionStats, cityEntries, truckEntries, crewEntries, outliers, smallJobDrag, concentration) {
+    const wins = [];
+    const concerns = [];
+    if (summary.pounds > 0) wins.push(`${fmtNumber(summary.pounds, 0)} lbs produced in the selected dashboard period.`);
+    if (cityEntries[0]) wins.push(`${cityEntries[0].name} led city production with ${fmtNumber(cityEntries[0].pounds, 0)} lbs.`);
+    if (truckEntries[0]) wins.push(`Truck ${truckEntries[0].name} set the truck benchmark at ${fmtNumber(truckEntries[0].poundsPerHour, 0)} lbs/hr.`);
+    if (crewEntries[0]) wins.push(`${crewEntries[0].name} led crew efficiency at ${fmtNumber(crewEntries[0].poundsPerHour, 0)} lbs/hr.`);
+
+    if (outliers.length) concerns.push(`${fmtNumber(outliers.length, 0)} outlier/data quality items need review.`);
+    if (smallJobDrag.count) concerns.push(`${fmtNumber(smallJobDrag.count, 0)} small jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs may be dragging mobilization efficiency.`);
+    if (concentration.percent >= 35) concerns.push(concentration.text);
+    if (transitionStats.avgMinutes >= 90) concerns.push(`Average transition time is high at ${fmtNumber(transitionStats.avgMinutes, 0)} minutes.`);
+    if (!concerns.length) concerns.push('No major operational concern surfaced from the selected period.');
+
+    return { wins: wins.slice(0, 3), concerns: concerns.slice(0, 3) };
+  }
+
+  function getActionItems(truckEntries, smallJobDrag, concentration, dataQuality, outliers) {
+    const lowestTruck = truckEntries.slice().reverse().find(item => item.hours > 0 && item.reports > 0);
+    const items = [];
+    if (lowestTruck) items.push(`Logan: review Truck ${lowestTruck.name} low lbs/hr context before comparing it directly against higher-volume trucks.`);
+    if (smallJobDrag.count) items.push('Walter: group small service calls geographically where possible to reduce mobilization drag.');
+    if (concentration.percent >= 35) items.push(`Walter: review schedule exposure in ${concentration.text.split(': ')[1]?.split(' produced ')[0] || 'the top city'} so the week is not dependent on one city/project.`);
+    if (dataQuality.issueCount) items.push(`Logan: clean ${fmtNumber(dataQuality.issueCount, 0)} data quality issue${dataQuality.issueCount === 1 ? '' : 's'} before month-end reporting.`);
+    if (outliers.length) items.push(`Manager team: assign outlier reasons for ${fmtNumber(outliers.length, 0)} flagged item${outliers.length === 1 ? '' : 's'}.`);
+    return items.slice(0, 5);
+  }
+
   function buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew) {
     const productionTone = summary.reports
       ? `The selected dashboard period contains ${fmtNumber(summary.reports, 0)} production report${summary.reports === 1 ? '' : 's'} totaling ${fmtNumber(summary.pounds, 0)} estimated pounds across ${fmtNumber(summary.hours, 2)} hours.`
@@ -4237,8 +4415,9 @@ const differencePercent =
     return { productionTone, efficiencyTone, cityTone, dispatchTone, recommendations };
   }
 
-  function buildActualExecutiveReport({ dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, reportDate }) {
+  function buildActualExecutiveReport({ activeDocs, dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, dashboardRangeObj, tableRangeObj, previousDocs, reportDate }) {
     const summary = summarizeExecutiveReports(dashboardDocs);
+    const previousSummary = previousDocs ? summarizeExecutiveReports(previousDocs) : null;
     const tableSummary = summarizeExecutiveReports(tableDocs);
     const transitionStats = buildTransitionStats(transitions);
     const cityEntries = executiveEntries(tableSummary.byCity, 'pounds');
@@ -4250,6 +4429,17 @@ const differencePercent =
     const topTruck = truckEntries[0];
     const topCrew = crewEntries[0];
     const narrative = buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew);
+    const partialWarning = getPartialPeriodWarning(dashboardRangeObj);
+    const tablePartialWarning = getPartialPeriodWarning(tableRangeObj);
+    const dataQuality = getDataQualityMetrics(dashboardDocs, dashboardRangeObj);
+    const smallJobDrag = getSmallJobDrag(dashboardDocs, 150);
+    const concentration = getProductionConcentrationRisk(cityEntries, tableSummary.pounds);
+    const whatChanged = getWhatChangedAndWhy(summary, previousSummary, cityEntries, truckEntries);
+    const winsConcerns = getTopWinsAndConcerns(summary, tableSummary, transitionStats, cityEntries, truckEntries, crewEntries, outliers, smallJobDrag, concentration);
+    const actionItems = getActionItems(truckEntries, smallJobDrag, concentration, dataQuality, outliers);
+    const workingDays = dashboardRangeObj?.key === 'all' ? null : countWeekdaysInRange(dashboardRangeObj);
+    const dailyAverage = workingDays ? summary.pounds / Math.max(1, workingDays) : summary.reports ? summary.pounds / Math.max(1, Object.keys(summary.byDate).length) : 0;
+    const nextWeekForecast = dailyAverage * 5;
 
     const kpis = renderExecutiveMetricGrid([
       { label: 'Estimated Pounds', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.clicks, 0)} clicks` },
@@ -4274,12 +4464,50 @@ const differencePercent =
         item.hasGps ? `${fmtNumber(item.miles, 1)} mi` : 'No GPS'
       ]);
 
+    const outlierRows = outliers.map(flag => [
+      flag,
+      getOutlierReason(flag),
+      flag.includes('Truck') ? 'Logan' : 'Manager team'
+    ]);
+
     return `
+      <section class="exec-section exec-narrative">
+        <h2>Management Narrative</h2>
+        <p><strong>${escapeHtml(narrative.productionTone)}</strong> ${escapeHtml(narrative.cityTone)} ${escapeHtml(narrative.dispatchTone)}</p>
+        <p>${escapeHtml(whatChanged)}</p>
+        ${partialWarning || tablePartialWarning ? `<div class="exec-warning">${escapeHtml(partialWarning || tablePartialWarning)}</div>` : ''}
+      </section>
+
       <section class="exec-section exec-summary">
         <h2>Executive Summary</h2>
         <p>${escapeHtml(narrative.productionTone)} ${escapeHtml(narrative.efficiencyTone)}</p>
         <p>${escapeHtml(narrative.cityTone)} ${escapeHtml(narrative.dispatchTone)}</p>
         ${kpis}
+      </section>
+
+      <section class="exec-section">
+        <h2>What Changed and Why</h2>
+        <p>${escapeHtml(whatChanged)}</p>
+        ${previousSummary ? renderExecutiveMetricGrid([
+          { label: 'Current Pounds', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: dashboardRange },
+          { label: 'Prior Comparable', value: `${fmtNumber(previousSummary.pounds, 0)} lbs`, sub: 'Previous period' },
+          { label: 'Change', value: `${summary.pounds - previousSummary.pounds >= 0 ? '+' : ''}${fmtNumber(summary.pounds - previousSummary.pounds, 0)} lbs`, sub: `${summary.reports - previousSummary.reports >= 0 ? '+' : ''}${fmtNumber(summary.reports - previousSummary.reports, 0)} reports` },
+          { label: 'Working Days', value: workingDays === null ? 'All Time' : fmtNumber(workingDays, 0), sub: partialWarning ? 'Partial-period view' : 'Selected period' }
+        ]) : '<p>No prior comparable period is available for this selected view.</p>'}
+      </section>
+
+      <section class="exec-section">
+        <h2>Top 3 Wins / Top 3 Concerns</h2>
+        <div class="exec-two-col">
+          <div>
+            <h3>Wins</h3>
+            <ol>${winsConcerns.wins.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+          </div>
+          <div>
+            <h3>Concerns</h3>
+            <ol>${winsConcerns.concerns.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+          </div>
+        </div>
       </section>
 
       <section class="exec-section">
@@ -4306,6 +4534,7 @@ const differencePercent =
         <h2>Market and City Performance</h2>
         <p>City performance shows where production is concentrated and where management should watch scheduling capacity, travel time, and customer follow-up.</p>
         ${renderExecutiveBarTable(cityEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+        <div class="exec-warning">${escapeHtml(concentration.text)}</div>
         <h3>Work Area Mix</h3>
         ${renderExecutiveBarTable(areaEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 8)}
       </section>
@@ -4346,11 +4575,47 @@ const differencePercent =
       <section class="exec-section">
         <h2>Exceptions, Outliers, and Data Quality</h2>
         <p>${outliers.length ? `${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} need review.` : 'No exceptions were detected for the selected dashboard period.'}</p>
-        ${outliers.length ? `<ol class="exec-outliers">${outliers.map(flag => `<li>${escapeHtml(flag)}</li>`).join('')}</ol>` : ''}
+        ${renderExecutiveMetricGrid([
+          { label: 'Data Quality Score', value: `${fmtNumber(dataQuality.score, 0)}%`, sub: `${fmtNumber(dataQuality.issueCount, 0)} issues counted` },
+          { label: 'Zero-Report Workdays', value: fmtNumber(dataQuality.zeroReportWorkingDays, 0), sub: 'Mon-Fri days with no report' },
+          { label: 'Missing Hours', value: fmtNumber(dataQuality.missingHours, 0), sub: 'Reports needing time cleanup' },
+          { label: 'City Other / Unknown', value: fmtNumber(dataQuality.cityOther, 0), sub: 'Needs city normalization' },
+          { label: 'Duplicate Addresses', value: fmtNumber(dataQuality.duplicateAddressEntries, 0), sub: 'Same date/city/address repeats' },
+          { label: 'Missing GPS', value: fmtNumber(dataQuality.missingGps, 0), sub: 'Reports without location' },
+          { label: 'Zero Clicks', value: fmtNumber(dataQuality.zeroClicks, 0), sub: 'Production entry issue' },
+          { label: 'Missing Truck Boss', value: fmtNumber(dataQuality.missingTruckBoss, 0), sub: 'Crew lead missing' }
+        ])}
+        <h3>Outlier Reason Field</h3>
+        <p>Use the reason column as the manual review field. Suggested reasons include traffic control, rain, equipment, small punch-list, DI setup, travel, and customer delay.</p>
+        ${renderExecutiveTable(['Outlier', 'Reason Field', 'Owner'], outlierRows)}
       </section>
 
       <section class="exec-section">
-        <h2>Management Recommendations</h2>
+        <h2>Small-Job Drag and Forecast</h2>
+        ${renderExecutiveMetricGrid([
+          { label: 'Small Jobs', value: fmtNumber(smallJobDrag.count, 0), sub: `Under ${fmtNumber(smallJobDrag.threshold, 0)} lbs` },
+          { label: 'Small-Job Pounds', value: `${fmtNumber(smallJobDrag.pounds, 0)} lbs`, sub: `${fmtNumber(smallJobDrag.hours, 2)} hours` },
+          { label: 'Small-Job Efficiency', value: `${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr`, sub: 'Mobilization drag signal' },
+          { label: 'Next-Week Forecast', value: `${fmtNumber(nextWeekForecast, 0)} lbs`, sub: 'If current daily average holds for 5 workdays' }
+        ])}
+      </section>
+
+      <section class="exec-section">
+        <h2>Revenue Placeholder</h2>
+        <p>Revenue fields are reserved for the next reporting layer. Once pricing is connected, this section should show revenue, gross margin, revenue per labor hour, and revenue per pound.</p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Revenue', value: 'Pending', sub: 'Pricing not connected' },
+          { label: 'Gross Margin', value: 'Pending', sub: 'Cost model needed' },
+          { label: 'Revenue / Labor Hour', value: 'Pending', sub: 'Needs revenue field' },
+          { label: 'Revenue / Lb', value: 'Pending', sub: 'Needs revenue field' }
+        ])}
+      </section>
+
+      <section class="exec-section">
+        <h2>Action Items and Management Recommendations</h2>
+        <h3>Owner Actions</h3>
+        <ol>${actionItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+        <h3>Recommendations</h3>
         <ol>${narrative.recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
       </section>
     `;
@@ -4362,15 +4627,19 @@ const differencePercent =
     renderDashboardAnalytics(dashboardReports);
 
     const activeDocs = activeReportsOnly(dashboardReports || []);
+    const dashboardRangeObj = getDashboardPeriodRange();
+    const tableRangeObj = getDashboardTableRange();
+    const previousRangeObj = getPreviousComparableRange(dashboardRangeObj);
     const dashboardDocs = filterReportsForDashboardPeriod(activeDocs);
     const tableDocs = filterReportsForDashboardTables(activeDocs);
     const tableStats = buildDashboardTableStats(tableDocs);
     const transitions = calculateTransitions(dashboardDocs);
     const outliers = getDashboardOutliers(dashboardDocs);
+    const previousDocs = previousRangeObj ? activeDocs.filter(report => isDateInRange(report.date, previousRangeObj)) : null;
     const reportDate = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
     const dashboardRange = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'Current dashboard period';
     const tableRange = document.getElementById('dashboardTableRangeLabel')?.textContent || 'Current table period';
-    const reportBody = buildActualExecutiveReport({ dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, reportDate });
+    const reportBody = buildActualExecutiveReport({ activeDocs, dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, dashboardRangeObj, tableRangeObj, previousDocs, reportDate });
 
     const popup = window.open('', '_blank');
     if (!popup) return showMessage('Popup blocked. Allow popups to generate the executive report.', 'error');
@@ -4392,6 +4661,8 @@ const differencePercent =
           .exec-section h2 { color:#003f7d; border-left:5px solid #0057a8; padding-left:10px; margin:0 0 10px; }
           .exec-section h3 { color:#003f7d; margin:14px 0 8px; font-size:15px; }
           .exec-section p { margin:0 0 10px; }
+          .exec-narrative { background:#f8fbff; border:1px solid #bfdbfe; border-radius:12px; padding:14px; }
+          .exec-warning { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:10px 12px; margin:10px 0; font-weight:700; }
           .exec-metric-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:12px 0; }
           .exec-metric { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:11px; min-height:76px; }
           .exec-metric span { display:block; color:#6b7280; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.3px; }
