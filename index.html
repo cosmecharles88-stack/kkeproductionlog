@@ -293,6 +293,36 @@
     }
 
     /* History List */
+    .history-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 12px;
+      margin: 10px 0;
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+
+    .history-pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .history-page-info {
+      color: var(--kke-dark-blue);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .history-page-size {
+      min-width: 92px;
+    }
+
     .history-item {
       background: white;
       border-radius: 12px;
@@ -2181,7 +2211,28 @@
         </label>
         <button class="btn btn-outline small-btn" type="button" id="btnClearFilters">Clear</button>
       </div>
+      <div class="history-pagination" id="historyPaginationTop">
+        <div class="history-page-info" id="historyPageInfoTop">Showing 0 reports</div>
+        <div class="history-pagination-controls">
+          <label>Per Page
+            <select id="historyPageSize" class="history-page-size">
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <button class="btn btn-outline small-btn" type="button" id="historyPrevPage">Previous</button>
+          <button class="btn btn-outline small-btn" type="button" id="historyNextPage">Next</button>
+        </div>
+      </div>
       <div id="historyList">Loading reports...</div>
+      <div class="history-pagination" id="historyPaginationBottom">
+        <div class="history-page-info" id="historyPageInfoBottom">Showing 0 reports</div>
+        <div class="history-pagination-controls">
+          <button class="btn btn-outline small-btn" type="button" id="historyPrevPageBottom">Previous</button>
+          <button class="btn btn-outline small-btn" type="button" id="historyNextPageBottom">Next</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2223,6 +2274,9 @@
           <div class="calc-label">Current Dashboard View</div>
           <div id="dashboardPeriodRangeLabel" class="dashboard-range-pill">This Month</div>
         </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin:-4px 0 16px;">
+        <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
       </div>
 
       <div class="grid">
@@ -2968,6 +3022,7 @@
   let fleetMap = null;
   let fleetMarkers = {};
   let allReports = [];
+  let historyPage = 1;
   let dashboardReports = [];
   let currentEditReport = null;
   let isSubmittingReport = false;
@@ -3184,6 +3239,8 @@ document.addEventListener("change", (e) => {
     if (!isCurrentUserManager) return;
     renderDashboardAnalytics(dashboardReports);
   });
+
+  document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
 
   dashboardMonthPicker?.addEventListener('change', () => {
     if (!isCurrentUserManager) return;
@@ -3992,6 +4049,164 @@ const differencePercent =
 
     return { byCity, byTruck, byArea, truckEntries, crewEntries };
   }
+
+  function getDashboardOutliers(docs) {
+    const flags = [];
+
+    (docs || []).forEach(report => {
+      const comparison = getPoundComparison(report);
+      const hours = getReportHours(report);
+      const pounds = comparison.estimatedPounds;
+      const reportName = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${getNormalizedCrew(report)}`;
+
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
+      if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
+      if (comparison.clicks <= 0) flags.push(`${reportName}: missing or zero clicks.`);
+      if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
+      if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
+      if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
+      if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high estimated pounds per hour.`);
+    });
+
+    return flags;
+  }
+
+  function getDashboardReportSummary(docs, transitions, tableStats, outliers) {
+    const totalPounds = (docs || []).reduce((sum, report) => sum + getReportPounds(report), 0);
+    const totalHours = (docs || []).reduce((sum, report) => sum + getReportHours(report), 0);
+    const totalReports = (docs || []).length;
+    const bestTruck = tableStats.truckEntries[0];
+    const bestCrew = tableStats.crewEntries[0];
+    const topCity = Object.entries(tableStats.byCity)
+      .map(([name, value]) => ({ name, value: Number(value) || 0 }))
+      .sort((a, b) => b.value - a.value)[0];
+
+    const recommendations = [];
+    if (outliers.length) recommendations.push(`Resolve ${fmtNumber(outliers.length, 0)} flagged data quality or review items so management reporting stays clean.`);
+    if (transitions.length) recommendations.push('Review the longest job-to-job transitions for routing, load-out timing, and sequencing opportunities.');
+    if (bestTruck) recommendations.push(`Use Truck ${bestTruck.name} as the operating benchmark at ${fmtNumber(bestTruck.poundsPerHour, 0)} lbs/hr.`);
+    if (topCity) recommendations.push(`Prioritize schedule visibility in ${topCity.name}, currently the leading city by pumped pounds in the selected table range.`);
+    if (!recommendations.length) recommendations.push('No major exceptions surfaced in the selected reporting period. Continue monitoring production rhythm and data completeness.');
+
+    return `
+      <section class="exec-section">
+        <h2>Executive Summary</h2>
+        <p>KKE production activity for the selected dashboard view includes <strong>${fmtNumber(totalReports, 0)} reports</strong>, <strong>${fmtNumber(totalPounds, 0)} estimated lbs</strong>, and <strong>${fmtNumber(totalHours, 2)} labor hours</strong>. The table range is summarized separately so city, truck, and crew performance can be reviewed at the chosen operating horizon.</p>
+        <div class="exec-callouts">
+          <div><span>Total Production</span><strong>${fmtNumber(totalPounds, 0)} lbs</strong></div>
+          <div><span>Reports</span><strong>${fmtNumber(totalReports, 0)}</strong></div>
+          <div><span>Best Truck</span><strong>${bestTruck ? `${escapeHtml(bestTruck.name)} | ${fmtNumber(bestTruck.poundsPerHour, 0)} lbs/hr` : 'No truck data'}</strong></div>
+          <div><span>Best Crew</span><strong>${bestCrew ? `${escapeHtml(bestCrew.name)} | ${fmtNumber(bestCrew.poundsPerHour, 0)} lbs/hr` : 'No crew data'}</strong></div>
+        </div>
+      </section>
+      <section class="exec-section">
+        <h2>Management Recommendations</h2>
+        <ol>${recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+      </section>
+    `;
+  }
+
+  function getExecutiveReportCards() {
+    const cards = Array.from(document.querySelectorAll('#dashboard > .card'));
+
+    return cards
+      .filter(card => {
+        const heading = card.querySelector('h2')?.textContent?.trim() || '';
+        return heading !== 'Production Tables Date Range';
+      })
+      .map(card => {
+        const clone = card.cloneNode(true);
+        clone.querySelectorAll('button, select, input, label').forEach(el => el.remove());
+        clone.querySelectorAll('details').forEach(el => el.setAttribute('open', 'open'));
+        clone.querySelectorAll('[style*="display:none"]').forEach(el => el.style.display = 'block');
+        return clone.outerHTML;
+      })
+      .join('');
+  }
+
+  function generateExecutiveReport() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for executive reports.', 'error');
+
+    renderDashboardAnalytics(dashboardReports);
+
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const dashboardDocs = filterReportsForDashboardPeriod(activeDocs);
+    const tableDocs = filterReportsForDashboardTables(activeDocs);
+    const tableStats = buildDashboardTableStats(tableDocs);
+    const transitions = calculateTransitions(dashboardDocs);
+    const outliers = getDashboardOutliers(dashboardDocs);
+    const reportDate = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const dashboardRange = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'Current dashboard period';
+    const tableRange = document.getElementById('dashboardTableRangeLabel')?.textContent || 'Current table period';
+    const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent).join('\n');
+    const reportCards = getExecutiveReportCards();
+    const outlierList = outliers.length
+      ? `<ol>${outliers.map(flag => `<li>${escapeHtml(flag)}</li>`).join('')}</ol>`
+      : '<p>No outliers detected for the selected dashboard period.</p>';
+
+    const popup = window.open('', '_blank');
+    if (!popup) return showMessage('Popup blocked. Allow popups to generate the executive report.', 'error');
+
+    popup.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>KKE Executive Production Report</title>
+        <style>
+          ${styles}
+          body { background:#ffffff; color:#111827; font-family: Arial, sans-serif; margin:0; padding:28px; }
+          .exec-cover { border-bottom:5px solid #0057a8; padding-bottom:18px; margin-bottom:22px; display:grid; grid-template-columns:180px 1fr; gap:20px; align-items:center; }
+          .exec-logo { width:180px; max-height:110px; object-fit:contain; }
+          .exec-title h1 { color:#003f7d; font-size:28px; margin:0 0 8px; }
+          .exec-title p { margin:4px 0; color:#4b5563; font-weight:700; }
+          .exec-section { break-inside:avoid; margin:0 0 18px; }
+          .exec-section h2 { color:#003f7d; border-left:5px solid #0057a8; padding-left:10px; }
+          .exec-callouts { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:14px; }
+          .exec-callouts div { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:12px; }
+          .exec-callouts span { display:block; color:#6b7280; font-size:11px; font-weight:900; text-transform:uppercase; }
+          .exec-callouts strong { display:block; color:#003f7d; margin-top:5px; font-size:16px; }
+          .card { box-shadow:none !important; break-inside:avoid; page-break-inside:avoid; margin-bottom:16px; }
+          .dashboard-filter-row, .history-pagination, nav, .tab-btn { display:none !important; }
+          details { display:block; }
+          details > summary { display:none; }
+          .empty-state { min-height:auto; }
+          @page { size: letter; margin: 0.45in; }
+          @media print {
+            body { padding:0; }
+            .btn { display:none !important; }
+            .exec-section, .card { break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="exec-cover">
+          <img src="logo.png" class="exec-logo" onerror="this.src='logo.jpg'">
+          <div class="exec-title">
+            <h1>KKE Executive Production Report</h1>
+            <p>Generated: ${escapeHtml(reportDate)}</p>
+            <p>Dashboard period: ${escapeHtml(dashboardRange)}</p>
+            <p>Table period: ${escapeHtml(tableRange)}</p>
+          </div>
+        </div>
+        ${getDashboardReportSummary(dashboardDocs, transitions, tableStats, outliers)}
+        <section class="exec-section">
+          <h2>Dashboard KPI, Graph, Trend, Truck, Transition, City, and Crew Detail</h2>
+          ${reportCards}
+        </section>
+        <section class="exec-section">
+          <h2>Complete Outlier List</h2>
+          ${outlierList}
+        </section>
+        <script>
+          window.onload = () => setTimeout(() => window.print(), 500);
+        <\/script>
+      </body>
+      </html>
+    `);
+    popup.document.close();
+  }
+
 
   function renderDashboardAnalytics(rawDocs) {
     toggleDashboardMonthPicker();
@@ -5023,17 +5238,58 @@ const differencePercent =
     });
   }
 
+  function getHistoryPageSize() {
+    const value = Number(document.getElementById('historyPageSize')?.value || 25);
+    return [25, 50, 100].includes(value) ? value : 25;
+  }
+
+  function updateHistoryPagination(totalReports, pageSize) {
+    const totalPages = Math.max(1, Math.ceil(totalReports / pageSize));
+    historyPage = Math.min(Math.max(1, historyPage), totalPages);
+
+    const start = totalReports ? ((historyPage - 1) * pageSize) + 1 : 0;
+    const end = Math.min(totalReports, historyPage * pageSize);
+    const text = totalReports
+      ? `Showing ${fmtNumber(start, 0)}-${fmtNumber(end, 0)} of ${fmtNumber(totalReports, 0)} reports | Page ${fmtNumber(historyPage, 0)} of ${fmtNumber(totalPages, 0)}`
+      : 'Showing 0 reports';
+
+    ['historyPageInfoTop', 'historyPageInfoBottom'].forEach(id => setText(id, text));
+    ['historyPrevPage', 'historyPrevPageBottom'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = historyPage <= 1;
+    });
+    ['historyNextPage', 'historyNextPageBottom'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = historyPage >= totalPages;
+    });
+  }
+
+  function resetHistoryPage() {
+    historyPage = 1;
+    renderHistory();
+  }
+
+  function changeHistoryPage(direction) {
+    historyPage += direction;
+    renderHistory();
+  }
+
   function renderHistory() {
     const list = document.getElementById('historyList');
     if (!list) return;
 
     const docs = getFilteredReports();
+    const pageSize = getHistoryPageSize();
+    updateHistoryPagination(docs.length, pageSize);
+
     if (!docs.length) {
       list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No matching reports found.</p>`;
       return;
     }
 
-    list.innerHTML = docs.map(report => {
+    const pageDocs = docs.slice((historyPage - 1) * pageSize, historyPage * pageSize);
+
+    list.innerHTML = pageDocs.map(report => {
       const pounds = getReportPounds(report);
       const hours = getReportHours(report);
       const lbsPerHour = hours > 0 ? pounds / hours : 0;
@@ -6515,12 +6771,17 @@ function loadFleetGPS() {
     setTimeout(() => popup.focus(), 250);
   };
 
-  document.getElementById('historySearch')?.addEventListener('input', renderHistory);
-  document.getElementById('historyCityFilter')?.addEventListener('change', renderHistory);
-  document.getElementById('historyTruckFilter')?.addEventListener('change', renderHistory);
-  document.getElementById('historyDateFilter')?.addEventListener('change', renderHistory);
-  document.getElementById('historyInjectionFilter')?.addEventListener('change', renderHistory);
-  document.getElementById('historyStatusFilter')?.addEventListener('change', renderHistory);
+  document.getElementById('historySearch')?.addEventListener('input', resetHistoryPage);
+  document.getElementById('historyCityFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyTruckFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyDateFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyInjectionFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyStatusFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyPageSize')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyPrevPage')?.addEventListener('click', () => changeHistoryPage(-1));
+  document.getElementById('historyPrevPageBottom')?.addEventListener('click', () => changeHistoryPage(-1));
+  document.getElementById('historyNextPage')?.addEventListener('click', () => changeHistoryPage(1));
+  document.getElementById('historyNextPageBottom')?.addEventListener('click', () => changeHistoryPage(1));
   document.getElementById('btnClearFilters')?.addEventListener('click', () => {
     document.getElementById('historySearch').value = '';
     document.getElementById('historyCityFilter').value = '';
@@ -6528,7 +6789,7 @@ function loadFleetGPS() {
     document.getElementById('historyDateFilter').value = '';
     document.getElementById('historyInjectionFilter').value = '';
     document.getElementById('historyStatusFilter').value = '';
-    renderHistory();
+    resetHistoryPage();
   });
   document.getElementById('btnCloseEditModal')?.addEventListener('click', closeEditModal);
   document.getElementById('btnCancelEdit')?.addEventListener('click', closeEditModal);
