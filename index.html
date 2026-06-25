@@ -4072,57 +4072,288 @@ const differencePercent =
     return flags;
   }
 
-  function getDashboardReportSummary(docs, transitions, tableStats, outliers) {
-    const totalPounds = (docs || []).reduce((sum, report) => sum + getReportPounds(report), 0);
-    const totalHours = (docs || []).reduce((sum, report) => sum + getReportHours(report), 0);
-    const totalReports = (docs || []).length;
-    const bestTruck = tableStats.truckEntries[0];
-    const bestCrew = tableStats.crewEntries[0];
-    const topCity = Object.entries(tableStats.byCity)
-      .map(([name, value]) => ({ name, value: Number(value) || 0 }))
-      .sort((a, b) => b.value - a.value)[0];
+  function summarizeExecutiveReports(docs) {
+    const summary = {
+      reports: 0,
+      clicks: 0,
+      pounds: 0,
+      flowMeterPounds: 0,
+      differencePounds: 0,
+      hours: 0,
+      methodReports: 0,
+      methodPounds: 0,
+      diReports: 0,
+      diPounds: 0,
+      unknownReports: 0,
+      unknownPounds: 0,
+      byDate: {},
+      byCity: {},
+      byTruck: {},
+      byCrew: {},
+      byArea: {}
+    };
 
-    const recommendations = [];
-    if (outliers.length) recommendations.push(`Resolve ${fmtNumber(outliers.length, 0)} flagged data quality or review items so management reporting stays clean.`);
-    if (transitions.length) recommendations.push('Review the longest job-to-job transitions for routing, load-out timing, and sequencing opportunities.');
-    if (bestTruck) recommendations.push(`Use Truck ${bestTruck.name} as the operating benchmark at ${fmtNumber(bestTruck.poundsPerHour, 0)} lbs/hr.`);
-    if (topCity) recommendations.push(`Prioritize schedule visibility in ${topCity.name}, currently the leading city by pumped pounds in the selected table range.`);
-    if (!recommendations.length) recommendations.push('No major exceptions surfaced in the selected reporting period. Continue monitoring production rhythm and data completeness.');
+    (docs || []).forEach(report => {
+      const comparison = getPoundComparison(report);
+      const pounds = comparison.estimatedPounds;
+      const hours = getReportHours(report);
+      const date = report.date || 'No Date';
+      const city = getDashboardCity(report);
+      const truck = getNormalizedTruck(report);
+      const crew = getNormalizedCrew(report);
+      const area = getWorkAreaDisplay(report);
+      const injectionKey = getInjectionInfo(report).key;
 
-    return `
-      <section class="exec-section">
-        <h2>Executive Summary</h2>
-        <p>KKE production activity for the selected dashboard view includes <strong>${fmtNumber(totalReports, 0)} reports</strong>, <strong>${fmtNumber(totalPounds, 0)} estimated lbs</strong>, and <strong>${fmtNumber(totalHours, 2)} labor hours</strong>. The table range is summarized separately so city, truck, and crew performance can be reviewed at the chosen operating horizon.</p>
-        <div class="exec-callouts">
-          <div><span>Total Production</span><strong>${fmtNumber(totalPounds, 0)} lbs</strong></div>
-          <div><span>Reports</span><strong>${fmtNumber(totalReports, 0)}</strong></div>
-          <div><span>Best Truck</span><strong>${bestTruck ? `${escapeHtml(bestTruck.name)} | ${fmtNumber(bestTruck.poundsPerHour, 0)} lbs/hr` : 'No truck data'}</strong></div>
-          <div><span>Best Crew</span><strong>${bestCrew ? `${escapeHtml(bestCrew.name)} | ${fmtNumber(bestCrew.poundsPerHour, 0)} lbs/hr` : 'No crew data'}</strong></div>
+      summary.reports += 1;
+      summary.clicks += comparison.clicks;
+      summary.pounds += pounds;
+      summary.flowMeterPounds += comparison.flowMeterPounds;
+      summary.differencePounds += comparison.differencePounds;
+      summary.hours += hours;
+
+      if (injectionKey === 'method') {
+        summary.methodReports += 1;
+        summary.methodPounds += pounds;
+      } else if (injectionKey === 'di') {
+        summary.diReports += 1;
+        summary.diPounds += pounds;
+      } else {
+        summary.unknownReports += 1;
+        summary.unknownPounds += pounds;
+      }
+
+      if (!summary.byDate[date]) summary.byDate[date] = { name: date, pounds: 0, reports: 0, hours: 0 };
+      summary.byDate[date].pounds += pounds;
+      summary.byDate[date].reports += 1;
+      summary.byDate[date].hours += hours;
+
+      if (!summary.byCity[city]) summary.byCity[city] = { name: city, pounds: 0, reports: 0 };
+      summary.byCity[city].pounds += pounds;
+      summary.byCity[city].reports += 1;
+
+      if (!summary.byTruck[truck]) summary.byTruck[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      summary.byTruck[truck].pounds += pounds;
+      summary.byTruck[truck].hours += hours;
+      summary.byTruck[truck].reports += 1;
+
+      if (isActiveTruckBoss(crew)) {
+        if (!summary.byCrew[crew]) summary.byCrew[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        summary.byCrew[crew].pounds += pounds;
+        summary.byCrew[crew].hours += hours;
+        summary.byCrew[crew].reports += 1;
+      }
+
+      if (!summary.byArea[area]) summary.byArea[area] = { name: area, pounds: 0, reports: 0 };
+      summary.byArea[area].pounds += pounds;
+      summary.byArea[area].reports += 1;
+    });
+
+    summary.lbsPerHour = summary.hours > 0 ? summary.pounds / summary.hours : 0;
+    summary.differencePercent = summary.pounds > 0 ? (summary.differencePounds / summary.pounds) * 100 : 0;
+    return summary;
+  }
+
+  function executiveEntries(group, valueKey = 'pounds') {
+    return Object.values(group || {})
+      .map(item => {
+        const poundsPerHour = Number(item.hours) > 0 ? Number(item.pounds || 0) / Number(item.hours || 0) : 0;
+        const value = valueKey === 'poundsPerHour' ? poundsPerHour : Number(item[valueKey]) || 0;
+        return { ...item, value, poundsPerHour };
+      })
+      .sort((a, b) => b.value - a.value);
+  }
+
+  function renderExecutiveMetricGrid(items) {
+    return `<div class="exec-metric-grid">${items.map(item => `
+      <div class="exec-metric">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        ${item.sub ? `<em>${escapeHtml(item.sub)}</em>` : ''}
+      </div>
+    `).join('')}</div>`;
+  }
+
+  function renderExecutiveBarTable(entries, valueFormatter, limit = 8) {
+    const rows = (entries || []).slice(0, limit);
+    const max = Math.max(...rows.map(item => Number(item.value) || 0), 1);
+    if (!rows.length) return '<p>No data available for this section.</p>';
+
+    return `<div class="exec-bars">${rows.map(item => {
+      const width = Math.max(3, ((Number(item.value) || 0) / max) * 100);
+      return `
+        <div class="exec-bar-row">
+          <div class="exec-bar-name">${escapeHtml(item.name)}</div>
+          <div class="exec-bar-track"><div style="width:${width}%;"></div></div>
+          <div class="exec-bar-value">${escapeHtml(valueFormatter(item))}</div>
         </div>
-      </section>
-      <section class="exec-section">
-        <h2>Management Recommendations</h2>
-        <ol>${recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
-      </section>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function renderExecutiveTable(headers, rows) {
+    if (!rows.length) return '<p>No data available.</p>';
+    return `
+      <table class="exec-table">
+        <thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>
     `;
   }
 
-  function getExecutiveReportCards() {
-    const cards = Array.from(document.querySelectorAll('#dashboard > .card'));
+  function getExecutiveTrendRows(summary) {
+    return Object.values(summary.byDate)
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+      .slice(-10)
+      .map(item => ({
+        ...item,
+        value: item.pounds,
+        lbsPerHour: item.hours > 0 ? item.pounds / item.hours : 0
+      }));
+  }
 
-    return cards
-      .filter(card => {
-        const heading = card.querySelector('h2')?.textContent?.trim() || '';
-        return heading !== 'Production Tables Date Range';
-      })
-      .map(card => {
-        const clone = card.cloneNode(true);
-        clone.querySelectorAll('button, select, input, label').forEach(el => el.remove());
-        clone.querySelectorAll('details').forEach(el => el.setAttribute('open', 'open'));
-        clone.querySelectorAll('[style*="display:none"]').forEach(el => el.style.display = 'block');
-        return clone.outerHTML;
-      })
-      .join('');
+  function buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew) {
+    const productionTone = summary.reports
+      ? `The selected dashboard period contains ${fmtNumber(summary.reports, 0)} production report${summary.reports === 1 ? '' : 's'} totaling ${fmtNumber(summary.pounds, 0)} estimated pounds across ${fmtNumber(summary.hours, 2)} hours.`
+      : 'The selected dashboard period does not currently contain production reports.';
+    const efficiencyTone = summary.hours > 0
+      ? `Overall production efficiency is ${fmtNumber(summary.lbsPerHour, 0)} lbs/hr.`
+      : 'Efficiency cannot be calculated until labor hours are entered.';
+    const cityTone = topCity
+      ? `${topCity.name} is the leading service city in the selected table range with ${fmtNumber(topCity.pounds, 0)} lbs across ${fmtNumber(topCity.reports, 0)} report${topCity.reports === 1 ? '' : 's'}.`
+      : 'No city concentration is available for the selected table range.';
+    const dispatchTone = transitions.length
+      ? `Dispatch activity includes ${fmtNumber(transitions.length, 0)} same-day truck transitions, averaging ${fmtNumber(transitionStats.avgMinutes, 0)} minutes and ${fmtNumber(transitionStats.avgMiles, 1)} GPS miles where distance is available.`
+      : 'No same-day truck transitions were detected for the selected dashboard period.';
+
+    const recommendations = [];
+    if (outliers.length) recommendations.push(`Clean up ${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} so KPI reporting can be trusted without manual review.`);
+    if (transitionStats.avgMinutes >= 90) recommendations.push('Review scheduling, loading, and routing on long transition days; the average transition time is high enough to create visible idle time.');
+    if (topTruck) recommendations.push(`Use Truck ${topTruck.name} as the operating benchmark and compare lower-performing trucks against its ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr profile.`);
+    if (topCrew) recommendations.push(`Use ${topCrew.name}'s production pattern as a crew-efficiency benchmark at ${fmtNumber(topCrew.poundsPerHour, 0)} lbs/hr.`);
+    if (topCity) recommendations.push(`Maintain close schedule visibility in ${topCity.name}; it is carrying the largest city share in the selected table range.`);
+    if (summary.differencePercent < -10) recommendations.push('Investigate flow-meter variance because recorded flow meter pounds are materially below click-based estimated pounds.');
+    if (!recommendations.length) recommendations.push('No major management exceptions surfaced. Continue monitoring production rhythm, route timing, and report completeness.');
+
+    return { productionTone, efficiencyTone, cityTone, dispatchTone, recommendations };
+  }
+
+  function buildActualExecutiveReport({ dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, reportDate }) {
+    const summary = summarizeExecutiveReports(dashboardDocs);
+    const tableSummary = summarizeExecutiveReports(tableDocs);
+    const transitionStats = buildTransitionStats(transitions);
+    const cityEntries = executiveEntries(tableSummary.byCity, 'pounds');
+    const truckEntries = executiveEntries(tableSummary.byTruck, 'poundsPerHour');
+    const crewEntries = executiveEntries(tableSummary.byCrew, 'poundsPerHour');
+    const areaEntries = executiveEntries(tableSummary.byArea, 'pounds');
+    const trendRows = getExecutiveTrendRows(summary);
+    const topCity = cityEntries[0];
+    const topTruck = truckEntries[0];
+    const topCrew = crewEntries[0];
+    const narrative = buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew);
+
+    const kpis = renderExecutiveMetricGrid([
+      { label: 'Estimated Pounds', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.clicks, 0)} clicks` },
+      { label: 'Flow Meter Pounds', value: `${fmtNumber(summary.flowMeterPounds, 0)} lbs`, sub: `Flux ${fmtNumber(summary.differencePercent, 1)}%` },
+      { label: 'Reports', value: fmtNumber(summary.reports, 0), sub: `${fmtNumber(summary.hours, 2)} hours` },
+      { label: 'Production Rate', value: `${fmtNumber(summary.lbsPerHour, 0)} lbs/hr`, sub: 'All active reports in view' },
+      { label: 'Method Work', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports` },
+      { label: 'DI Work', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports` },
+      { label: 'Truck Benchmark', value: topTruck ? `${topTruck.name}` : 'No truck data', sub: topTruck ? `${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr` : '' },
+      { label: 'Crew Benchmark', value: topCrew ? `${topCrew.name}` : 'No crew data', sub: topCrew ? `${fmtNumber(topCrew.poundsPerHour, 0)} lbs/hr` : '' }
+    ]);
+
+    const transitionRows = transitions
+      .slice()
+      .sort((a, b) => b.minutes - a.minutes)
+      .slice(0, 8)
+      .map(item => [
+        item.date || '',
+        `Truck ${item.truck}`,
+        `${item.fromCity} to ${item.toCity}`,
+        `${fmtNumber(item.minutes, 0)} min`,
+        item.hasGps ? `${fmtNumber(item.miles, 1)} mi` : 'No GPS'
+      ]);
+
+    return `
+      <section class="exec-section exec-summary">
+        <h2>Executive Summary</h2>
+        <p>${escapeHtml(narrative.productionTone)} ${escapeHtml(narrative.efficiencyTone)}</p>
+        <p>${escapeHtml(narrative.cityTone)} ${escapeHtml(narrative.dispatchTone)}</p>
+        ${kpis}
+      </section>
+
+      <section class="exec-section">
+        <h2>Production Performance</h2>
+        <p>The production view is based on <strong>${escapeHtml(dashboardRange)}</strong>. The table and market view is based on <strong>${escapeHtml(tableRange)}</strong>.</p>
+        <div class="exec-two-col">
+          <div>
+            <h3>Recent Production Trend</h3>
+            ${renderExecutiveBarTable(trendRows.map(item => ({ ...item, name: item.name, value: item.pounds })), item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+          </div>
+          <div>
+            <h3>Work Type Mix</h3>
+            ${renderExecutiveMetricGrid([
+              { label: 'Method', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports` },
+              { label: 'DI', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports` },
+              { label: 'Missing Type', value: `${fmtNumber(summary.unknownPounds, 0)} lbs`, sub: `${fmtNumber(summary.unknownReports, 0)} reports` },
+              { label: 'Flux', value: `${fmtNumber(summary.differencePercent, 1)}%`, sub: `${fmtNumber(summary.differencePounds, 0)} lbs variance` }
+            ])}
+          </div>
+        </div>
+      </section>
+
+      <section class="exec-section">
+        <h2>Market and City Performance</h2>
+        <p>City performance shows where production is concentrated and where management should watch scheduling capacity, travel time, and customer follow-up.</p>
+        ${renderExecutiveBarTable(cityEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+        <h3>Work Area Mix</h3>
+        ${renderExecutiveBarTable(areaEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 8)}
+      </section>
+
+      <section class="exec-section">
+        <h2>Truck and Crew Performance</h2>
+        <p>Truck and crew efficiency are ranked by pounds per hour, using active truck bosses only for the crew leaderboard.</p>
+        <div class="exec-two-col">
+          <div>
+            <h3>Truck Efficiency</h3>
+            ${renderExecutiveTable(
+              ['Truck', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
+              truckEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
+            )}
+          </div>
+          <div>
+            <h3>Crew Efficiency</h3>
+            ${renderExecutiveTable(
+              ['Crew', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
+              crewEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section class="exec-section">
+        <h2>Dispatch and Transition Read</h2>
+        <p>${escapeHtml(narrative.dispatchTone)}</p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Same-Day Transitions', value: fmtNumber(transitions.length, 0), sub: 'Truck job-to-job moves' },
+          { label: 'Average Transition', value: `${fmtNumber(transitionStats.avgMinutes, 0)} min`, sub: 'Between same-day jobs' },
+          { label: 'Average GPS Miles', value: `${fmtNumber(transitionStats.avgMiles, 1)} mi`, sub: 'Where GPS distance exists' },
+          { label: 'Longest Gap', value: `${fmtNumber(transitionStats.longest, 0)} min`, sub: 'Largest transition' }
+        ])}
+        ${renderExecutiveTable(['Date', 'Truck', 'Route', 'Time', 'GPS Distance'], transitionRows)}
+      </section>
+
+      <section class="exec-section">
+        <h2>Exceptions, Outliers, and Data Quality</h2>
+        <p>${outliers.length ? `${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} need review.` : 'No exceptions were detected for the selected dashboard period.'}</p>
+        ${outliers.length ? `<ol class="exec-outliers">${outliers.map(flag => `<li>${escapeHtml(flag)}</li>`).join('')}</ol>` : ''}
+      </section>
+
+      <section class="exec-section">
+        <h2>Management Recommendations</h2>
+        <ol>${narrative.recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+      </section>
+    `;
   }
 
   function generateExecutiveReport() {
@@ -4139,11 +4370,7 @@ const differencePercent =
     const reportDate = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
     const dashboardRange = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'Current dashboard period';
     const tableRange = document.getElementById('dashboardTableRangeLabel')?.textContent || 'Current table period';
-    const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent).join('\n');
-    const reportCards = getExecutiveReportCards();
-    const outlierList = outliers.length
-      ? `<ol>${outliers.map(flag => `<li>${escapeHtml(flag)}</li>`).join('')}</ol>`
-      : '<p>No outliers detected for the selected dashboard period.</p>';
+    const reportBody = buildActualExecutiveReport({ dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, reportDate });
 
     const popup = window.open('', '_blank');
     if (!popup) return showMessage('Popup blocked. Allow popups to generate the executive report.', 'error');
@@ -4154,28 +4381,43 @@ const differencePercent =
       <head>
         <title>KKE Executive Production Report</title>
         <style>
-          ${styles}
-          body { background:#ffffff; color:#111827; font-family: Arial, sans-serif; margin:0; padding:28px; }
+          :root { --kke-blue:#0057a8; --kke-dark-blue:#003f7d; --border:#dbeafe; --gray:#6b7280; }
+          * { box-sizing:border-box; }
+          body { background:#ffffff; color:#111827; font-family: Arial, sans-serif; margin:0; padding:28px; line-height:1.45; }
           .exec-cover { border-bottom:5px solid #0057a8; padding-bottom:18px; margin-bottom:22px; display:grid; grid-template-columns:180px 1fr; gap:20px; align-items:center; }
           .exec-logo { width:180px; max-height:110px; object-fit:contain; }
           .exec-title h1 { color:#003f7d; font-size:28px; margin:0 0 8px; }
           .exec-title p { margin:4px 0; color:#4b5563; font-weight:700; }
-          .exec-section { break-inside:avoid; margin:0 0 18px; }
-          .exec-section h2 { color:#003f7d; border-left:5px solid #0057a8; padding-left:10px; }
-          .exec-callouts { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:14px; }
-          .exec-callouts div { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:12px; }
-          .exec-callouts span { display:block; color:#6b7280; font-size:11px; font-weight:900; text-transform:uppercase; }
-          .exec-callouts strong { display:block; color:#003f7d; margin-top:5px; font-size:16px; }
-          .card { box-shadow:none !important; break-inside:avoid; page-break-inside:avoid; margin-bottom:16px; }
-          .dashboard-filter-row, .history-pagination, nav, .tab-btn { display:none !important; }
-          details { display:block; }
-          details > summary { display:none; }
-          .empty-state { min-height:auto; }
+          .exec-section { break-inside:avoid; page-break-inside:avoid; margin:0 0 20px; }
+          .exec-section h2 { color:#003f7d; border-left:5px solid #0057a8; padding-left:10px; margin:0 0 10px; }
+          .exec-section h3 { color:#003f7d; margin:14px 0 8px; font-size:15px; }
+          .exec-section p { margin:0 0 10px; }
+          .exec-metric-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:12px 0; }
+          .exec-metric { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:11px; min-height:76px; }
+          .exec-metric span { display:block; color:#6b7280; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.3px; }
+          .exec-metric strong { display:block; color:#003f7d; margin-top:4px; font-size:17px; }
+          .exec-metric em { display:block; color:#4b5563; font-style:normal; font-size:11px; margin-top:2px; }
+          .exec-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+          .exec-bars { display:grid; gap:7px; }
+          .exec-bar-row { display:grid; grid-template-columns:140px 1fr 92px; gap:9px; align-items:center; font-size:11px; }
+          .exec-bar-name { font-weight:800; color:#003f7d; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .exec-bar-track { height:12px; background:#e5eefb; border-radius:99px; overflow:hidden; }
+          .exec-bar-track div { height:100%; background:#0057a8; border-radius:99px; }
+          .exec-bar-value { text-align:right; font-weight:800; }
+          .exec-table { width:100%; border-collapse:collapse; font-size:11px; margin-top:6px; }
+          .exec-table th { background:#eff6ff; color:#003f7d; text-align:left; padding:7px; border:1px solid #dbeafe; }
+          .exec-table td { padding:7px; border:1px solid #e5e7eb; }
+          .exec-outliers { columns:2; column-gap:24px; }
           @page { size: letter; margin: 0.45in; }
           @media print {
             body { padding:0; }
-            .btn { display:none !important; }
-            .exec-section, .card { break-inside: avoid; }
+            .exec-section { break-inside: avoid; }
+          }
+          @media (max-width: 800px) {
+            .exec-cover, .exec-two-col { grid-template-columns:1fr; }
+            .exec-metric-grid { grid-template-columns:1fr 1fr; }
+            .exec-bar-row { grid-template-columns:1fr; }
+            .exec-bar-value { text-align:left; }
           }
         </style>
       </head>
@@ -4189,15 +4431,7 @@ const differencePercent =
             <p>Table period: ${escapeHtml(tableRange)}</p>
           </div>
         </div>
-        ${getDashboardReportSummary(dashboardDocs, transitions, tableStats, outliers)}
-        <section class="exec-section">
-          <h2>Dashboard KPI, Graph, Trend, Truck, Transition, City, and Crew Detail</h2>
-          ${reportCards}
-        </section>
-        <section class="exec-section">
-          <h2>Complete Outlier List</h2>
-          ${outlierList}
-        </section>
+        ${reportBody}
         <script>
           window.onload = () => setTimeout(() => window.print(), 500);
         <\/script>
