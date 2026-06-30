@@ -1952,7 +1952,7 @@
               <option value="" disabled selected>Select City</option>
               <option value="Celina">Celina</option>
               <option value="The Colony">The Colony</option>
-              <option value="Coppel">Coppel</option>
+              <option value="Coppell">Coppell</option>
               <option value="Denison">Denison</option>
               <option value="Frisco">Frisco</option>
               <option value="Frisco Parks Department">Frisco Parks Department</option>
@@ -2396,7 +2396,7 @@
             </div>
             <div class="period-mini">
               <div class="period-mini-label">Best Truck</div>
-              <div class="period-mini-value" id="dashTodayBestTruck">â€”</div>
+              <div class="period-mini-value" id="dashTodayBestTruck">-</div>
             </div>
           </div>
         </div>
@@ -2986,7 +2986,7 @@
   const CITY_COLORS = {
     "Celina": "#0057a8",
     "The Colony": "#0f766e",
-    "Coppel": "#9333ea",
+    "Coppell": "#9333ea",
     "Denison": "#0d9488",
     "Frisco": "#ea580c",
     "Frisco Parks Department": "#16a34a",
@@ -3297,8 +3297,8 @@ document.addEventListener("change", (e) => {
     const cityMap = {
       "celina": "Celina",
       "the colony": "The Colony",
-      "coppel": "Coppel",
-      "coppell": "Coppel",
+      "coppel": "Coppell",
+      "coppell": "Coppell",
       "denison": "Denison",
       "dennison": "Denison",
       "frisco": "Frisco",
@@ -3411,8 +3411,8 @@ document.addEventListener("change", (e) => {
     const cityAliases = {
       "celina": "Celina",
       "the colony": "The Colony",
-      "coppel": "Coppel",
-      "coppell": "Coppel",
+      "coppel": "Coppell",
+      "coppell": "Coppell",
       "denison": "Denison",
       "dennison": "Denison",
       "frisco": "Frisco",
@@ -3985,7 +3985,7 @@ const differencePercent =
 
     setText(
       'dashboardPeriodRangeLabel',
-      `${range.label}: ${formatDateForDashboard(range.start)} – ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
+      `${range.label}: ${formatDateForDashboard(range.start)} - ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
     );
 
     return docs.filter(report => isDateInRange(report.date, range));
@@ -4001,7 +4001,7 @@ const differencePercent =
 
     setText(
       'dashboardTableRangeLabel',
-      `${range.label}: ${formatDateForDashboard(range.start)} â€“ ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
+      `${range.label}: ${formatDateForDashboard(range.start)} - ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
     );
 
     return docs.filter(report => isDateInRange(report.date, range));
@@ -4200,6 +4200,62 @@ const differencePercent =
     `;
   }
 
+  function getExecutiveStatus(actual, goal, direction = 'higher') {
+    const value = Number(actual) || 0;
+    const target = Number(goal) || 0;
+    const pass = direction === 'higher' ? value >= target : value <= target;
+    const warn = direction === 'higher' ? value >= target * 0.9 : value <= target * 1.1;
+    return pass ? 'Green' : warn ? 'Yellow' : 'Red';
+  }
+
+  function renderScorecard(rows) {
+    return renderExecutiveTable(
+      ['Metric', 'Goal', 'Actual', 'Trend', 'Status'],
+      rows.map(row => [row.metric, row.goal, row.actual, row.trend || '-', row.status])
+    );
+  }
+
+  function trendText(current, previous, suffix = '', lowerIsBetter = false) {
+    if (!previous || !Number.isFinite(previous) || previous === 0) return '-';
+    const change = ((Number(current) - Number(previous)) / Math.abs(Number(previous))) * 100;
+    const arrow = Math.abs(change) < 0.5 ? '-' : change > 0 ? 'up' : 'down';
+    const good = lowerIsBetter ? change < 0 : change > 0;
+    const marker = arrow === '-' ? '-' : good ? '+' : '!';
+    return `${marker} ${arrow} ${fmtNumber(Math.abs(change), 1)}%${suffix}`;
+  }
+
+  function getCapacityAnalysis(summary, targetLbsPerHour = 125) {
+    const potential = summary.hours * targetLbsPerHour;
+    return {
+      targetLbsPerHour,
+      potential,
+      gap: Math.max(0, potential - summary.pounds)
+    };
+  }
+
+  function getRecoverableProduction(summary, transitionStats, smallJobDrag, dataQuality) {
+    const targetLbsPerHour = 125;
+    const smallJobLost = Math.max(0, (smallJobDrag.hours * targetLbsPerHour) - smallJobDrag.pounds);
+    const transitionLostMinutes = Math.max(0, transitionStats.avgMinutes - 25) * Number(transitionStats.count || 0);
+    const transitionLost = (transitionLostMinutes / 60) * Math.max(0, summary.lbsPerHour);
+    const dataLost = (Number(dataQuality.zeroClicks || 0) + Number(dataQuality.missingHours || 0)) * 95;
+    return {
+      smallJobLost,
+      transitionLost,
+      dataLost,
+      total: smallJobLost + transitionLost + dataLost
+    };
+  }
+
+  function getForecast(dailyAverage, dataQuality, concentration) {
+    const expected = dailyAverage * 5;
+    const riskFactor = Math.min(0.18, 0.08 + (100 - dataQuality.score) / 500 + (concentration.percent >= 55 ? 0.04 : concentration.percent >= 35 ? 0.02 : 0));
+    const low = expected * (1 - riskFactor);
+    const high = expected * (1 + riskFactor);
+    const confidence = Math.max(65, Math.min(92, Math.round(92 - (100 - dataQuality.score) * 0.8 - (concentration.percent >= 55 ? 5 : concentration.percent >= 35 ? 3 : 0))));
+    return { expected, low, high, confidence };
+  }
+
   function getExecutiveTrendRows(summary) {
     return Object.values(summary.byDate)
       .sort((a, b) => String(a.name).localeCompare(String(b.name)))
@@ -4213,6 +4269,21 @@ const differencePercent =
 
   function getPreviousComparableRange(range) {
     if (!range?.start || !range?.end || range.key === 'all') return null;
+
+    if (range.key === 'month' || range.key === 'customMonth') {
+      const previous = getPreviousMonthRange(range);
+      return { key: `previous-${range.key}`, label: `Previous ${range.label || 'Month'}`, ...previous };
+    }
+
+    if (range.key === 'week') {
+      return {
+        key: 'previous-week',
+        label: 'Previous Week',
+        start: addDays(range.start, -7),
+        end: addDays(range.end, -7)
+      };
+    }
+
     const durationMs = range.end.getTime() - range.start.getTime();
     if (!Number.isFinite(durationMs) || durationMs <= 0) return null;
     return {
@@ -4440,6 +4511,23 @@ const differencePercent =
     const workingDays = dashboardRangeObj?.key === 'all' ? null : countWeekdaysInRange(dashboardRangeObj);
     const dailyAverage = workingDays ? summary.pounds / Math.max(1, workingDays) : summary.reports ? summary.pounds / Math.max(1, Object.keys(summary.byDate).length) : 0;
     const nextWeekForecast = dailyAverage * 5;
+    const capacity = getCapacityAnalysis(summary, 125);
+    const recoverable = getRecoverableProduction(summary, transitionStats, smallJobDrag, dataQuality);
+    const forecast = getForecast(dailyAverage, dataQuality, concentration);
+    const previousTransitionStats = previousDocs ? buildTransitionStats(calculateTransitions(previousDocs)) : null;
+    const previousOutliers = previousDocs ? getDashboardOutliers(previousDocs) : [];
+    const previousDataQuality = previousDocs ? getDataQualityMetrics(previousDocs, getPreviousComparableRange(dashboardRangeObj)) : null;
+    const previousSmallJobDrag = previousDocs ? getSmallJobDrag(previousDocs, 150) : null;
+    const poundChangePct = previousSummary?.pounds ? percentChange(summary.pounds, previousSummary.pounds) : 0;
+    const executiveStory = summary.reports
+      ? `${dashboardRangeObj?.label || 'The selected period'} finished with ${fmtNumber(summary.pounds, 0)} lbs across ${fmtNumber(summary.reports, 0)} reports${previousSummary?.reports ? `, representing a ${summary.pounds >= previousSummary.pounds ? 'gain' : 'decline'} of ${fmtNumber(Math.abs(summary.pounds - previousSummary.pounds), 0)} lbs (${signedPercent(poundChangePct)}) versus the prior comparison period` : ''}. Growth was driven primarily by ${topCity ? `${topCity.name}, which accounted for ${fmtNumber(concentration.percent, 1)}% of table-range production` : 'the leading active service cities'}. ${topTruck ? `Truck ${topTruck.name} and ${topCrew ? topCrew.name : 'the leading crew'} established the operational benchmark at ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr because the unit carried ${fmtNumber(topTruck.pounds, 0)} lbs across ${fmtNumber(topTruck.reports, 0)} reports while holding the strongest efficiency profile.` : ''} Dispatch ${transitionStats.avgMinutes <= 25 ? 'remained under target' : 'ran above target'} at ${fmtNumber(transitionStats.avgMinutes, 0)} minutes average transition time. The primary opportunity is reducing mobilization drag from ${fmtNumber(smallJobDrag.count, 0)} small jobs that averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr.`
+      : 'No production reports are available for the selected executive report period.';
+    const managementNarrative = [
+      `${dashboardRangeObj?.label || 'This period'} was ${previousSummary && summary.pounds < previousSummary.pounds ? 'softer' : 'strong'} overall, led by ${topCity ? topCity.name : 'the top active city'} and ${topTruck ? `Truck ${topTruck.name}` : 'the leading truck'}.`,
+      `${summary.methodPounds >= summary.diPounds ? 'Method work drove most production' : 'DI work was a major contributor'}, while ${summary.diPounds > 0 ? `DI added ${fmtNumber(summary.diPounds, 0)} lbs across ${fmtNumber(summary.diReports, 0)} reports` : 'DI activity was limited'}.`,
+      `${transitions.length ? `Dispatch efficiency was acceptable overall at ${fmtNumber(transitionStats.avgMinutes, 0)} minutes average transition time` : 'Dispatch transition activity was limited in this period'}.`,
+      `The main management watch-outs are ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} small jobs creating mobilization drag` : 'small-job mix'} and ${concentration.percent >= 35 ? 'production concentration in one city/project' : 'continued monitoring of city mix and truck fairness'}.`
+    ].join(' ');
 
     const kpis = renderExecutiveMetricGrid([
       { label: 'Estimated Pounds', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.clicks, 0)} clicks` },
@@ -4467,22 +4555,66 @@ const differencePercent =
     const outlierRows = outliers.map(flag => [
       flag,
       getOutlierReason(flag),
+      '________________',
       flag.includes('Truck') ? 'Logan' : 'Manager team'
     ]);
+
+    const scorecardRows = [
+      {
+        metric: 'Lbs / Hr',
+        goal: '125',
+        actual: fmtNumber(summary.lbsPerHour, 0),
+        trend: previousSummary ? trendText(summary.lbsPerHour, previousSummary.lbsPerHour) : '-',
+        status: getExecutiveStatus(summary.lbsPerHour, 125, 'higher')
+      },
+      {
+        metric: 'Dispatch Transition',
+        goal: '<25 min',
+        actual: `${fmtNumber(transitionStats.avgMinutes, 0)} min`,
+        trend: previousTransitionStats ? trendText(transitionStats.avgMinutes, previousTransitionStats.avgMinutes, '', true) : '-',
+        status: getExecutiveStatus(transitionStats.avgMinutes, 25, 'lower')
+      },
+      {
+        metric: 'Flux',
+        goal: '<50%',
+        actual: `${fmtNumber(Math.abs(summary.differencePercent), 1)}%`,
+        trend: previousSummary ? trendText(Math.abs(summary.differencePercent), Math.abs(previousSummary.differencePercent), '', true) : '-',
+        status: getExecutiveStatus(Math.abs(summary.differencePercent), 50, 'lower')
+      },
+      {
+        metric: 'Data Quality',
+        goal: '>98%',
+        actual: `${fmtNumber(dataQuality.score, 0)}%`,
+        trend: previousDataQuality ? trendText(dataQuality.score, previousDataQuality.score) : '-',
+        status: getExecutiveStatus(dataQuality.score, 98, 'higher')
+      },
+      {
+        metric: 'Small Job Drag',
+        goal: '<10 jobs',
+        actual: fmtNumber(smallJobDrag.count, 0),
+        trend: previousSmallJobDrag ? `${smallJobDrag.count - previousSmallJobDrag.count >= 0 ? '+' : ''}${fmtNumber(smallJobDrag.count - previousSmallJobDrag.count, 0)} jobs` : '-',
+        status: getExecutiveStatus(smallJobDrag.count, 10, 'lower')
+      }
+    ];
 
     return `
       <section class="exec-section exec-narrative">
         <h2>Management Narrative</h2>
-        <p><strong>${escapeHtml(narrative.productionTone)}</strong> ${escapeHtml(narrative.cityTone)} ${escapeHtml(narrative.dispatchTone)}</p>
+        <p><strong>${escapeHtml(managementNarrative)}</strong></p>
         <p>${escapeHtml(whatChanged)}</p>
         ${partialWarning || tablePartialWarning ? `<div class="exec-warning">${escapeHtml(partialWarning || tablePartialWarning)}</div>` : ''}
       </section>
 
       <section class="exec-section exec-summary">
         <h2>Executive Summary</h2>
-        <p>${escapeHtml(narrative.productionTone)} ${escapeHtml(narrative.efficiencyTone)}</p>
-        <p>${escapeHtml(narrative.cityTone)} ${escapeHtml(narrative.dispatchTone)}</p>
+        <p>${escapeHtml(executiveStory)}</p>
         ${kpis}
+      </section>
+
+      <section class="exec-section">
+        <h2>Production Scorecard</h2>
+        <p>The scorecard separates results that are on target from items needing management attention.</p>
+        ${renderScorecard(scorecardRows)}
       </section>
 
       <section class="exec-section">
@@ -4500,7 +4632,7 @@ const differencePercent =
         <h2>Top 3 Wins / Top 3 Concerns</h2>
         <div class="exec-two-col">
           <div>
-            <h3>Wins</h3>
+            <h3>Operational Wins</h3>
             <ol>${winsConcerns.wins.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
           </div>
           <div>
@@ -4508,6 +4640,39 @@ const differencePercent =
             <ol>${winsConcerns.concerns.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
           </div>
         </div>
+      </section>
+
+      <section class="exec-section">
+        <h2>Things We Control / Things We Do Not</h2>
+        <div class="exec-two-col">
+          <div>
+            <h3>Internal Factors</h3>
+            <ul>
+              <li>Dispatch sequencing and geographic grouping</li>
+              <li>Crew efficiency and truck assignment</li>
+              <li>Mobilization on small jobs</li>
+              <li>Data quality and report completion</li>
+              <li>Scheduling large municipal work on benchmark crews</li>
+            </ul>
+          </div>
+          <div>
+            <h3>External Factors</h3>
+            <ul>
+              <li>Weather and rain delays</li>
+              <li>Customer access delays</li>
+              <li>Municipal scheduling requirements</li>
+              <li>Traffic control requirements</li>
+              <li>Emergency or punch-list work mix</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="exec-section">
+        <h2>Root Cause Analysis</h2>
+        <p><strong>Small-job drag:</strong> ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} labor hours while producing ${fmtNumber(smallJobDrag.pounds, 0)} lbs. That work averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr, which points to mobilization, travel, warranty, punch-list, or isolated service-call friction rather than crew production capacity alone.` : 'Small-job drag did not appear materially in this period.'}</p>
+        <p><strong>Benchmark truck context:</strong> ${topTruck ? `Truck ${topTruck.name} is the benchmark because it combined volume, repeated report count, and efficiency: ${fmtNumber(topTruck.pounds, 0)} lbs, ${fmtNumber(topTruck.reports, 0)} reports, and ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr.` : 'No benchmark truck is available for this period.'}</p>
+        <p><strong>Concentration:</strong> ${escapeHtml(concentration.text)} This is positive when scheduling is controlled, but risky if one city/project carries too much of the period.</p>
       </section>
 
       <section class="exec-section">
@@ -4541,7 +4706,7 @@ const differencePercent =
 
       <section class="exec-section">
         <h2>Truck and Crew Performance</h2>
-        <p>Truck and crew efficiency are ranked by pounds per hour, using active truck bosses only for the crew leaderboard.</p>
+        <p>Truck and crew efficiency are ranked by pounds per hour, using active truck bosses only for the crew leaderboard. ${topTruck ? `Truck ${topTruck.name} is the benchmark not only because it ranked first, but because it carried ${fmtNumber(topTruck.pounds, 0)} lbs across ${fmtNumber(topTruck.reports, 0)} reports while maintaining ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr. That combination of volume, repeated work, and efficiency is the operating profile other trucks should be compared against.` : ''}</p>
         <div class="exec-two-col">
           <div>
             <h3>Truck Efficiency</h3>
@@ -4587,16 +4752,35 @@ const differencePercent =
         ])}
         <h3>Outlier Reason Field</h3>
         <p>Use the reason column as the manual review field. Suggested reasons include traffic control, rain, equipment, small punch-list, DI setup, travel, and customer delay.</p>
-        ${renderExecutiveTable(['Outlier', 'Reason Field', 'Owner'], outlierRows)}
+        ${renderExecutiveTable(['Outlier', 'Suggested Reason', 'Manual Reason', 'Owner'], outlierRows)}
       </section>
 
       <section class="exec-section">
         <h2>Small-Job Drag and Forecast</h2>
+        <p>Small jobs matter because they consume setup, travel, and crew time without producing enough pounds to offset mobilization. ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} hours while producing only ${fmtNumber(smallJobDrag.pounds, 0)} lbs, averaging ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr.` : 'No small-job drag was detected in this period.'}</p>
         ${renderExecutiveMetricGrid([
           { label: 'Small Jobs', value: fmtNumber(smallJobDrag.count, 0), sub: `Under ${fmtNumber(smallJobDrag.threshold, 0)} lbs` },
           { label: 'Small-Job Pounds', value: `${fmtNumber(smallJobDrag.pounds, 0)} lbs`, sub: `${fmtNumber(smallJobDrag.hours, 2)} hours` },
           { label: 'Small-Job Efficiency', value: `${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr`, sub: 'Mobilization drag signal' },
-          { label: 'Next-Week Forecast', value: `${fmtNumber(nextWeekForecast, 0)} lbs`, sub: 'If current daily average holds for 5 workdays' }
+          { label: 'Next-Week Forecast', value: `${fmtNumber(forecast.expected, 0)} lbs`, sub: `Likely range ${fmtNumber(forecast.low, 0)}-${fmtNumber(forecast.high, 0)} lbs | ${fmtNumber(forecast.confidence, 0)}% confidence` }
+        ])}
+      </section>
+
+      <section class="exec-section">
+        <h2>Capacity and Production Opportunity</h2>
+        <p>At the current labor level, the simplest opportunity is raising average production rate toward the 125 lbs/hr operating target.</p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Current Capacity', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.hours, 1)} labor hours` },
+          { label: 'Current Average', value: `${fmtNumber(summary.lbsPerHour, 0)} lbs/hr`, sub: 'Actual period rate' },
+          { label: 'At 125 Lbs/Hr', value: `${fmtNumber(capacity.potential, 0)} lbs`, sub: 'Potential production' },
+          { label: 'Opportunity Gap', value: `${fmtNumber(capacity.gap, 0)} lbs`, sub: 'Production left on table' }
+        ])}
+        <h3>Estimated Recoverable Production</h3>
+        ${renderExecutiveMetricGrid([
+          { label: 'Small Job Drag', value: `${fmtNumber(recoverable.smallJobLost, 0)} lbs`, sub: 'Against 125 lbs/hr target' },
+          { label: 'Dispatch Delays', value: `${fmtNumber(recoverable.transitionLost, 0)} lbs`, sub: 'Above 25-minute transition target' },
+          { label: 'Data Issues', value: `${fmtNumber(recoverable.dataLost, 0)} lbs`, sub: 'Zero-click or missing-hour records' },
+          { label: 'Recoverable Total', value: `${fmtNumber(recoverable.total, 0)} lbs`, sub: 'Estimated opportunity' }
         ])}
       </section>
 
@@ -4615,6 +4799,13 @@ const differencePercent =
         <h2>Action Items and Management Recommendations</h2>
         <h3>Owner Actions</h3>
         <ol>${actionItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+        <h3>If I Were the Operations Manager</h3>
+        <ol>
+          <li>Priority #1: Reduce small-job mobilization by grouping service calls geographically.</li>
+          <li>Priority #2: Keep ${topTruck ? `Truck ${escapeHtml(topTruck.name)}` : 'the benchmark truck'} on larger municipal work where its efficiency profile can compound.</li>
+          <li>Priority #3: Review ${truckEntries.slice().reverse().find(item => item.hours > 0)?.name ? `Truck ${escapeHtml(truckEntries.slice().reverse().find(item => item.hours > 0).name)}` : 'lower-efficiency truck'} scheduling before judging crew performance directly.</li>
+          <li>Priority #4: Close remaining data quality issues before the next owner review.</li>
+        </ol>
         <h3>Recommendations</h3>
         <ol>${narrative.recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
       </section>
