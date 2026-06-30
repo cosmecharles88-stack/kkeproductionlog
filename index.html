@@ -2483,6 +2483,14 @@
           <div class="calc-label">Method Lbs</div>
           <div class="calc-value" id="dashMethodLbs">0</div>
         </div>
+        <div class="calc-box">
+          <div class="calc-label">Method Hours</div>
+          <div class="calc-value" id="dashMethodHours">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Method Lbs / Hr</div>
+          <div class="calc-value" id="dashMethodLbsPerHour">0</div>
+        </div>
         <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
           <div class="calc-label" style="color:#9a3412;">DI Jobs</div>
           <div class="calc-value" id="dashDiJobs" style="color:#9a3412;">0</div>
@@ -2491,7 +2499,16 @@
           <div class="calc-label" style="color:#9a3412;">DI Lbs</div>
           <div class="calc-value" id="dashDiLbs" style="color:#9a3412;">0</div>
         </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Hours</div>
+          <div class="calc-value" id="dashDiHours" style="color:#9a3412;">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Lbs / Hr</div>
+          <div class="calc-value" id="dashDiLbsPerHour" style="color:#9a3412;">0</div>
+        </div>
       </div>
+      <div id="dashInjectionLaborRead" class="dashboard-note" style="margin-top:12px;">Waiting for Method vs DI labor data.</div>
     </div>
 
 
@@ -4082,10 +4099,13 @@ const differencePercent =
       hours: 0,
       methodReports: 0,
       methodPounds: 0,
+      methodHours: 0,
       diReports: 0,
       diPounds: 0,
+      diHours: 0,
       unknownReports: 0,
       unknownPounds: 0,
+      unknownHours: 0,
       byDate: {},
       byCity: {},
       byTruck: {},
@@ -4114,12 +4134,15 @@ const differencePercent =
       if (injectionKey === 'method') {
         summary.methodReports += 1;
         summary.methodPounds += pounds;
+        summary.methodHours += hours;
       } else if (injectionKey === 'di') {
         summary.diReports += 1;
         summary.diPounds += pounds;
+        summary.diHours += hours;
       } else {
         summary.unknownReports += 1;
         summary.unknownPounds += pounds;
+        summary.unknownHours += hours;
       }
 
       if (!summary.byDate[date]) summary.byDate[date] = { name: date, pounds: 0, reports: 0, hours: 0 };
@@ -4149,8 +4172,31 @@ const differencePercent =
     });
 
     summary.lbsPerHour = summary.hours > 0 ? summary.pounds / summary.hours : 0;
+    summary.methodLbsPerHour = summary.methodHours > 0 ? summary.methodPounds / summary.methodHours : 0;
+    summary.diLbsPerHour = summary.diHours > 0 ? summary.diPounds / summary.diHours : 0;
+    summary.unknownLbsPerHour = summary.unknownHours > 0 ? summary.unknownPounds / summary.unknownHours : 0;
     summary.differencePercent = summary.pounds > 0 ? (summary.differencePounds / summary.pounds) * 100 : 0;
     return summary;
+  }
+
+  function getInjectionLaborRead(statsOrSummary) {
+    const methodHours = Number(statsOrSummary?.methodHours ?? statsOrSummary?.method?.hours ?? 0);
+    const methodPounds = Number(statsOrSummary?.methodPounds ?? statsOrSummary?.method?.pounds ?? 0);
+    const methodReports = Number(statsOrSummary?.methodReports ?? statsOrSummary?.method?.reports ?? 0);
+    const diHours = Number(statsOrSummary?.diHours ?? statsOrSummary?.di?.hours ?? 0);
+    const diPounds = Number(statsOrSummary?.diPounds ?? statsOrSummary?.di?.pounds ?? 0);
+    const diReports = Number(statsOrSummary?.diReports ?? statsOrSummary?.di?.reports ?? 0);
+    const methodRate = methodHours > 0 ? methodPounds / methodHours : 0;
+    const diRate = diHours > 0 ? diPounds / diHours : 0;
+
+    if (!methodReports && !diReports) return 'No Method or DI labor data is available for this period.';
+    if (!methodReports) return `DI recorded ${fmtNumber(diHours, 2)} labor hours at ${fmtNumber(diRate, 0)} lbs/hr. No Method jobs were recorded for comparison.`;
+    if (!diReports) return `Method recorded ${fmtNumber(methodHours, 2)} labor hours at ${fmtNumber(methodRate, 0)} lbs/hr. No DI jobs were recorded for comparison.`;
+
+    const gap = diRate - methodRate;
+    const direction = gap >= 0 ? 'higher' : 'lower';
+    const percent = methodRate > 0 ? Math.abs((gap / methodRate) * 100) : 0;
+    return `DI used ${fmtNumber(diHours, 2)} hours across ${fmtNumber(diReports, 0)} reports at ${fmtNumber(diRate, 0)} lbs/hr. Method used ${fmtNumber(methodHours, 2)} hours across ${fmtNumber(methodReports, 0)} reports at ${fmtNumber(methodRate, 0)} lbs/hr. DI labor efficiency is ${fmtNumber(percent, 1)}% ${direction} than Method for this period.`;
   }
 
   function executiveEntries(group, valueKey = 'pounds') {
@@ -4686,13 +4732,24 @@ const differencePercent =
           <div>
             <h3>Work Type Mix</h3>
             ${renderExecutiveMetricGrid([
-              { label: 'Method', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports` },
-              { label: 'DI', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports` },
-              { label: 'Missing Type', value: `${fmtNumber(summary.unknownPounds, 0)} lbs`, sub: `${fmtNumber(summary.unknownReports, 0)} reports` },
+              { label: 'Method', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports | ${fmtNumber(summary.methodHours, 2)} hrs` },
+              { label: 'DI', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports | ${fmtNumber(summary.diHours, 2)} hrs` },
+              { label: 'Missing Type', value: `${fmtNumber(summary.unknownPounds, 0)} lbs`, sub: `${fmtNumber(summary.unknownReports, 0)} reports | ${fmtNumber(summary.unknownHours, 2)} hrs` },
               { label: 'Flux', value: `${fmtNumber(summary.differencePercent, 1)}%`, sub: `${fmtNumber(summary.differencePounds, 0)} lbs variance` }
             ])}
           </div>
         </div>
+      </section>
+
+      <section class="exec-section">
+        <h2>DI vs Method Labor Comparison</h2>
+        <p>${escapeHtml(getInjectionLaborRead(summary))}</p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Method Hours', value: fmtNumber(summary.methodHours, 2), sub: `${fmtNumber(summary.methodReports, 0)} reports` },
+          { label: 'Method Lbs / Hr', value: fmtNumber(summary.methodLbsPerHour, 0), sub: `${fmtNumber(summary.methodPounds, 0)} lbs` },
+          { label: 'DI Hours', value: fmtNumber(summary.diHours, 2), sub: `${fmtNumber(summary.diReports, 0)} reports` },
+          { label: 'DI Lbs / Hr', value: fmtNumber(summary.diLbsPerHour, 0), sub: `${fmtNumber(summary.diPounds, 0)} lbs` }
+        ])}
       </section>
 
       <section class="exec-section">
@@ -4926,9 +4983,9 @@ const differencePercent =
     const truckStats = {};
     const crewStats = {};
     const injectionStats = {
-      method: { reports: 0, pounds: 0 },
-      di: { reports: 0, pounds: 0 },
-      unknown: { reports: 0, pounds: 0 }
+      method: { reports: 0, pounds: 0, hours: 0 },
+      di: { reports: 0, pounds: 0, hours: 0 },
+      unknown: { reports: 0, pounds: 0, hours: 0 }
     };
     const flags = [];
 
@@ -4944,6 +5001,7 @@ const differencePercent =
       if (injectionStats[injectionKey]) {
         injectionStats[injectionKey].reports += 1;
         injectionStats[injectionKey].pounds += pounds;
+        injectionStats[injectionKey].hours += hours;
       }
 
       totalClicks += comparison.clicks;
@@ -5001,8 +5059,13 @@ const differencePercent =
     setText('dashDifferenceLbs', fmtNumber(totalDifferencePounds, 0));
     setText('dashMethodJobs', fmtNumber(injectionStats.method.reports, 0));
     setText('dashMethodLbs', fmtNumber(injectionStats.method.pounds, 0));
+    setText('dashMethodHours', fmtNumber(injectionStats.method.hours, 2));
+    setText('dashMethodLbsPerHour', fmtNumber(injectionStats.method.hours > 0 ? injectionStats.method.pounds / injectionStats.method.hours : 0, 0));
     setText('dashDiJobs', fmtNumber(injectionStats.di.reports, 0));
     setText('dashDiLbs', fmtNumber(injectionStats.di.pounds, 0));
+    setText('dashDiHours', fmtNumber(injectionStats.di.hours, 2));
+    setText('dashDiLbsPerHour', fmtNumber(injectionStats.di.hours > 0 ? injectionStats.di.pounds / injectionStats.di.hours : 0, 0));
+    setText('dashInjectionLaborRead', getInjectionLaborRead(injectionStats));
     setText('dashBestTruck', bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—');
     setText('dashBestCrew', bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—');
     setText('dashMonthPoundsLarge', fmtNumber(getPeriodMetrics(rawDocs || [], getPeriodRanges(new Date()).month).pounds, 0));
