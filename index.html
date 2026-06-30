@@ -2654,7 +2654,7 @@
 
     <div class="card">
       <h2>Week-over-Week Production Trend</h2>
-      <p class="dashboard-note">Sunday-to-Saturday production totals for the last 7 weeks, including the current week-to-date.</p>
+      <p class="dashboard-note">Sunday-to-Saturday production totals for the last 6 weeks, including the current week-to-date.</p>
       <div id="weekOverWeekTrendMetrics" class="empty-state">No weekly trend data yet.</div>
     </div>
 
@@ -6322,7 +6322,7 @@ const differencePercent =
     const ranges = getPeriodRanges();
     const weeks = [];
 
-    for (let offset = 6; offset >= 0; offset -= 1) {
+    for (let offset = 5; offset >= 0; offset -= 1) {
       const start = new Date(ranges.week.start);
       start.setDate(start.getDate() - offset * 7);
       const end = new Date(start);
