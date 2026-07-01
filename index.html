@@ -1324,6 +1324,14 @@
       display: block;
     }
 
+    .dashboard-table-custom-range-wrap {
+      display: none;
+    }
+
+    .dashboard-table-custom-range-wrap.active {
+      display: contents;
+    }
+
     .mom-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -2611,8 +2619,15 @@
             <option value="today">Today</option>
             <option value="week">This Week</option>
             <option value="month" selected>This Month</option>
+            <option value="customRange">Custom Range</option>
             <option value="all">All Time</option>
           </select>
+        </label>
+        <label id="dashboardTableStartWrap" class="dashboard-table-custom-range-wrap">Start Date
+          <input id="dashboardTableStartDate" type="date">
+        </label>
+        <label id="dashboardTableEndWrap" class="dashboard-table-custom-range-wrap">End Date
+          <input id="dashboardTableEndDate" type="date">
         </label>
         <div>
           <div class="calc-label">Current Table View</div>
@@ -3246,6 +3261,17 @@ document.addEventListener("change", (e) => {
     dashboardMonthPicker.value = formatMonthInputValue(new Date());
   }
 
+  const dashboardTableStartDate = document.getElementById('dashboardTableStartDate');
+  const dashboardTableEndDate = document.getElementById('dashboardTableEndDate');
+  if (dashboardTableStartDate && !dashboardTableStartDate.value) {
+    const now = new Date();
+    dashboardTableStartDate.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+  }
+  if (dashboardTableEndDate && !dashboardTableEndDate.value) {
+    dashboardTableEndDate.value = formatDateInputValue(new Date());
+  }
+  toggleDashboardTableCustomRange();
+
   document.getElementById('dashboardPeriodFilter')?.addEventListener('change', () => {
     if (!isCurrentUserManager) return;
     toggleDashboardMonthPicker();
@@ -3254,6 +3280,7 @@ document.addEventListener("change", (e) => {
 
   document.getElementById('dashboardTableRangeFilter')?.addEventListener('change', () => {
     if (!isCurrentUserManager) return;
+    toggleDashboardTableCustomRange();
     renderDashboardAnalytics(dashboardReports);
   });
 
@@ -3262,6 +3289,13 @@ document.addEventListener("change", (e) => {
   dashboardMonthPicker?.addEventListener('change', () => {
     if (!isCurrentUserManager) return;
     renderDashboardAnalytics(dashboardReports);
+  });
+
+  [dashboardTableStartDate, dashboardTableEndDate].forEach(input => {
+    input?.addEventListener('change', () => {
+      if (!isCurrentUserManager) return;
+      renderDashboardAnalytics(dashboardReports);
+    });
   });
 
   function showMessage(text, type = 'success') {
@@ -3740,6 +3774,11 @@ const differencePercent =
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
   }
 
+  function formatDateInputValue(date) {
+    const d = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
   function getMonthRange(year, monthIndex) {
     return {
       start: new Date(year, monthIndex, 1),
@@ -3775,6 +3814,13 @@ const differencePercent =
     const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
     const wrap = document.getElementById('dashboardCustomMonthWrap');
     if (wrap) wrap.classList.toggle('active', selected === 'customMonth');
+  }
+
+  function toggleDashboardTableCustomRange() {
+    const selected = document.getElementById('dashboardTableRangeFilter')?.value || 'month';
+    const isCustom = selected === 'customRange';
+    document.getElementById('dashboardTableStartWrap')?.classList.toggle('active', isCustom);
+    document.getElementById('dashboardTableEndWrap')?.classList.toggle('active', isCustom);
   }
 
   function addDays(date, days) {
@@ -3983,6 +4029,16 @@ const differencePercent =
     if (selected === 'today') return { key: selected, label: 'Today', ...ranges.today };
     if (selected === 'week') return { key: selected, label: 'This Week', ...ranges.week };
     if (selected === 'month') return { key: selected, label: 'This Month', ...ranges.month };
+    if (selected === 'customRange') {
+      const today = new Date();
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const startValue = document.getElementById('dashboardTableStartDate')?.value || formatDateInputValue(monthStart);
+      const endValue = document.getElementById('dashboardTableEndDate')?.value || formatDateInputValue(today);
+      const start = parseReportDate(startValue) || monthStart;
+      const selectedEnd = parseReportDate(endValue) || today;
+      const end = addDays(selectedEnd < start ? start : selectedEnd, 1);
+      return { key: selected, label: 'Custom Range', start, end };
+    }
 
     return { key: 'all', label: 'All Time', start: null, end: null };
   }
@@ -5601,6 +5657,17 @@ const differencePercent =
     if (diffMinutes <= 0) return null;
 
     return Number((diffMinutes / 60).toFixed(2));
+  }
+
+  function formatStandardTime(value) {
+    const minutesFromMidnight = parseTimeToMinutes(value);
+    if (minutesFromMidnight === null) return String(value || '');
+
+    const hours24 = Math.floor(minutesFromMidnight / 60) % 24;
+    const minutes = minutesFromMidnight % 60;
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    const hours12 = hours24 % 12 || 12;
+    return `${hours12}:${pad2(minutes)} ${period}`;
   }
 
   function runCalcs() {
@@ -7454,8 +7521,8 @@ function loadFleetGPS() {
           ${metricBox('Helper 2', report.helper2 || '')}
           ${metricBox('Helper 3', report.helper3 || '')}
           ${metricBox('Helper 4', report.helper4 || '')}
-          ${metricBox('Start Time', report.startTime || '')}
-          ${metricBox('Finish Time', report.finishTime || '')}
+          ${metricBox('Start Time', formatStandardTime(report.startTime))}
+          ${metricBox('Finish Time', formatStandardTime(report.finishTime))}
           ${metricBox('Total Hours', fmtNumber(totalHours, 2))}
           ${metricBox('Approval Status', report.approvalStatus || 'Needs Review')}
           ${metricBox('Injection Type', getInjectionInfo(report).fullLabel)}
