@@ -2266,17 +2266,23 @@
       <p class="dashboard-note">Live production metrics from submitted reports. Estimated lbs are calculated from clicks × 0.6 and compared against flow meter lbs.</p>
 
       <div class="dashboard-filter-row">
-        <label>Dashboard Time Period
+        <label>Dashboard Date Range
           <select id="dashboardPeriodFilter">
             <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
             <option value="week">This Week</option>
+            <option value="lastWeek">Last Week</option>
             <option value="month" selected>This Month</option>
-            <option value="customMonth">Custom Month</option>
+            <option value="lastMonth">Last Month</option>
+            <option value="customRange">Custom Range</option>
             <option value="all">All Time</option>
           </select>
         </label>
-        <label id="dashboardCustomMonthWrap" class="dashboard-month-picker-wrap">Custom Month
-          <input id="dashboardMonthPicker" type="month">
+        <label id="dashboardRangeStartWrap" class="dashboard-table-custom-range-wrap">Start Date
+          <input id="dashboardRangeStartDate" type="date">
+        </label>
+        <label id="dashboardRangeEndWrap" class="dashboard-table-custom-range-wrap">End Date
+          <input id="dashboardRangeEndDate" type="date">
         </label>
         <div>
           <div class="calc-label">Current Dashboard View</div>
@@ -2607,33 +2613,6 @@
       <h2>New Service Cities</h2>
       <p class="dashboard-note">Cities started or restarted this month after 60+ days without recorded work.</p>
       <div id="newServiceCitiesMetrics" class="empty-state">No new city data yet.</div>
-    </div>
-
-    <div class="card">
-      <h2>Production Tables Date Range</h2>
-      <p class="dashboard-note">Controls the city, truck, work area, truck efficiency, and crew efficiency tables below.</p>
-      <div class="dashboard-filter-row">
-        <label>Table Date Range
-          <select id="dashboardTableRangeFilter">
-            <option value="yesterday">Yesterday</option>
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month" selected>This Month</option>
-            <option value="customRange">Custom Range</option>
-            <option value="all">All Time</option>
-          </select>
-        </label>
-        <label id="dashboardTableStartWrap" class="dashboard-table-custom-range-wrap">Start Date
-          <input id="dashboardTableStartDate" type="date">
-        </label>
-        <label id="dashboardTableEndWrap" class="dashboard-table-custom-range-wrap">End Date
-          <input id="dashboardTableEndDate" type="date">
-        </label>
-        <div>
-          <div class="calc-label">Current Table View</div>
-          <div id="dashboardTableRangeLabel" class="dashboard-range-pill">This Month</div>
-        </div>
-      </div>
     </div>
 
     <div class="card">
@@ -3256,42 +3235,26 @@ document.addEventListener("change", (e) => {
     }, 150);
   });
 
-  const dashboardMonthPicker = document.getElementById('dashboardMonthPicker');
-  if (dashboardMonthPicker && !dashboardMonthPicker.value) {
-    dashboardMonthPicker.value = formatMonthInputValue(new Date());
-  }
-
-  const dashboardTableStartDate = document.getElementById('dashboardTableStartDate');
-  const dashboardTableEndDate = document.getElementById('dashboardTableEndDate');
-  if (dashboardTableStartDate && !dashboardTableStartDate.value) {
+  const dashboardRangeStartDate = document.getElementById('dashboardRangeStartDate');
+  const dashboardRangeEndDate = document.getElementById('dashboardRangeEndDate');
+  if (dashboardRangeStartDate && !dashboardRangeStartDate.value) {
     const now = new Date();
-    dashboardTableStartDate.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+    dashboardRangeStartDate.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
   }
-  if (dashboardTableEndDate && !dashboardTableEndDate.value) {
-    dashboardTableEndDate.value = formatDateInputValue(new Date());
+  if (dashboardRangeEndDate && !dashboardRangeEndDate.value) {
+    dashboardRangeEndDate.value = formatDateInputValue(new Date());
   }
-  toggleDashboardTableCustomRange();
+  toggleDashboardDateRangePicker();
 
   document.getElementById('dashboardPeriodFilter')?.addEventListener('change', () => {
     if (!isCurrentUserManager) return;
-    toggleDashboardMonthPicker();
-    renderDashboardAnalytics(dashboardReports);
-  });
-
-  document.getElementById('dashboardTableRangeFilter')?.addEventListener('change', () => {
-    if (!isCurrentUserManager) return;
-    toggleDashboardTableCustomRange();
+    toggleDashboardDateRangePicker();
     renderDashboardAnalytics(dashboardReports);
   });
 
   document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
 
-  dashboardMonthPicker?.addEventListener('change', () => {
-    if (!isCurrentUserManager) return;
-    renderDashboardAnalytics(dashboardReports);
-  });
-
-  [dashboardTableStartDate, dashboardTableEndDate].forEach(input => {
+  [dashboardRangeStartDate, dashboardRangeEndDate].forEach(input => {
     input?.addEventListener('change', () => {
       if (!isCurrentUserManager) return;
       renderDashboardAnalytics(dashboardReports);
@@ -3810,17 +3773,11 @@ const differencePercent =
     return { key: 'customMonth', label: formatMonthLabel(range.start), ...range };
   }
 
-  function toggleDashboardMonthPicker() {
+  function toggleDashboardDateRangePicker() {
     const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
-    const wrap = document.getElementById('dashboardCustomMonthWrap');
-    if (wrap) wrap.classList.toggle('active', selected === 'customMonth');
-  }
-
-  function toggleDashboardTableCustomRange() {
-    const selected = document.getElementById('dashboardTableRangeFilter')?.value || 'month';
     const isCustom = selected === 'customRange';
-    document.getElementById('dashboardTableStartWrap')?.classList.toggle('active', isCustom);
-    document.getElementById('dashboardTableEndWrap')?.classList.toggle('active', isCustom);
+    document.getElementById('dashboardRangeStartWrap')?.classList.toggle('active', isCustom);
+    document.getElementById('dashboardRangeEndWrap')?.classList.toggle('active', isCustom);
   }
 
   function addDays(date, days) {
@@ -3843,6 +3800,21 @@ const differencePercent =
 
   function getMonthOverMonthRanges() {
     const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
+
+    if (['lastMonth', 'customRange', 'lastWeek', 'week', 'today', 'yesterday'].includes(selected)) {
+      const currentRange = getDashboardPeriodRange();
+      const previousRange = getPreviousComparableRange(currentRange);
+      if (currentRange?.start && previousRange?.start) {
+        return {
+          mode: 'selected-period',
+          currentRange,
+          previousRange,
+          currentLabel: currentRange.label,
+          previousLabel: previousRange.label,
+          note: 'Selected dashboard date range compared to the previous comparable range.'
+        };
+      }
+    }
 
     if (selected === 'customMonth') {
       const currentRange = getSelectedCustomMonthRange();
@@ -4014,26 +3986,19 @@ const differencePercent =
     const ranges = getPeriodRanges(new Date());
 
     if (selected === 'today') return { key: selected, label: 'Today', ...ranges.today };
-    if (selected === 'week') return { key: selected, label: 'This Week', ...ranges.week };
-    if (selected === 'month') return { key: selected, label: 'This Month', ...ranges.month };
-    if (selected === 'customMonth') return getSelectedCustomMonthRange();
-
-    return { key: 'all', label: 'All Time', start: null, end: null };
-  }
-
-  function getDashboardTableRange() {
-    const selected = document.getElementById('dashboardTableRangeFilter')?.value || 'month';
-    const ranges = getPeriodRanges(new Date());
-
     if (selected === 'yesterday') return { key: selected, label: 'Yesterday', ...ranges.yesterday };
-    if (selected === 'today') return { key: selected, label: 'Today', ...ranges.today };
     if (selected === 'week') return { key: selected, label: 'This Week', ...ranges.week };
+    if (selected === 'lastWeek') return { key: selected, label: 'Last Week', start: addDays(ranges.week.start, -7), end: ranges.week.start };
     if (selected === 'month') return { key: selected, label: 'This Month', ...ranges.month };
+    if (selected === 'lastMonth') {
+      const previous = getPreviousMonthRange(ranges.month);
+      return { key: selected, label: 'Last Month', ...previous };
+    }
     if (selected === 'customRange') {
       const today = new Date();
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      const startValue = document.getElementById('dashboardTableStartDate')?.value || formatDateInputValue(monthStart);
-      const endValue = document.getElementById('dashboardTableEndDate')?.value || formatDateInputValue(today);
+      const startValue = document.getElementById('dashboardRangeStartDate')?.value || formatDateInputValue(monthStart);
+      const endValue = document.getElementById('dashboardRangeEndDate')?.value || formatDateInputValue(today);
       const start = parseReportDate(startValue) || monthStart;
       const selectedEnd = parseReportDate(endValue) || today;
       const end = addDays(selectedEnd < start ? start : selectedEnd, 1);
@@ -4065,19 +4030,7 @@ const differencePercent =
   }
 
   function filterReportsForDashboardTables(docs) {
-    const range = getDashboardTableRange();
-
-    if (range.key === 'all') {
-      setText('dashboardTableRangeLabel', 'All submitted active reports');
-      return docs;
-    }
-
-    setText(
-      'dashboardTableRangeLabel',
-      `${range.label}: ${formatDateForDashboard(range.start)} - ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
-    );
-
-    return docs.filter(report => isDateInRange(report.date, range));
+    return filterReportsForDashboardPeriod(docs);
   }
 
   function buildDashboardTableStats(docs) {
@@ -4372,12 +4325,12 @@ const differencePercent =
   function getPreviousComparableRange(range) {
     if (!range?.start || !range?.end || range.key === 'all') return null;
 
-    if (range.key === 'month' || range.key === 'customMonth') {
+    if (range.key === 'month' || range.key === 'lastMonth') {
       const previous = getPreviousMonthRange(range);
       return { key: `previous-${range.key}`, label: `Previous ${range.label || 'Month'}`, ...previous };
     }
 
-    if (range.key === 'week') {
+    if (range.key === 'week' || range.key === 'lastWeek') {
       return {
         key: 'previous-week',
         label: 'Previous Week',
@@ -4932,7 +4885,7 @@ const differencePercent =
 
     const activeDocs = activeReportsOnly(dashboardReports || []);
     const dashboardRangeObj = getDashboardPeriodRange();
-    const tableRangeObj = getDashboardTableRange();
+    const tableRangeObj = dashboardRangeObj;
     const previousRangeObj = getPreviousComparableRange(dashboardRangeObj);
     const dashboardDocs = filterReportsForDashboardPeriod(activeDocs);
     const tableDocs = filterReportsForDashboardTables(activeDocs);
@@ -4942,7 +4895,7 @@ const differencePercent =
     const previousDocs = previousRangeObj ? activeDocs.filter(report => isDateInRange(report.date, previousRangeObj)) : null;
     const reportDate = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
     const dashboardRange = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'Current dashboard period';
-    const tableRange = document.getElementById('dashboardTableRangeLabel')?.textContent || 'Current table period';
+    const tableRange = dashboardRange;
     const reportBody = buildActualExecutiveReport({ activeDocs, dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, dashboardRangeObj, tableRangeObj, previousDocs, reportDate });
 
     const popup = window.open('', '_blank');
@@ -5018,7 +4971,7 @@ const differencePercent =
 
 
   function renderDashboardAnalytics(rawDocs) {
-    toggleDashboardMonthPicker();
+    toggleDashboardDateRangePicker();
     updateMonthOverMonthCard(rawDocs || []);
     const newServiceCitiesBox = document.getElementById('newServiceCitiesMetrics');
     if (newServiceCitiesBox) newServiceCitiesBox.innerHTML = renderNewServiceCities(rawDocs || []);
