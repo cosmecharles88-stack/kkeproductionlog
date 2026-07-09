@@ -3863,10 +3863,11 @@ const differencePercent =
       (crewCounts.technicianCount * Number(settings.technicianDayRate || 0));
     const laborCost = dailyLabor * share;
     const pumpedLbs = getReportFlowMeterPounds(report) || getReportPounds(report);
+    const chemicalLbs = getReportPounds(report);
     const revenueParts = calculateReportRevenue(report, settings);
     const revenue = revenueParts.revenue;
     const hasRevenue = revenue > 0;
-    const chemicalCost = pumpedLbs * Number(settings.chemicalCostPerLb || 0);
+    const chemicalCost = chemicalLbs * Number(settings.chemicalCostPerLb || 0);
     const disposablesCost = pumpedLbs * Number(settings.disposablesCostPerLb || 0);
     const routeMiles = Number(report.routeMiles ?? report.gpsMiles ?? report.gpsDistanceMiles ?? 0);
     const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, settings) || 0);
@@ -3887,7 +3888,7 @@ const differencePercent =
       revenue: hasRevenue ? (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed') : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
-      material: 'Materials: Pumped lbs',
+      material: 'Materials: Chemical from clicks',
       overhead: `Overhead: ${fmtNumber(settings.overheadPercentOfRevenue, 1)}% of revenue`
     };
     const warningCount = Object.values(quality).filter(label => /Missing|Needs|Default|Partial/.test(label)).length;
@@ -3902,6 +3903,7 @@ const differencePercent =
       jointGrindingRevenue: revenueParts.jointGrindingRevenue,
       laborCost,
       chemicalCost,
+      chemicalLbs,
       fuelCost,
       disposablesCost,
       overheadCost,
@@ -5024,7 +5026,7 @@ const differencePercent =
     const headers = [
       'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
       'Billable Lb Revenue', 'Joint Grinding LF', 'Joint Grinding Rate', 'Joint Grinding Revenue',
-      'Revenue', 'Labor', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
+      'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
       'Margin %', 'Fuel Gallons', 'MPG Used', 'Route Miles', 'Small Engine Hours', 'Generator Runtime',
       'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
     ];
@@ -5045,6 +5047,7 @@ const differencePercent =
         fmtNumber(pnl.jointGrindingRevenue, 2),
         fmtNumber(pnl.revenue, 2),
         fmtNumber(pnl.laborCost, 2),
+        fmtNumber(pnl.chemicalLbs, 2),
         fmtNumber(pnl.chemicalCost, 2),
         fmtNumber(pnl.fuelCost, 2),
         fmtNumber(pnl.disposablesCost, 2),
@@ -8132,6 +8135,7 @@ function loadFleetGPS() {
           ${metricBox('Billable Lb Revenue', formatMoney(pnl.billableLbRevenue))}
           ${metricBox('Joint Grinding Revenue', formatMoney(pnl.jointGrindingRevenue))}
           ${metricBox('Labor', formatMoney(pnl.laborCost))}
+          ${metricBox('Chemical Lbs From Clicks', `${fmtNumber(pnl.chemicalLbs, 0)} lbs`)}
           ${metricBox('Chemical', formatMoney(pnl.chemicalCost))}
           ${metricBox('Fuel', formatMoney(pnl.fuelCost))}
           ${metricBox('Disposables', formatMoney(pnl.disposablesCost))}
