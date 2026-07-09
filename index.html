@@ -2290,8 +2290,32 @@
         </div>
       </div>
       <div style="display:flex; justify-content:flex-end; margin:-4px 0 16px;">
+        <button class="btn btn-outline" type="button" id="btnDownloadPnlCsv" style="margin-right:8px;">Download P&amp;L CSV</button>
         <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
       </div>
+
+      <details class="dashboard-note" style="background:#f8fafc; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;">
+        <summary style="cursor:pointer; font-weight:900; color:var(--kke-blue);">Cost Settings and P&amp;L Rules</summary>
+        <p style="margin-top:10px;">Editable defaults for estimated job P&amp;L. Report-level values override these when better data is available.</p>
+        <div class="grid">
+          <label>Superintendent Day Rate<input id="costSuperintendentDayRate" type="number" step="0.01"></label>
+          <label>Technician Day Rate<input id="costTechnicianDayRate" type="number" step="0.01"></label>
+          <label>Default Superintendent Count<input id="costDefaultSuperintendentCount" type="number" step="1"></label>
+          <label>Default Technician Count<input id="costDefaultTechnicianCount" type="number" step="1"></label>
+          <label>Chemical Cost / Pumped Lb<input id="costChemicalPerLb" type="number" step="0.01"></label>
+          <label>Disposables / Pumped Lb<input id="costDisposablesPerLb" type="number" step="0.01"></label>
+          <label>Overhead % of Revenue<input id="costOverheadPercent" type="number" step="0.01"></label>
+          <label>Default MPG<input id="costDefaultMpg" type="number" step="0.1"></label>
+          <label>Fuel Price / Gallon<input id="costFuelPricePerGallon" type="number" step="0.01"></label>
+          <label>Shop Start / End Address<input id="costShopAddress"></label>
+          <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
+          <button class="btn btn-outline small-btn" type="button" id="btnResetCostSettings">Reset Defaults</button>
+          <button class="btn btn-primary small-btn" type="button" id="btnSaveCostSettings">Save Cost Settings</button>
+        </div>
+        <div id="costSettingsStatus" style="font-size:12px; color:var(--gray); margin-top:8px;">Using default cost settings.</div>
+      </details>
 
       <div class="grid">
         <div class="calc-box">
@@ -2315,6 +2339,30 @@
           <div class="calc-value" id="dashDifferenceLbs">0</div>
         </div>
       </div>
+
+      <div class="grid" style="margin-top:14px;">
+        <div class="calc-box">
+          <div class="calc-label">Revenue</div>
+          <div class="calc-value" id="dashRevenue">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Direct Costs</div>
+          <div class="calc-value" id="dashDirectCosts">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Overhead</div>
+          <div class="calc-value" id="dashOverhead">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Estimated Profit</div>
+          <div class="calc-value" id="dashProfit">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Estimated Margin</div>
+          <div class="calc-value" id="dashMargin">0%</div>
+        </div>
+      </div>
+      <div id="dashCostQualityRead" class="dashboard-note" style="margin-top:10px;">P&amp;L quality will appear after revenue fields are reviewed.</div>
     </div>
 
     <div class="card" id="monthOverMonthCard">
@@ -2822,6 +2870,13 @@
           <label>Clicks<input id="editClicks" type="number" step="1"></label>
           <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
           <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
+          <label>Billable Lbs<input id="editBillableLbs" type="number" step="0.01"></label>
+          <label>Billing Rate<input id="editBillingRate" type="number" step="0.01"></label>
+          <label>Superintendent Count<input id="editSuperintendentCount" type="number" step="1"></label>
+          <label>Technician Count<input id="editTechnicianCount" type="number" step="1"></label>
+          <label>Route Miles<input id="editRouteMiles" type="number" step="0.1"></label>
+          <label>Unit MPG<input id="editUnitMpg" type="number" step="0.1"></label>
+          <label>Fuel Price / Gal<input id="editFuelPricePerGallon" type="number" step="0.01"></label>
           <label>GPS Latitude<input id="editGpsLatitude" type="number" step="0.000001"></label>
           <label>GPS Longitude<input id="editGpsLongitude" type="number" step="0.000001"></label>
           <label>Approval Status
@@ -2943,7 +2998,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
   // --- FIREBASE CONFIG ---
@@ -3037,6 +3092,24 @@
   let dashboardReports = [];
   let currentEditReport = null;
   let isSubmittingReport = false;
+  const COST_SETTINGS_STORAGE_KEY = 'kkeCostSettingsV1';
+  const DEFAULT_COST_SETTINGS = {
+    superintendentDayRate: 325,
+    technicianDayRate: 212,
+    defaultSuperintendentCount: 1,
+    defaultTechnicianCount: 2,
+    chemicalCostPerLb: 2.31,
+    disposablesCostPerLb: 0.47,
+    overheadPercentOfRevenue: 20,
+    shopAddress: '1900 S Main St, Grapevine, TX 76051',
+    defaultMpg: 9,
+    fuelPricePerGallon: 3.5,
+    fuelAllocationMethod: 'report-route-miles',
+    updatedBy: '',
+    updatedAt: '',
+    changeNote: ''
+  };
+  let costSettings = { ...DEFAULT_COST_SETTINGS };
 
 
   // --- AUTH LOGIC ---
@@ -3116,6 +3189,7 @@
       const fleetTab = document.getElementById('tabFleetGPS');
       if (fleetTab) fleetTab.style.display = isCurrentUserManager ? 'block' : 'none';
 
+      loadCostSettings();
       loadHistory();
       if (isCurrentUserManager) {
         loadDashboard();
@@ -3253,6 +3327,9 @@ document.addEventListener("change", (e) => {
   });
 
   document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
+  document.getElementById('btnDownloadPnlCsv')?.addEventListener('click', downloadPnlCsv);
+  document.getElementById('btnSaveCostSettings')?.addEventListener('click', saveCostSettings);
+  document.getElementById('btnResetCostSettings')?.addEventListener('click', resetCostSettings);
 
   [dashboardRangeStartDate, dashboardRangeEndDate].forEach(input => {
     input?.addEventListener('change', () => {
@@ -3515,6 +3592,248 @@ const differencePercent =
   function getReportHours(doc) {
     const hours = Number(doc.totalHours || 0);
     return Number.isFinite(hours) && hours > 0 ? hours : 0;
+  }
+
+  function mergeCostSettings(value = {}) {
+    const merged = { ...DEFAULT_COST_SETTINGS, ...(value || {}) };
+    [
+      'superintendentDayRate',
+      'technicianDayRate',
+      'defaultSuperintendentCount',
+      'defaultTechnicianCount',
+      'chemicalCostPerLb',
+      'disposablesCostPerLb',
+      'overheadPercentOfRevenue',
+      'defaultMpg',
+      'fuelPricePerGallon'
+    ].forEach(key => {
+      const number = Number(merged[key]);
+      merged[key] = Number.isFinite(number) ? number : DEFAULT_COST_SETTINGS[key];
+    });
+    merged.shopAddress = merged.shopAddress || DEFAULT_COST_SETTINGS.shopAddress;
+    return merged;
+  }
+
+  function costSettingsRef() {
+    return firestoreDoc(db, 'artifacts', appId, 'public', 'data', 'settings', 'costRules');
+  }
+
+  function loadLocalCostSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COST_SETTINGS_STORAGE_KEY) || '{}');
+      costSettings = mergeCostSettings(saved);
+    } catch {
+      costSettings = { ...DEFAULT_COST_SETTINGS };
+    }
+    populateCostSettingsForm();
+  }
+
+  async function loadCostSettings() {
+    loadLocalCostSettings();
+    if (!auth.currentUser || !isCurrentUserManager) return;
+    try {
+      const snap = await getDoc(costSettingsRef());
+      if (snap.exists()) {
+        costSettings = mergeCostSettings(snap.data());
+        localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
+        populateCostSettingsForm();
+        setText('costSettingsStatus', `Loaded shared cost settings${costSettings.updatedAt ? ` | Last updated ${costSettings.updatedAt}` : ''}.`);
+      }
+    } catch (err) {
+      console.warn('Shared cost settings unavailable; using local/default settings.', err);
+      setText('costSettingsStatus', 'Using local/default cost settings. Firestore settings may need rules access.');
+    }
+  }
+
+  function populateCostSettingsForm() {
+    const fields = {
+      costSuperintendentDayRate: costSettings.superintendentDayRate,
+      costTechnicianDayRate: costSettings.technicianDayRate,
+      costDefaultSuperintendentCount: costSettings.defaultSuperintendentCount,
+      costDefaultTechnicianCount: costSettings.defaultTechnicianCount,
+      costChemicalPerLb: costSettings.chemicalCostPerLb,
+      costDisposablesPerLb: costSettings.disposablesCostPerLb,
+      costOverheadPercent: costSettings.overheadPercentOfRevenue,
+      costDefaultMpg: costSettings.defaultMpg,
+      costFuelPricePerGallon: costSettings.fuelPricePerGallon,
+      costShopAddress: costSettings.shopAddress
+    };
+    Object.entries(fields).forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input) input.value = value ?? '';
+    });
+  }
+
+  function readCostSettingsForm() {
+    return mergeCostSettings({
+      superintendentDayRate: document.getElementById('costSuperintendentDayRate')?.value,
+      technicianDayRate: document.getElementById('costTechnicianDayRate')?.value,
+      defaultSuperintendentCount: document.getElementById('costDefaultSuperintendentCount')?.value,
+      defaultTechnicianCount: document.getElementById('costDefaultTechnicianCount')?.value,
+      chemicalCostPerLb: document.getElementById('costChemicalPerLb')?.value,
+      disposablesCostPerLb: document.getElementById('costDisposablesPerLb')?.value,
+      overheadPercentOfRevenue: document.getElementById('costOverheadPercent')?.value,
+      defaultMpg: document.getElementById('costDefaultMpg')?.value,
+      fuelPricePerGallon: document.getElementById('costFuelPricePerGallon')?.value,
+      shopAddress: document.getElementById('costShopAddress')?.value?.trim() || DEFAULT_COST_SETTINGS.shopAddress,
+      changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
+      updatedBy: auth.currentUser?.email || 'local',
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  async function saveCostSettings() {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    costSettings = readCostSettingsForm();
+    localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
+    populateCostSettingsForm();
+    setText('costSettingsStatus', 'Saved locally. Trying to save shared settings...');
+    try {
+      await setDoc(costSettingsRef(), costSettings, { merge: true });
+      setText('costSettingsStatus', `Shared cost settings saved by ${costSettings.updatedBy}.`);
+      showMessage('Cost settings saved.');
+    } catch (err) {
+      console.warn(err);
+      setText('costSettingsStatus', 'Saved locally. Firestore rules may need access for shared cost settings.');
+      showMessage('Cost settings saved locally. Firestore settings may need rules access.', 'warning');
+    }
+    renderDashboardAnalytics(dashboardReports);
+  }
+
+  function resetCostSettings() {
+    costSettings = { ...DEFAULT_COST_SETTINGS, updatedBy: auth.currentUser?.email || '', updatedAt: new Date().toISOString(), changeNote: 'Reset to defaults' };
+    localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
+    populateCostSettingsForm();
+    renderDashboardAnalytics(dashboardReports);
+    setText('costSettingsStatus', 'Defaults restored locally. Click Save Cost Settings to share.');
+  }
+
+  function countNamedTechnicians(report) {
+    return ['helper1', 'helper2', 'helper3', 'helper4']
+      .map(key => String(report[key] || '').trim())
+      .filter(Boolean).length;
+  }
+
+  function getReportCrewCounts(report, settings = costSettings) {
+    const superintendentRaw = report.superintendentCount;
+    const technicianRaw = report.technicianCount;
+    const superintendent = Number(superintendentRaw);
+    const technician = Number(technicianRaw);
+    const inferredTechnicians = countNamedTechnicians(report);
+    const hasActualSuperintendent = superintendentRaw !== '' && superintendentRaw !== null && typeof superintendentRaw !== 'undefined' && Number.isFinite(superintendent) && superintendent >= 0;
+    const hasActualTechnician = technicianRaw !== '' && technicianRaw !== null && typeof technicianRaw !== 'undefined' && Number.isFinite(technician) && technician >= 0;
+    const superintendentCount = hasActualSuperintendent ? superintendent : (report.crewLead ? 1 : Number(settings.defaultSuperintendentCount || 0));
+    const technicianCount = hasActualTechnician ? technician : (inferredTechnicians || Number(settings.defaultTechnicianCount || 0));
+    let quality = 'Actual crew';
+    if (!hasActualSuperintendent || !hasActualTechnician) quality = inferredTechnicians || report.crewLead ? 'Partial crew data' : 'Default crew used';
+    return { superintendentCount, technicianCount, quality };
+  }
+
+  function getSameUnitDayReports(report, docs = []) {
+    const date = report.date || '';
+    const truck = getNormalizedTruck(report);
+    const group = (docs || []).filter(item => (item.date || '') === date && getNormalizedTruck(item) === truck && item.deleted !== true);
+    return group.length ? group : [report];
+  }
+
+  function getJobShareOfDay(report, group) {
+    const totalHours = group.reduce((sum, item) => sum + getReportHours(item), 0);
+    if (totalHours > 0) return getReportHours(report) / totalHours;
+    return 1 / Math.max(1, group.length);
+  }
+
+  function calculateReportPnl(report, docs = allReports, settings = costSettings) {
+    const group = getSameUnitDayReports(report, docs);
+    const share = getJobShareOfDay(report, group);
+    const crewCounts = getReportCrewCounts(report, settings);
+    const dailyLabor = (crewCounts.superintendentCount * Number(settings.superintendentDayRate || 0)) +
+      (crewCounts.technicianCount * Number(settings.technicianDayRate || 0));
+    const laborCost = dailyLabor * share;
+    const pumpedLbs = getReportFlowMeterPounds(report) || getReportPounds(report);
+    const billableLbs = Number(report.billableLbs);
+    const billingRate = Number(report.billingRate);
+    const hasRevenue = Number.isFinite(billableLbs) && billableLbs > 0 && Number.isFinite(billingRate) && billingRate > 0;
+    const revenue = hasRevenue ? billableLbs * billingRate : 0;
+    const chemicalCost = pumpedLbs * Number(settings.chemicalCostPerLb || 0);
+    const disposablesCost = pumpedLbs * Number(settings.disposablesCostPerLb || 0);
+    const routeMiles = Number(report.routeMiles ?? report.gpsMiles ?? report.gpsDistanceMiles ?? 0);
+    const mpg = Number(report.unitMpg || settings.defaultMpg || 0);
+    const fuelPrice = Number(report.fuelPricePerGallon || settings.fuelPricePerGallon || 0);
+    const fuelCost = routeMiles > 0 && mpg > 0 && fuelPrice > 0 ? (routeMiles / mpg) * fuelPrice : 0;
+    const overheadCost = revenue * (Number(settings.overheadPercentOfRevenue || 0) / 100);
+    const directCost = laborCost + chemicalCost + fuelCost + disposablesCost;
+    const totalCost = directCost + overheadCost;
+    const profit = revenue - totalCost;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const quality = {
+      revenue: hasRevenue ? 'Revenue: Manager reviewed' : (!Number.isFinite(billableLbs) || billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate'),
+      labor: `Labor: ${crewCounts.quality}`,
+      fuel: fuelCost > 0 ? 'Fuel: Route miles' : 'Fuel: Needs miles/MPG',
+      material: 'Materials: Pumped lbs',
+      overhead: `Overhead: ${fmtNumber(settings.overheadPercentOfRevenue, 1)}% of revenue`
+    };
+    const warningCount = Object.values(quality).filter(label => /Missing|Needs|Default|Partial/.test(label)).length;
+    const confidence = !hasRevenue ? 'Needs review' : warningCount === 0 ? 'High confidence' : warningCount <= 2 ? 'Medium confidence' : 'Low confidence';
+    return {
+      revenue,
+      billableLbs: Number.isFinite(billableLbs) ? billableLbs : 0,
+      billingRate: Number.isFinite(billingRate) ? billingRate : 0,
+      laborCost,
+      chemicalCost,
+      fuelCost,
+      disposablesCost,
+      overheadCost,
+      directCost,
+      totalCost,
+      profit,
+      margin,
+      quality,
+      confidence,
+      routeMiles: Number.isFinite(routeMiles) ? routeMiles : 0,
+      share,
+      dailyLabor
+    };
+  }
+
+  function summarizePnl(docs, settings = costSettings) {
+    return (docs || []).reduce((summary, report) => {
+      const pnl = calculateReportPnl(report, docs, settings);
+      summary.revenue += pnl.revenue;
+      summary.laborCost += pnl.laborCost;
+      summary.chemicalCost += pnl.chemicalCost;
+      summary.fuelCost += pnl.fuelCost;
+      summary.disposablesCost += pnl.disposablesCost;
+      summary.overheadCost += pnl.overheadCost;
+      summary.directCost += pnl.directCost;
+      summary.totalCost += pnl.totalCost;
+      summary.profit += pnl.profit;
+      if (pnl.revenue <= 0) summary.missingRevenue += 1;
+      if (/Needs/.test(pnl.quality.fuel)) summary.missingFuel += 1;
+      if (/Default|Partial/.test(pnl.quality.labor)) summary.estimatedLabor += 1;
+      return summary;
+    }, {
+      revenue: 0,
+      laborCost: 0,
+      chemicalCost: 0,
+      fuelCost: 0,
+      disposablesCost: 0,
+      overheadCost: 0,
+      directCost: 0,
+      totalCost: 0,
+      profit: 0,
+      missingRevenue: 0,
+      missingFuel: 0,
+      estimatedLabor: 0
+    });
+  }
+
+  function formatMoney(value) {
+    const number = Number(value || 0);
+    return number.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  }
+
+  function renderQualityPills(pnl) {
+    return Object.values(pnl.quality).map(label => `<span class="status-pill ${/Missing|Needs/.test(label) ? 'status-rejected' : /Default|Partial/.test(label) ? 'status-revision' : 'status-approved'}">${escapeHtml(label)}</span>`).join('');
   }
 
   function getColor(name, colorMap) {
@@ -4115,6 +4434,18 @@ const differencePercent =
       unknownReports: 0,
       unknownPounds: 0,
       unknownHours: 0,
+      revenue: 0,
+      laborCost: 0,
+      chemicalCost: 0,
+      fuelCost: 0,
+      disposablesCost: 0,
+      overheadCost: 0,
+      directCost: 0,
+      totalCost: 0,
+      profit: 0,
+      missingRevenueReports: 0,
+      missingFuelReports: 0,
+      estimatedLaborReports: 0,
       byDate: {},
       byCity: {},
       byTruck: {},
@@ -4132,6 +4463,7 @@ const differencePercent =
       const crew = getNormalizedCrew(report);
       const area = getWorkAreaDisplay(report);
       const injectionKey = getInjectionInfo(report).key;
+      const pnl = calculateReportPnl(report, docs, costSettings);
 
       summary.reports += 1;
       summary.clicks += comparison.clicks;
@@ -4139,6 +4471,18 @@ const differencePercent =
       summary.flowMeterPounds += comparison.flowMeterPounds;
       summary.differencePounds += comparison.differencePounds;
       summary.hours += hours;
+      summary.revenue += pnl.revenue;
+      summary.laborCost += pnl.laborCost;
+      summary.chemicalCost += pnl.chemicalCost;
+      summary.fuelCost += pnl.fuelCost;
+      summary.disposablesCost += pnl.disposablesCost;
+      summary.overheadCost += pnl.overheadCost;
+      summary.directCost += pnl.directCost;
+      summary.totalCost += pnl.totalCost;
+      summary.profit += pnl.profit;
+      if (pnl.revenue <= 0) summary.missingRevenueReports += 1;
+      if (/Needs/.test(pnl.quality.fuel)) summary.missingFuelReports += 1;
+      if (/Default|Partial/.test(pnl.quality.labor)) summary.estimatedLaborReports += 1;
 
       if (injectionKey === 'method') {
         summary.methodReports += 1;
@@ -4185,6 +4529,9 @@ const differencePercent =
     summary.diLbsPerHour = summary.diHours > 0 ? summary.diPounds / summary.diHours : 0;
     summary.unknownLbsPerHour = summary.unknownHours > 0 ? summary.unknownPounds / summary.unknownHours : 0;
     summary.differencePercent = summary.pounds > 0 ? (summary.differencePounds / summary.pounds) * 100 : 0;
+    summary.margin = summary.revenue > 0 ? (summary.profit / summary.revenue) * 100 : 0;
+    summary.revenuePerLaborHour = summary.hours > 0 ? summary.revenue / summary.hours : 0;
+    summary.revenuePerLb = summary.pounds > 0 ? summary.revenue / summary.pounds : 0;
     return summary;
   }
 
@@ -4513,6 +4860,75 @@ const differencePercent =
     if (dataQuality.issueCount) items.push(`Logan: clean ${fmtNumber(dataQuality.issueCount, 0)} data quality issue${dataQuality.issueCount === 1 ? '' : 's'} before month-end reporting.`);
     if (outliers.length) items.push(`Manager team: assign outlier reasons for ${fmtNumber(outliers.length, 0)} flagged item${outliers.length === 1 ? '' : 's'}.`);
     return items.slice(0, 5);
+  }
+
+  function dedupeActionItems(items, limit = 5) {
+    const seen = new Set();
+    return (items || []).filter(item => {
+      const key = String(item || '')
+        .toLowerCase()
+        .replace(/truck\s+\d+/g, 'truck')
+        .replace(/\d+(\.\d+)?/g, '#')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, limit);
+  }
+
+  function csvCell(value) {
+    const text = String(value ?? '');
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function downloadPnlCsv() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for CSV export.', 'error');
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const docs = filterReportsForDashboardPeriod(activeDocs);
+    const headers = [
+      'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
+      'Revenue', 'Labor', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
+      'Margin %', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
+    ];
+    const rows = docs.map(report => {
+      const pnl = calculateReportPnl(report, docs, costSettings);
+      return [
+        report.date || '',
+        getDashboardCity(report),
+        report.address || '',
+        getNormalizedTruck(report),
+        getNormalizedCrew(report),
+        fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
+        fmtNumber(pnl.billableLbs, 2),
+        fmtNumber(pnl.billingRate, 2),
+        fmtNumber(pnl.revenue, 2),
+        fmtNumber(pnl.laborCost, 2),
+        fmtNumber(pnl.chemicalCost, 2),
+        fmtNumber(pnl.fuelCost, 2),
+        fmtNumber(pnl.disposablesCost, 2),
+        fmtNumber(pnl.directCost, 2),
+        fmtNumber(pnl.overheadCost, 2),
+        fmtNumber(pnl.profit, 2),
+        fmtNumber(pnl.margin, 2),
+        pnl.confidence,
+        pnl.quality.revenue,
+        pnl.quality.labor,
+        pnl.quality.fuel,
+        pnl.quality.material,
+        pnl.quality.overhead
+      ];
+    });
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const range = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'dashboard-range';
+    link.href = URL.createObjectURL(blob);
+    link.download = `kke-pnl-${range.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'export'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
   function buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew) {
@@ -4851,20 +5267,24 @@ const differencePercent =
       </section>
 
       <section class="exec-section">
-        <h2>Revenue Placeholder</h2>
-        <p>Revenue fields are reserved for the next reporting layer. Once pricing is connected, this section should show revenue, gross margin, revenue per labor hour, and revenue per pound.</p>
+        <h2>Estimated Revenue and Job P&amp;L</h2>
+        <p>This section uses manager-entered billable pounds and billing rate, then subtracts labor, chemical, fuel, disposables, and overhead at ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue. It is a management estimate, not final accounting.</p>
         ${renderExecutiveMetricGrid([
-          { label: 'Revenue', value: 'Pending', sub: 'Pricing not connected' },
-          { label: 'Gross Margin', value: 'Pending', sub: 'Cost model needed' },
-          { label: 'Revenue / Labor Hour', value: 'Pending', sub: 'Needs revenue field' },
-          { label: 'Revenue / Lb', value: 'Pending', sub: 'Needs revenue field' }
+          { label: 'Revenue', value: formatMoney(summary.revenue), sub: `${fmtNumber(summary.missingRevenueReports, 0)} report(s) missing billable lbs/rate` },
+          { label: 'Direct Costs', value: formatMoney(summary.directCost), sub: `Labor ${formatMoney(summary.laborCost)} | Materials ${formatMoney(summary.chemicalCost + summary.disposablesCost)}` },
+          { label: 'Overhead', value: formatMoney(summary.overheadCost), sub: `${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue` },
+          { label: 'Estimated Profit', value: formatMoney(summary.profit), sub: `Margin ${fmtNumber(summary.margin, 1)}%` },
+          { label: 'Revenue / Labor Hour', value: formatMoney(summary.revenuePerLaborHour), sub: `${fmtNumber(summary.hours, 2)} total hours` },
+          { label: 'Revenue / Lb', value: formatMoney(summary.revenuePerLb), sub: `${fmtNumber(summary.pounds, 0)} estimated lbs` },
+          { label: 'Fuel Quality', value: `${fmtNumber(summary.missingFuelReports, 0)} need review`, sub: 'Missing route miles, MPG, or fuel price' },
+          { label: 'Labor Quality', value: `${fmtNumber(summary.estimatedLaborReports, 0)} estimated`, sub: 'Partial/default crew data' }
         ])}
       </section>
 
       <section class="exec-section">
         <h2>Action Items and Management Recommendations</h2>
         <h3>Owner Actions</h3>
-        <ol>${actionItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+        <ol>${dedupeActionItems(actionItems).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
         <h3>If I Were the Operations Manager</h3>
         <ol>
           <li>Priority #1: Reduce small-job mobilization by grouping service calls geographically.</li>
@@ -4873,7 +5293,7 @@ const differencePercent =
           <li>Priority #4: Close remaining data quality issues before the next owner review.</li>
         </ol>
         <h3>Recommendations</h3>
-        <ol>${narrative.recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+        <ol>${dedupeActionItems(narrative.recommendations).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
       </section>
     `;
   }
@@ -4981,6 +5401,7 @@ const differencePercent =
     const tableStats = buildDashboardTableStats(tableDocs);
     const transitions = calculateTransitions(docs);
     const transitionStats = buildTransitionStats(transitions);
+    const pnlSummary = summarizePnl(docs, costSettings);
 
     let totalClicks = 0;
     let totalPounds = 0;
@@ -5066,6 +5487,15 @@ const differencePercent =
     setText('dashFlowMeterLbs', fmtNumber(totalFlowMeterPounds, 0));
     setText('dashDifferencePercent', `${fmtNumber(totalDifferencePercent, 1)}%`);
     setText('dashDifferenceLbs', fmtNumber(totalDifferencePounds, 0));
+    setText('dashRevenue', formatMoney(pnlSummary.revenue));
+    setText('dashDirectCosts', formatMoney(pnlSummary.directCost));
+    setText('dashOverhead', formatMoney(pnlSummary.overheadCost));
+    setText('dashProfit', formatMoney(pnlSummary.profit));
+    setText('dashMargin', `${fmtNumber(pnlSummary.revenue > 0 ? (pnlSummary.profit / pnlSummary.revenue) * 100 : 0, 1)}%`);
+    setText(
+      'dashCostQualityRead',
+      `Estimated Job P&L uses ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue for overhead. Missing revenue: ${fmtNumber(pnlSummary.missingRevenue, 0)} report(s). Fuel needs miles/MPG: ${fmtNumber(pnlSummary.missingFuel, 0)} report(s). Labor estimated/partial: ${fmtNumber(pnlSummary.estimatedLabor, 0)} report(s).`
+    );
     setText('dashMethodJobs', fmtNumber(injectionStats.method.reports, 0));
     setText('dashMethodLbs', fmtNumber(injectionStats.method.pounds, 0));
     setText('dashMethodHours', fmtNumber(injectionStats.method.hours, 2));
@@ -6078,6 +6508,7 @@ const differencePercent =
       const injectionInfo = getInjectionInfo(report);
       const injectionBadge = renderInjectionBadge(report);
       const injectionBadgeSmall = renderInjectionBadge(report, 'small');
+      const pnl = calculateReportPnl(report, allReports, costSettings);
       const managerActions = isCurrentUserManager ? `
         <div class="history-actions">
           ${report.deleted === true ? `
@@ -6112,6 +6543,10 @@ const differencePercent =
             ${report.liftAreaNotes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Area Notes:</strong> ${escapeHtml(report.liftAreaNotes)}</div>` : ''}
             ${renderPhotoLinks(report)}
             ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
+            <div style="font-size:12px; margin-top:8px; color:#374151;">
+              <strong>Estimated P&amp;L:</strong> Revenue ${formatMoney(pnl.revenue)} | Profit ${formatMoney(pnl.profit)} | Margin ${fmtNumber(pnl.margin, 1)}% | ${escapeHtml(pnl.confidence)}
+              <div style="margin-top:5px;">${renderQualityPills(pnl)}</div>
+            </div>
             ${managerActions}
           </div>
           <div style="text-align:right; min-width:150px;">
@@ -7207,6 +7642,14 @@ function loadFleetGPS() {
     patch.aPounds = Math.max(0, aFinish - aStart);
     patch.bPounds = Math.max(0, bFinish - bStart);
     patch.clicks = Number(patch.clicks || 0);
+    patch.billableLbs = Number(patch.billableLbs || 0);
+    patch.billingRate = Number(patch.billingRate || 0);
+    patch.calculatedRevenue = patch.billableLbs > 0 && patch.billingRate > 0 ? patch.billableLbs * patch.billingRate : 0;
+    patch.superintendentCount = patch.superintendentCount === '' || patch.superintendentCount === null || typeof patch.superintendentCount === 'undefined' ? '' : Number(patch.superintendentCount || 0);
+    patch.technicianCount = patch.technicianCount === '' || patch.technicianCount === null || typeof patch.technicianCount === 'undefined' ? '' : Number(patch.technicianCount || 0);
+    patch.routeMiles = Number(patch.routeMiles || 0);
+    patch.unitMpg = Number(patch.unitMpg || 0);
+    patch.fuelPricePerGallon = Number(patch.fuelPricePerGallon || 0);
     patch.estimatedPounds = patch.clicks * 0.6;
     patch.flowMeterPounds = patch.aPounds + patch.bPounds;
     patch.differencePounds = patch.estimatedPounds - patch.flowMeterPounds;
@@ -7265,6 +7708,13 @@ function loadFleetGPS() {
     document.getElementById('editClicks').value = report.clicks || '';
     document.getElementById('editTotalHours').value = getReportHours(report) || '';
     document.getElementById('editLinearFeet').value = report.linearFeet || '';
+    document.getElementById('editBillableLbs').value = report.billableLbs || '';
+    document.getElementById('editBillingRate').value = report.billingRate || '';
+    document.getElementById('editSuperintendentCount').value = report.superintendentCount ?? '';
+    document.getElementById('editTechnicianCount').value = report.technicianCount ?? '';
+    document.getElementById('editRouteMiles').value = report.routeMiles || '';
+    document.getElementById('editUnitMpg').value = report.unitMpg || '';
+    document.getElementById('editFuelPricePerGallon').value = report.fuelPricePerGallon || '';
     document.getElementById('editGpsLatitude').value = report.gpsLatitude || '';
     document.getElementById('editGpsLongitude').value = report.gpsLongitude || '';
     document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
@@ -7302,6 +7752,13 @@ function loadFleetGPS() {
       clicks: document.getElementById('editClicks').value,
       totalHours: document.getElementById('editTotalHours').value,
       linearFeet: document.getElementById('editLinearFeet').value,
+      billableLbs: document.getElementById('editBillableLbs').value,
+      billingRate: document.getElementById('editBillingRate').value,
+      superintendentCount: document.getElementById('editSuperintendentCount').value,
+      technicianCount: document.getElementById('editTechnicianCount').value,
+      routeMiles: document.getElementById('editRouteMiles').value,
+      unitMpg: document.getElementById('editUnitMpg').value,
+      fuelPricePerGallon: document.getElementById('editFuelPricePerGallon').value,
       gpsLatitude: document.getElementById('editGpsLatitude').value,
       gpsLongitude: document.getElementById('editGpsLongitude').value,
       approvalStatus: document.getElementById('editApprovalStatus').value,
@@ -7396,6 +7853,7 @@ function loadFleetGPS() {
     const poundComparison = getPoundComparison(report);
     const efficiency = totalHours > 0 ? totalPounds / totalHours : 0;
     const liftAreaSqFt = Number.isFinite(Number(report.liftAreaSqFt)) ? Number(report.liftAreaSqFt) : calculateLiftAreaSqFt(report.liftAreaLength, report.liftAreaWidth);
+    const pnl = calculateReportPnl(report, allReports, costSettings);
 
     const profileRows = Array.isArray(report.profile) && report.profile.length ? report.profile.map(row => `
       <tr>
@@ -7503,6 +7961,21 @@ function loadFleetGPS() {
           ${metricBox('Generator Run Time', report.generatorRunTime || '')}
           ${metricBox('Linear Feet', report.linearFeet || '')}
         </div>
+
+        <h2>Estimated Job P&amp;L</h2>
+        <p class="section-note">Management estimate using editable app settings. Overhead is ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue.</p>
+        <div class="grid-3">
+          ${metricBox('Revenue', formatMoney(pnl.revenue))}
+          ${metricBox('Labor', formatMoney(pnl.laborCost))}
+          ${metricBox('Chemical', formatMoney(pnl.chemicalCost))}
+          ${metricBox('Fuel', formatMoney(pnl.fuelCost))}
+          ${metricBox('Disposables', formatMoney(pnl.disposablesCost))}
+          ${metricBox('Overhead', formatMoney(pnl.overheadCost))}
+          ${metricBox('Direct Costs', formatMoney(pnl.directCost))}
+          ${metricBox('Estimated Profit', formatMoney(pnl.profit))}
+          ${metricBox('Estimated Margin', `${fmtNumber(pnl.margin, 1)}%`)}
+        </div>
+        <div class="box" style="margin-top:10px;"><div class="label">Cost Quality</div><div class="value">${safe(Object.values(pnl.quality).join(' | '))} | ${safe(pnl.confidence)}</div></div>
 
         <h2>Work Area Details</h2>
         <div class="grid">
