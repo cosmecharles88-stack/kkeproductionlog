@@ -2315,7 +2315,7 @@
           <label>Big Rig Units<input id="costBigRigUnits" placeholder="Example: 106,118,119"></label>
           <label>Small Truck Units<input id="costSmallTruckUnits" placeholder="Example: 102,107,203"></label>
           <label>Small Engine Gal / Hour<input id="costSmallEngineGalPerHour" type="number" step="0.01"></label>
-          <label>Diesel Generator Gal / Minute<input id="costDieselGeneratorGalPerMinute" type="number" step="0.01"></label>
+          <label>Diesel Generator Gal / Hour<input id="costDieselGeneratorGalPerHour" type="number" step="0.01"></label>
           <label>Fuel Price / Gallon<input id="costFuelPricePerGallon" type="number" step="0.01"></label>
           <label>Shop Start / End Address<input id="costShopAddress"></label>
           <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
@@ -3122,7 +3122,7 @@
     bigRigUnits: '106,118,119',
     smallTruckUnits: '102,107,117,203',
     smallEngineGalPerHour: 0.8,
-    dieselGeneratorGalPerMinute: 3,
+    dieselGeneratorGalPerHour: 3,
     fuelPricePerGallon: 3.5,
     fuelAllocationMethod: 'report-route-miles',
     updatedBy: '',
@@ -3632,9 +3632,12 @@ const differencePercent =
       'bigRigMpg',
       'smallTruckMpg',
       'smallEngineGalPerHour',
-      'dieselGeneratorGalPerMinute',
+      'dieselGeneratorGalPerHour',
       'fuelPricePerGallon'
     ].forEach(key => {
+      if (key === 'dieselGeneratorGalPerHour' && typeof merged[key] === 'undefined' && typeof value.dieselGeneratorGalPerMinute !== 'undefined') {
+        merged[key] = value.dieselGeneratorGalPerMinute;
+      }
       const number = Number(merged[key]);
       merged[key] = Number.isFinite(number) ? number : DEFAULT_COST_SETTINGS[key];
     });
@@ -3691,7 +3694,7 @@ const differencePercent =
       costBigRigUnits: costSettings.bigRigUnits,
       costSmallTruckUnits: costSettings.smallTruckUnits,
       costSmallEngineGalPerHour: costSettings.smallEngineGalPerHour,
-      costDieselGeneratorGalPerMinute: costSettings.dieselGeneratorGalPerMinute,
+      costDieselGeneratorGalPerHour: costSettings.dieselGeneratorGalPerHour,
       costFuelPricePerGallon: costSettings.fuelPricePerGallon,
       costShopAddress: costSettings.shopAddress
     };
@@ -3717,7 +3720,7 @@ const differencePercent =
       bigRigUnits: document.getElementById('costBigRigUnits')?.value?.trim() || DEFAULT_COST_SETTINGS.bigRigUnits,
       smallTruckUnits: document.getElementById('costSmallTruckUnits')?.value?.trim() || DEFAULT_COST_SETTINGS.smallTruckUnits,
       smallEngineGalPerHour: document.getElementById('costSmallEngineGalPerHour')?.value,
-      dieselGeneratorGalPerMinute: document.getElementById('costDieselGeneratorGalPerMinute')?.value,
+      dieselGeneratorGalPerHour: document.getElementById('costDieselGeneratorGalPerHour')?.value,
       fuelPricePerGallon: document.getElementById('costFuelPricePerGallon')?.value,
       shopAddress: document.getElementById('costShopAddress')?.value?.trim() || DEFAULT_COST_SETTINGS.shopAddress,
       changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
@@ -3876,7 +3879,7 @@ const differencePercent =
     const smallEngineHours = Number(report.smallEngineHours || 0);
     const smallEngineGallons = Number.isFinite(smallEngineHours) && smallEngineHours > 0 ? smallEngineHours * Number(settings.smallEngineGalPerHour || 0) : 0;
     const generatorHours = parseRunTimeHours(report.generatorRunTime);
-    const generatorGallons = generatorHours > 0 ? (generatorHours * 60) * Number(settings.dieselGeneratorGalPerMinute || 0) : 0;
+    const generatorGallons = generatorHours > 0 ? generatorHours * Number(settings.dieselGeneratorGalPerHour || 0) : 0;
     const fuelGallons = vehicleFuelGallons + smallEngineGallons + generatorGallons;
     const fuelCost = fuelGallons > 0 && fuelPrice > 0 ? fuelGallons * fuelPrice : 0;
     const overheadCost = revenue * (Number(settings.overheadPercentOfRevenue || 0) / 100);
@@ -5027,7 +5030,7 @@ const differencePercent =
       'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
       'Billable Lb Revenue', 'Joint Grinding LF', 'Joint Grinding Rate', 'Joint Grinding Revenue',
       'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
-      'Margin %', 'Fuel Gallons', 'MPG Used', 'Route Miles', 'Small Engine Hours', 'Generator Runtime',
+      'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles', 'Small Engine Hours', 'Generator Runtime',
       'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
     ];
     const rows = docs.map(report => {
@@ -5056,6 +5059,9 @@ const differencePercent =
         fmtNumber(pnl.profit, 2),
         fmtNumber(pnl.margin, 2),
         fmtNumber(pnl.fuelGallons, 2),
+        fmtNumber(pnl.vehicleFuelGallons, 2),
+        fmtNumber(pnl.smallEngineGallons, 2),
+        fmtNumber(pnl.generatorGallons, 2),
         fmtNumber(pnl.mpg, 1),
         fmtNumber(pnl.routeMiles, 1),
         fmtNumber(report.smallEngineHours || 0, 2),
@@ -8141,6 +8147,9 @@ function loadFleetGPS() {
           ${metricBox('Disposables', formatMoney(pnl.disposablesCost))}
           ${metricBox('Overhead', formatMoney(pnl.overheadCost))}
           ${metricBox('Fuel Gallons', fmtNumber(pnl.fuelGallons, 2))}
+          ${metricBox('Vehicle Fuel Gal', fmtNumber(pnl.vehicleFuelGallons, 2))}
+          ${metricBox('Small Engine Fuel Gal', fmtNumber(pnl.smallEngineGallons, 2))}
+          ${metricBox('Generator Fuel Gal', fmtNumber(pnl.generatorGallons, 2))}
           ${metricBox('MPG Used', fmtNumber(pnl.mpg, 1))}
           ${metricBox('Route Miles', fmtNumber(pnl.routeMiles, 1))}
           ${metricBox('Direct Costs', formatMoney(pnl.directCost))}
