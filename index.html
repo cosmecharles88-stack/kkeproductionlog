@@ -2018,6 +2018,7 @@
               <option value="Deck">Deck</option>
               <option value="Patio">Patio</option>
               <option value="Sport Court">Sport Court</option>
+              <option value="Joint Grinding">Joint Grinding</option>
               <option value="Other">Other</option>
             </select>
             <div class="helper-text">Use Street for road-profile jobs. Use dimensions below for patios, driveways, pool decks, sport courts, and other flat work.</div>
@@ -2090,6 +2091,7 @@
           <label>B Lbs Start <span class="required">*</span><input name="bMeterStart" id="bMeterStart" type="number" step="0.01" value="0" required></label>
           <label>B Lbs Finish <span class="required">*</span><input name="bMeterFinish" id="bMeterFinish" type="number" step="0.01" required></label>
           <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
+          <label>Joint Grinding LF <input name="jointGrindingLinearFeet" id="jointGrindingLinearFeet" type="number" step="0.01" min="0" placeholder="0"></label>
           <label>Lift Height <input name="lift" placeholder="e.g. 1.5 in"></label>
           <label class="span-2">Gen Run Time <input name="generatorRunTime"></label>
         </div>
@@ -2305,7 +2307,14 @@
           <label>Chemical Cost / Pumped Lb<input id="costChemicalPerLb" type="number" step="0.01"></label>
           <label>Disposables / Pumped Lb<input id="costDisposablesPerLb" type="number" step="0.01"></label>
           <label>Overhead % of Revenue<input id="costOverheadPercent" type="number" step="0.01"></label>
+          <label>Joint Grinding $ / LF<input id="costJointGrindingRatePerLinearFoot" type="number" step="0.01"></label>
           <label>Default MPG<input id="costDefaultMpg" type="number" step="0.1"></label>
+          <label>Big Rig MPG<input id="costBigRigMpg" type="number" step="0.1"></label>
+          <label>Small Truck MPG<input id="costSmallTruckMpg" type="number" step="0.1"></label>
+          <label>Big Rig Units<input id="costBigRigUnits" placeholder="Example: 106,118,119"></label>
+          <label>Small Truck Units<input id="costSmallTruckUnits" placeholder="Example: 102,107,203"></label>
+          <label>Small Engine Gal / Hour<input id="costSmallEngineGalPerHour" type="number" step="0.01"></label>
+          <label>Diesel Generator Gal / Minute<input id="costDieselGeneratorGalPerMinute" type="number" step="0.01"></label>
           <label>Fuel Price / Gallon<input id="costFuelPricePerGallon" type="number" step="0.01"></label>
           <label>Shop Start / End Address<input id="costShopAddress"></label>
           <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
@@ -2850,6 +2859,7 @@
               <option value="Deck">Deck</option>
               <option value="Patio">Patio</option>
               <option value="Sport Court">Sport Court</option>
+              <option value="Joint Grinding">Joint Grinding</option>
               <option value="Other">Other</option>
             </select>
           <label>Injection Type
@@ -2870,6 +2880,7 @@
           <label>Clicks<input id="editClicks" type="number" step="1"></label>
           <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
           <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
+          <label>Joint Grinding LF<input id="editJointGrindingLinearFeet" type="number" step="0.01"></label>
           <label>Billable Lbs<input id="editBillableLbs" type="number" step="0.01"></label>
           <label>Billing Rate<input id="editBillingRate" type="number" step="0.01"></label>
           <label>Superintendent Count<input id="editSuperintendentCount" type="number" step="1"></label>
@@ -2877,6 +2888,7 @@
           <label>Route Miles<input id="editRouteMiles" type="number" step="0.1"></label>
           <label>Unit MPG<input id="editUnitMpg" type="number" step="0.1"></label>
           <label>Fuel Price / Gal<input id="editFuelPricePerGallon" type="number" step="0.01"></label>
+          <label>Small Engine Hours<input id="editSmallEngineHours" type="number" step="0.1"></label>
           <label>GPS Latitude<input id="editGpsLatitude" type="number" step="0.000001"></label>
           <label>GPS Longitude<input id="editGpsLongitude" type="number" step="0.000001"></label>
           <label>Approval Status
@@ -3101,8 +3113,15 @@
     chemicalCostPerLb: 2.31,
     disposablesCostPerLb: 0.47,
     overheadPercentOfRevenue: 20,
+    jointGrindingRatePerLinearFoot: 9,
     shopAddress: '1900 S Main St, Grapevine, TX 76051',
-    defaultMpg: 9,
+    defaultMpg: 12,
+    bigRigMpg: 8,
+    smallTruckMpg: 12,
+    bigRigUnits: '106,118,119',
+    smallTruckUnits: '102,107,117,203',
+    smallEngineGalPerHour: 0.8,
+    dieselGeneratorGalPerMinute: 3,
     fuelPricePerGallon: 3.5,
     fuelAllocationMethod: 'report-route-miles',
     updatedBy: '',
@@ -3441,6 +3460,9 @@ document.addEventListener("change", (e) => {
       "patio": "Patio",
       "sport court": "Sport Court",
       "sports court": "Sport Court",
+      "joint grinding": "Joint Grinding",
+      "joint grind": "Joint Grinding",
+      "grinding": "Joint Grinding",
       "other": "Other"
     };
 
@@ -3604,13 +3626,20 @@ const differencePercent =
       'chemicalCostPerLb',
       'disposablesCostPerLb',
       'overheadPercentOfRevenue',
+      'jointGrindingRatePerLinearFoot',
       'defaultMpg',
+      'bigRigMpg',
+      'smallTruckMpg',
+      'smallEngineGalPerHour',
+      'dieselGeneratorGalPerMinute',
       'fuelPricePerGallon'
     ].forEach(key => {
       const number = Number(merged[key]);
       merged[key] = Number.isFinite(number) ? number : DEFAULT_COST_SETTINGS[key];
     });
     merged.shopAddress = merged.shopAddress || DEFAULT_COST_SETTINGS.shopAddress;
+    merged.bigRigUnits = merged.bigRigUnits || DEFAULT_COST_SETTINGS.bigRigUnits;
+    merged.smallTruckUnits = merged.smallTruckUnits || DEFAULT_COST_SETTINGS.smallTruckUnits;
     return merged;
   }
 
@@ -3654,7 +3683,14 @@ const differencePercent =
       costChemicalPerLb: costSettings.chemicalCostPerLb,
       costDisposablesPerLb: costSettings.disposablesCostPerLb,
       costOverheadPercent: costSettings.overheadPercentOfRevenue,
+      costJointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
       costDefaultMpg: costSettings.defaultMpg,
+      costBigRigMpg: costSettings.bigRigMpg,
+      costSmallTruckMpg: costSettings.smallTruckMpg,
+      costBigRigUnits: costSettings.bigRigUnits,
+      costSmallTruckUnits: costSettings.smallTruckUnits,
+      costSmallEngineGalPerHour: costSettings.smallEngineGalPerHour,
+      costDieselGeneratorGalPerMinute: costSettings.dieselGeneratorGalPerMinute,
       costFuelPricePerGallon: costSettings.fuelPricePerGallon,
       costShopAddress: costSettings.shopAddress
     };
@@ -3673,7 +3709,14 @@ const differencePercent =
       chemicalCostPerLb: document.getElementById('costChemicalPerLb')?.value,
       disposablesCostPerLb: document.getElementById('costDisposablesPerLb')?.value,
       overheadPercentOfRevenue: document.getElementById('costOverheadPercent')?.value,
+      jointGrindingRatePerLinearFoot: document.getElementById('costJointGrindingRatePerLinearFoot')?.value,
       defaultMpg: document.getElementById('costDefaultMpg')?.value,
+      bigRigMpg: document.getElementById('costBigRigMpg')?.value,
+      smallTruckMpg: document.getElementById('costSmallTruckMpg')?.value,
+      bigRigUnits: document.getElementById('costBigRigUnits')?.value?.trim() || DEFAULT_COST_SETTINGS.bigRigUnits,
+      smallTruckUnits: document.getElementById('costSmallTruckUnits')?.value?.trim() || DEFAULT_COST_SETTINGS.smallTruckUnits,
+      smallEngineGalPerHour: document.getElementById('costSmallEngineGalPerHour')?.value,
+      dieselGeneratorGalPerMinute: document.getElementById('costDieselGeneratorGalPerMinute')?.value,
       fuelPricePerGallon: document.getElementById('costFuelPricePerGallon')?.value,
       shopAddress: document.getElementById('costShopAddress')?.value?.trim() || DEFAULT_COST_SETTINGS.shopAddress,
       changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
@@ -3714,14 +3757,27 @@ const differencePercent =
       .filter(Boolean).length;
   }
 
+  function hasExplicitCrewCount(value) {
+    return value !== '' && value !== null && typeof value !== 'undefined' && Number.isFinite(Number(value));
+  }
+
+  function getCrewCountsForManagerEdit(report) {
+    const submittedSuperintendentCount = String(report.crewLead || '').trim() ? 1 : '';
+    const submittedTechnicianCount = countNamedTechnicians(report);
+    return {
+      superintendentCount: hasExplicitCrewCount(report.superintendentCount) ? Number(report.superintendentCount) : submittedSuperintendentCount,
+      technicianCount: hasExplicitCrewCount(report.technicianCount) ? Number(report.technicianCount) : (submittedTechnicianCount || '')
+    };
+  }
+
   function getReportCrewCounts(report, settings = costSettings) {
     const superintendentRaw = report.superintendentCount;
     const technicianRaw = report.technicianCount;
     const superintendent = Number(superintendentRaw);
     const technician = Number(technicianRaw);
     const inferredTechnicians = countNamedTechnicians(report);
-    const hasActualSuperintendent = superintendentRaw !== '' && superintendentRaw !== null && typeof superintendentRaw !== 'undefined' && Number.isFinite(superintendent) && superintendent >= 0;
-    const hasActualTechnician = technicianRaw !== '' && technicianRaw !== null && typeof technicianRaw !== 'undefined' && Number.isFinite(technician) && technician >= 0;
+    const hasActualSuperintendent = hasExplicitCrewCount(superintendentRaw) && superintendent >= 0;
+    const hasActualTechnician = hasExplicitCrewCount(technicianRaw) && technician >= 0;
     const superintendentCount = hasActualSuperintendent ? superintendent : (report.crewLead ? 1 : Number(settings.defaultSuperintendentCount || 0));
     const technicianCount = hasActualTechnician ? technician : (inferredTechnicians || Number(settings.defaultTechnicianCount || 0));
     let quality = 'Actual crew';
@@ -3742,6 +3798,58 @@ const differencePercent =
     return 1 / Math.max(1, group.length);
   }
 
+  function parseUnitList(value) {
+    return String(value || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  function getDefaultMpgForReport(report, settings = costSettings) {
+    const truck = getNormalizedTruck(report);
+    if (parseUnitList(settings.bigRigUnits).includes(truck)) return Number(settings.bigRigMpg || settings.defaultMpg || 0);
+    if (parseUnitList(settings.smallTruckUnits).includes(truck)) return Number(settings.smallTruckMpg || settings.defaultMpg || 0);
+    return Number(settings.defaultMpg || 0);
+  }
+
+  function parseRunTimeHours(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text) return 0;
+    const colon = text.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+    if (colon) return Number(colon[1]) + (Number(colon[2]) / 60);
+    const number = Number((text.match(/-?\d+(\.\d+)?/) || [])[0]);
+    if (!Number.isFinite(number) || number <= 0) return 0;
+    if (text.includes('min')) return number / 60;
+    return number;
+  }
+
+  function getJointGrindingLinearFeet(report) {
+    const feet = Number(report.jointGrindingLinearFeet || 0);
+    return Number.isFinite(feet) && feet > 0 ? feet : 0;
+  }
+
+  function calculateReportRevenue(report, settings = costSettings) {
+    const billableLbs = Number(report.billableLbs);
+    const billingRate = Number(report.billingRate);
+    const hasBillableLbRevenue = Number.isFinite(billableLbs) && billableLbs > 0 && Number.isFinite(billingRate) && billingRate > 0;
+    const billableLbRevenue = hasBillableLbRevenue ? billableLbs * billingRate : 0;
+    const jointGrindingLinearFeet = getJointGrindingLinearFeet(report);
+    const jointGrindingRate = Number(report.jointGrindingRatePerLinearFoot || settings.jointGrindingRatePerLinearFoot || 0);
+    const hasJointGrindingRevenue = jointGrindingLinearFeet > 0 && Number.isFinite(jointGrindingRate) && jointGrindingRate > 0;
+    const jointGrindingRevenue = hasJointGrindingRevenue ? jointGrindingLinearFeet * jointGrindingRate : 0;
+    return {
+      revenue: billableLbRevenue + jointGrindingRevenue,
+      billableLbs: Number.isFinite(billableLbs) ? billableLbs : 0,
+      billingRate: Number.isFinite(billingRate) ? billingRate : 0,
+      billableLbRevenue,
+      hasBillableLbRevenue,
+      jointGrindingLinearFeet,
+      jointGrindingRate: Number.isFinite(jointGrindingRate) ? jointGrindingRate : 0,
+      jointGrindingRevenue,
+      hasJointGrindingRevenue
+    };
+  }
+
   function calculateReportPnl(report, docs = allReports, settings = costSettings) {
     const group = getSameUnitDayReports(report, docs);
     const share = getJobShareOfDay(report, group);
@@ -3750,25 +3858,30 @@ const differencePercent =
       (crewCounts.technicianCount * Number(settings.technicianDayRate || 0));
     const laborCost = dailyLabor * share;
     const pumpedLbs = getReportFlowMeterPounds(report) || getReportPounds(report);
-    const billableLbs = Number(report.billableLbs);
-    const billingRate = Number(report.billingRate);
-    const hasRevenue = Number.isFinite(billableLbs) && billableLbs > 0 && Number.isFinite(billingRate) && billingRate > 0;
-    const revenue = hasRevenue ? billableLbs * billingRate : 0;
+    const revenueParts = calculateReportRevenue(report, settings);
+    const revenue = revenueParts.revenue;
+    const hasRevenue = revenue > 0;
     const chemicalCost = pumpedLbs * Number(settings.chemicalCostPerLb || 0);
     const disposablesCost = pumpedLbs * Number(settings.disposablesCostPerLb || 0);
     const routeMiles = Number(report.routeMiles ?? report.gpsMiles ?? report.gpsDistanceMiles ?? 0);
-    const mpg = Number(report.unitMpg || settings.defaultMpg || 0);
+    const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, settings) || 0);
     const fuelPrice = Number(report.fuelPricePerGallon || settings.fuelPricePerGallon || 0);
-    const fuelCost = routeMiles > 0 && mpg > 0 && fuelPrice > 0 ? (routeMiles / mpg) * fuelPrice : 0;
+    const vehicleFuelGallons = routeMiles > 0 && mpg > 0 ? routeMiles / mpg : 0;
+    const smallEngineHours = Number(report.smallEngineHours || 0);
+    const smallEngineGallons = Number.isFinite(smallEngineHours) && smallEngineHours > 0 ? smallEngineHours * Number(settings.smallEngineGalPerHour || 0) : 0;
+    const generatorHours = parseRunTimeHours(report.generatorRunTime);
+    const generatorGallons = generatorHours > 0 ? (generatorHours * 60) * Number(settings.dieselGeneratorGalPerMinute || 0) : 0;
+    const fuelGallons = vehicleFuelGallons + smallEngineGallons + generatorGallons;
+    const fuelCost = fuelGallons > 0 && fuelPrice > 0 ? fuelGallons * fuelPrice : 0;
     const overheadCost = revenue * (Number(settings.overheadPercentOfRevenue || 0) / 100);
     const directCost = laborCost + chemicalCost + fuelCost + disposablesCost;
     const totalCost = directCost + overheadCost;
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const quality = {
-      revenue: hasRevenue ? 'Revenue: Manager reviewed' : (!Number.isFinite(billableLbs) || billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate'),
+      revenue: hasRevenue ? (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed') : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
-      fuel: fuelCost > 0 ? 'Fuel: Route miles' : 'Fuel: Needs miles/MPG',
+      fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
       material: 'Materials: Pumped lbs',
       overhead: `Overhead: ${fmtNumber(settings.overheadPercentOfRevenue, 1)}% of revenue`
     };
@@ -3776,8 +3889,12 @@ const differencePercent =
     const confidence = !hasRevenue ? 'Needs review' : warningCount === 0 ? 'High confidence' : warningCount <= 2 ? 'Medium confidence' : 'Low confidence';
     return {
       revenue,
-      billableLbs: Number.isFinite(billableLbs) ? billableLbs : 0,
-      billingRate: Number.isFinite(billingRate) ? billingRate : 0,
+      billableLbs: revenueParts.billableLbs,
+      billingRate: revenueParts.billingRate,
+      billableLbRevenue: revenueParts.billableLbRevenue,
+      jointGrindingLinearFeet: revenueParts.jointGrindingLinearFeet,
+      jointGrindingRate: revenueParts.jointGrindingRate,
+      jointGrindingRevenue: revenueParts.jointGrindingRevenue,
       laborCost,
       chemicalCost,
       fuelCost,
@@ -3790,6 +3907,11 @@ const differencePercent =
       quality,
       confidence,
       routeMiles: Number.isFinite(routeMiles) ? routeMiles : 0,
+      fuelGallons,
+      vehicleFuelGallons,
+      smallEngineGallons,
+      generatorGallons,
+      mpg,
       share,
       dailyLabor
     };
@@ -3807,6 +3929,8 @@ const differencePercent =
       summary.directCost += pnl.directCost;
       summary.totalCost += pnl.totalCost;
       summary.profit += pnl.profit;
+      summary.jointGrindingLinearFeet += pnl.jointGrindingLinearFeet;
+      summary.jointGrindingRevenue += pnl.jointGrindingRevenue;
       if (pnl.revenue <= 0) summary.missingRevenue += 1;
       if (/Needs/.test(pnl.quality.fuel)) summary.missingFuel += 1;
       if (/Default|Partial/.test(pnl.quality.labor)) summary.estimatedLabor += 1;
@@ -3821,6 +3945,8 @@ const differencePercent =
       directCost: 0,
       totalCost: 0,
       profit: 0,
+      jointGrindingLinearFeet: 0,
+      jointGrindingRevenue: 0,
       missingRevenue: 0,
       missingFuel: 0,
       estimatedLabor: 0
@@ -4443,6 +4569,8 @@ const differencePercent =
       directCost: 0,
       totalCost: 0,
       profit: 0,
+      jointGrindingLinearFeet: 0,
+      jointGrindingRevenue: 0,
       missingRevenueReports: 0,
       missingFuelReports: 0,
       estimatedLaborReports: 0,
@@ -4480,6 +4608,8 @@ const differencePercent =
       summary.directCost += pnl.directCost;
       summary.totalCost += pnl.totalCost;
       summary.profit += pnl.profit;
+      summary.jointGrindingLinearFeet += pnl.jointGrindingLinearFeet;
+      summary.jointGrindingRevenue += pnl.jointGrindingRevenue;
       if (pnl.revenue <= 0) summary.missingRevenueReports += 1;
       if (/Needs/.test(pnl.quality.fuel)) summary.missingFuelReports += 1;
       if (/Default|Partial/.test(pnl.quality.labor)) summary.estimatedLaborReports += 1;
@@ -4888,8 +5018,10 @@ const differencePercent =
     const docs = filterReportsForDashboardPeriod(activeDocs);
     const headers = [
       'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
+      'Billable Lb Revenue', 'Joint Grinding LF', 'Joint Grinding Rate', 'Joint Grinding Revenue',
       'Revenue', 'Labor', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
-      'Margin %', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
+      'Margin %', 'Fuel Gallons', 'MPG Used', 'Route Miles', 'Small Engine Hours', 'Generator Runtime',
+      'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
     ];
     const rows = docs.map(report => {
       const pnl = calculateReportPnl(report, docs, costSettings);
@@ -4902,6 +5034,10 @@ const differencePercent =
         fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
         fmtNumber(pnl.billableLbs, 2),
         fmtNumber(pnl.billingRate, 2),
+        fmtNumber(pnl.billableLbRevenue, 2),
+        fmtNumber(pnl.jointGrindingLinearFeet, 2),
+        fmtNumber(pnl.jointGrindingRate, 2),
+        fmtNumber(pnl.jointGrindingRevenue, 2),
         fmtNumber(pnl.revenue, 2),
         fmtNumber(pnl.laborCost, 2),
         fmtNumber(pnl.chemicalCost, 2),
@@ -4911,6 +5047,11 @@ const differencePercent =
         fmtNumber(pnl.overheadCost, 2),
         fmtNumber(pnl.profit, 2),
         fmtNumber(pnl.margin, 2),
+        fmtNumber(pnl.fuelGallons, 2),
+        fmtNumber(pnl.mpg, 1),
+        fmtNumber(pnl.routeMiles, 1),
+        fmtNumber(report.smallEngineHours || 0, 2),
+        report.generatorRunTime || '',
         pnl.confidence,
         pnl.quality.revenue,
         pnl.quality.labor,
@@ -6204,6 +6345,11 @@ const differencePercent =
         data.aPounds = Math.max(0, aFinish - aStart);
         data.bPounds = Math.max(0, bFinish - bStart);
         data.clicks = Number(data.clicks || 0);
+        data.jointGrindingLinearFeet = Number(data.jointGrindingLinearFeet || 0);
+        data.jointGrindingRatePerLinearFoot = Number(costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
+        data.billableLbs = Number(data.billableLbs || 0);
+        data.billingRate = Number(data.billingRate || 0);
+        data.calculatedRevenue = calculateReportRevenue(data, costSettings).revenue;
         data.estimatedPounds = data.clicks * 0.6;
         data.flowMeterPounds = data.aPounds + data.bPounds;
         data.differencePounds = data.estimatedPounds - data.flowMeterPounds;
@@ -7644,12 +7790,15 @@ function loadFleetGPS() {
     patch.clicks = Number(patch.clicks || 0);
     patch.billableLbs = Number(patch.billableLbs || 0);
     patch.billingRate = Number(patch.billingRate || 0);
-    patch.calculatedRevenue = patch.billableLbs > 0 && patch.billingRate > 0 ? patch.billableLbs * patch.billingRate : 0;
+    patch.jointGrindingLinearFeet = Number(patch.jointGrindingLinearFeet || 0);
+    patch.jointGrindingRatePerLinearFoot = Number(patch.jointGrindingRatePerLinearFoot || costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
+    patch.calculatedRevenue = calculateReportRevenue(patch, costSettings).revenue;
     patch.superintendentCount = patch.superintendentCount === '' || patch.superintendentCount === null || typeof patch.superintendentCount === 'undefined' ? '' : Number(patch.superintendentCount || 0);
     patch.technicianCount = patch.technicianCount === '' || patch.technicianCount === null || typeof patch.technicianCount === 'undefined' ? '' : Number(patch.technicianCount || 0);
     patch.routeMiles = Number(patch.routeMiles || 0);
     patch.unitMpg = Number(patch.unitMpg || 0);
     patch.fuelPricePerGallon = Number(patch.fuelPricePerGallon || 0);
+    patch.smallEngineHours = Number(patch.smallEngineHours || 0);
     patch.estimatedPounds = patch.clicks * 0.6;
     patch.flowMeterPounds = patch.aPounds + patch.bPounds;
     patch.differencePounds = patch.estimatedPounds - patch.flowMeterPounds;
@@ -7708,13 +7857,16 @@ function loadFleetGPS() {
     document.getElementById('editClicks').value = report.clicks || '';
     document.getElementById('editTotalHours').value = getReportHours(report) || '';
     document.getElementById('editLinearFeet').value = report.linearFeet || '';
+    document.getElementById('editJointGrindingLinearFeet').value = report.jointGrindingLinearFeet || '';
     document.getElementById('editBillableLbs').value = report.billableLbs || '';
     document.getElementById('editBillingRate').value = report.billingRate || '';
-    document.getElementById('editSuperintendentCount').value = report.superintendentCount ?? '';
-    document.getElementById('editTechnicianCount').value = report.technicianCount ?? '';
+    const editCrewCounts = getCrewCountsForManagerEdit(report);
+    document.getElementById('editSuperintendentCount').value = editCrewCounts.superintendentCount;
+    document.getElementById('editTechnicianCount').value = editCrewCounts.technicianCount;
     document.getElementById('editRouteMiles').value = report.routeMiles || '';
     document.getElementById('editUnitMpg').value = report.unitMpg || '';
     document.getElementById('editFuelPricePerGallon').value = report.fuelPricePerGallon || '';
+    document.getElementById('editSmallEngineHours').value = report.smallEngineHours || '';
     document.getElementById('editGpsLatitude').value = report.gpsLatitude || '';
     document.getElementById('editGpsLongitude').value = report.gpsLongitude || '';
     document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
@@ -7752,6 +7904,8 @@ function loadFleetGPS() {
       clicks: document.getElementById('editClicks').value,
       totalHours: document.getElementById('editTotalHours').value,
       linearFeet: document.getElementById('editLinearFeet').value,
+      jointGrindingLinearFeet: document.getElementById('editJointGrindingLinearFeet').value,
+      jointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
       billableLbs: document.getElementById('editBillableLbs').value,
       billingRate: document.getElementById('editBillingRate').value,
       superintendentCount: document.getElementById('editSuperintendentCount').value,
@@ -7759,6 +7913,7 @@ function loadFleetGPS() {
       routeMiles: document.getElementById('editRouteMiles').value,
       unitMpg: document.getElementById('editUnitMpg').value,
       fuelPricePerGallon: document.getElementById('editFuelPricePerGallon').value,
+      smallEngineHours: document.getElementById('editSmallEngineHours').value,
       gpsLatitude: document.getElementById('editGpsLatitude').value,
       gpsLongitude: document.getElementById('editGpsLongitude').value,
       approvalStatus: document.getElementById('editApprovalStatus').value,
@@ -7960,17 +8115,23 @@ function loadFleetGPS() {
           ${metricBox('Lift Height', report.lift || '')}
           ${metricBox('Generator Run Time', report.generatorRunTime || '')}
           ${metricBox('Linear Feet', report.linearFeet || '')}
+          ${metricBox('Joint Grinding LF', fmtNumber(pnl.jointGrindingLinearFeet, 2))}
         </div>
 
         <h2>Estimated Job P&amp;L</h2>
         <p class="section-note">Management estimate using editable app settings. Overhead is ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue.</p>
         <div class="grid-3">
           ${metricBox('Revenue', formatMoney(pnl.revenue))}
+          ${metricBox('Billable Lb Revenue', formatMoney(pnl.billableLbRevenue))}
+          ${metricBox('Joint Grinding Revenue', formatMoney(pnl.jointGrindingRevenue))}
           ${metricBox('Labor', formatMoney(pnl.laborCost))}
           ${metricBox('Chemical', formatMoney(pnl.chemicalCost))}
           ${metricBox('Fuel', formatMoney(pnl.fuelCost))}
           ${metricBox('Disposables', formatMoney(pnl.disposablesCost))}
           ${metricBox('Overhead', formatMoney(pnl.overheadCost))}
+          ${metricBox('Fuel Gallons', fmtNumber(pnl.fuelGallons, 2))}
+          ${metricBox('MPG Used', fmtNumber(pnl.mpg, 1))}
+          ${metricBox('Route Miles', fmtNumber(pnl.routeMiles, 1))}
           ${metricBox('Direct Costs', formatMoney(pnl.directCost))}
           ${metricBox('Estimated Profit', formatMoney(pnl.profit))}
           ${metricBox('Estimated Margin', `${fmtNumber(pnl.margin, 1)}%`)}
