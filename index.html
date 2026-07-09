@@ -3778,10 +3778,14 @@ const differencePercent =
     const inferredTechnicians = countNamedTechnicians(report);
     const hasActualSuperintendent = hasExplicitCrewCount(superintendentRaw) && superintendent >= 0;
     const hasActualTechnician = hasExplicitCrewCount(technicianRaw) && technician >= 0;
-    const superintendentCount = hasActualSuperintendent ? superintendent : (report.crewLead ? 1 : Number(settings.defaultSuperintendentCount || 0));
+    const hasSubmittedSuperintendent = Boolean(String(report.crewLead || '').trim());
+    const hasSubmittedTechnicians = inferredTechnicians > 0;
+    const superintendentCount = hasActualSuperintendent ? superintendent : (hasSubmittedSuperintendent ? 1 : Number(settings.defaultSuperintendentCount || 0));
     const technicianCount = hasActualTechnician ? technician : (inferredTechnicians || Number(settings.defaultTechnicianCount || 0));
-    let quality = 'Actual crew';
-    if (!hasActualSuperintendent || !hasActualTechnician) quality = inferredTechnicians || report.crewLead ? 'Partial crew data' : 'Default crew used';
+    let quality = 'Manager-reviewed crew';
+    if (!hasActualSuperintendent || !hasActualTechnician) {
+      quality = hasSubmittedSuperintendent || hasSubmittedTechnicians ? 'Submitted crew' : 'Default crew used';
+    }
     return { superintendentCount, technicianCount, quality };
   }
 
