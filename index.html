@@ -2093,6 +2093,7 @@
           <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
           <label>Joint Grinding LF <input name="jointGrindingLinearFeet" id="jointGrindingLinearFeet" type="number" step="0.01" min="0" placeholder="0"></label>
           <label>Lift Height <input name="lift" placeholder="e.g. 1.5 in"></label>
+          <label>Small Engine Run Time <input name="smallEngineHours" id="smallEngineHours" type="number" step="0.1" min="0" placeholder="Hours"></label>
           <label class="span-2">Gen Run Time <input name="generatorRunTime"></label>
         </div>
       </div>
@@ -6351,6 +6352,7 @@ const differencePercent =
         data.clicks = Number(data.clicks || 0);
         data.jointGrindingLinearFeet = Number(data.jointGrindingLinearFeet || 0);
         data.jointGrindingRatePerLinearFoot = Number(costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
+        data.smallEngineHours = Number(data.smallEngineHours || 0);
         data.billableLbs = Number(data.billableLbs || 0);
         data.billingRate = Number(data.billingRate || 0);
         data.calculatedRevenue = calculateReportRevenue(data, costSettings).revenue;
@@ -8117,6 +8119,7 @@ function loadFleetGPS() {
           ${metricBox('Flux Lbs', `${fmtNumber(poundComparison.differencePounds, 0)} lbs`)}
           ${metricBox('Lbs / Hour', `${fmtNumber(efficiency, 0)} lbs/hr`)}
           ${metricBox('Lift Height', report.lift || '')}
+          ${metricBox('Small Engine Run Time', report.smallEngineHours ? `${fmtNumber(report.smallEngineHours, 1)} hr` : '')}
           ${metricBox('Generator Run Time', report.generatorRunTime || '')}
           ${metricBox('Linear Feet', report.linearFeet || '')}
           ${metricBox('Joint Grinding LF', fmtNumber(pnl.jointGrindingLinearFeet, 2))}
