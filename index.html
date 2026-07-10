@@ -5824,7 +5824,7 @@ const differencePercent =
     }
 
     list.innerHTML = files.map((file, index) => `
-      <div class="photo-file-pill">Photo ${index + 1}: ${escapeHtml(file.name)} (${fmtNumber(file.size / 1024, 0)} KB)</div>
+      <div class="photo-file-pill">Photo ${index + 1}: ${escapeHtml(file.name)} (${fmtNumber(file.size / (1024 * 1024), 1)} MB before compression)</div>
     `).join('');
   }
 
@@ -5834,24 +5834,68 @@ const differencePercent =
       .slice(0, 80);
   }
 
+  function loadImageForCompression(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Photo could not be read for compression.'));
+      };
+      image.src = url;
+    });
+  }
+
+  async function compressImageFile(file, options = {}) {
+    if (!file || !String(file.type || '').startsWith('image/')) return file;
+
+    const maxDimension = Number(options.maxDimension || 1800);
+    const quality = Number(options.quality || 0.78);
+    const image = await loadImageForCompression(file);
+    const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
+    const width = Math.max(1, Math.round((image.width || 1) * scale));
+    const height = Math.max(1, Math.round((image.height || 1) * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob || blob.size >= file.size) return file;
+
+    const baseName = safeFileName(file.name || 'photo.jpg').replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  }
+
   async function uploadReportPhotos(files, reportKey) {
     const uploaded = [];
     for (const [index, file] of files.entries()) {
-      const cleanName = safeFileName(file.name || `photo_${index + 1}.jpg`);
+      const uploadFile = await compressImageFile(file, { maxDimension: 1800, quality: 0.78 });
+      const cleanName = safeFileName(uploadFile.name || file.name || `photo_${index + 1}.jpg`);
       const path = `report-photos/${appId}/${auth.currentUser.uid}/${reportKey}/${Date.now()}_${index + 1}_${cleanName}`;
       const fileRef = storageRef(storage, path);
-      const snapshot = await uploadBytes(fileRef, file, {
-        contentType: file.type || 'image/jpeg',
+      const snapshot = await uploadBytes(fileRef, uploadFile, {
+        contentType: uploadFile.type || 'image/jpeg',
         customMetadata: {
           uploadedBy: auth.currentUser.email || '',
-          appId
+          appId,
+          originalName: file.name || '',
+          originalSize: String(file.size || 0)
         }
       });
       const url = await getDownloadURL(snapshot.ref);
       uploaded.push({
         name: file.name || cleanName,
-        type: file.type || '',
-        size: file.size || 0,
+        type: uploadFile.type || file.type || '',
+        size: uploadFile.size || 0,
+        originalSize: file.size || 0,
+        compressed: uploadFile.size < file.size,
         path,
         url,
         uploadedAt: new Date().toISOString()
