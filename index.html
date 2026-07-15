@@ -336,6 +336,61 @@
       gap: 12px;
     }
 
+    .history-item.pnl-profit {
+      border-left: 6px solid #16a34a;
+    }
+
+    .history-item.pnl-loss {
+      border-left: 6px solid #dc2626;
+    }
+
+    .history-pnl-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .history-pnl-card {
+      border: 1px solid #dbeafe;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 9px 10px;
+      min-height: 62px;
+    }
+
+    .history-pnl-label {
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 900;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .history-pnl-value {
+      margin-top: 3px;
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 900;
+      color: var(--kke-dark-blue);
+      overflow-wrap: anywhere;
+    }
+
+    .history-pnl-profit .history-pnl-value {
+      color: #15803d;
+    }
+
+    .history-pnl-loss .history-pnl-value {
+      color: #b91c1c;
+    }
+
+    .history-pnl-sub {
+      margin-top: 3px;
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 700;
+    }
+
     /* Dashboard */
     .dashboard-note {
       color: var(--gray);
@@ -1387,6 +1442,7 @@
       .chart-value { text-align: left; }
       .history-item { align-items: flex-start; flex-direction: column; }
       .history-item > div:last-child { text-align: left !important; }
+      .history-pnl-strip { grid-template-columns: 1fr 1fr; }
       .photo-gallery-nav {
         width: 44px;
         height: 54px;
@@ -6714,6 +6770,10 @@ const differencePercent =
       const injectionBadge = renderInjectionBadge(report);
       const injectionBadgeSmall = renderInjectionBadge(report, 'small');
       const pnl = calculateReportPnl(report, allReports, costSettings);
+      const isProfit = pnl.profit >= 0;
+      const pnlToneClass = isProfit ? 'pnl-profit' : 'pnl-loss';
+      const pnlValueClass = isProfit ? 'history-pnl-profit' : 'history-pnl-loss';
+      const revenuePerLb = pounds > 0 ? pnl.revenue / pounds : 0;
       const managerActions = isCurrentUserManager ? `
         <div class="history-actions">
           ${report.deleted === true ? `
@@ -6731,7 +6791,7 @@ const differencePercent =
       ` : '';
 
       return `
-        <div class="history-item ${injectionInfo.key === 'di' ? 'di-report' : injectionInfo.key === 'method' ? 'method-report' : ''}">
+        <div class="history-item ${pnlToneClass} ${injectionInfo.key === 'di' ? 'di-report' : injectionInfo.key === 'method' ? 'method-report' : ''}">
           <div style="flex:1;">
             <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">
               ${escapeHtml(getNormalizedCity(report))} - ${escapeHtml(report.address || 'No Address')}
@@ -6739,6 +6799,28 @@ const differencePercent =
             </div>
             <div style="font-size:13px; color:var(--gray); margin-top:2px;">
               ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(getNormalizedCrew(report))} | Truck: ${escapeHtml(getNormalizedTruck(report))} | Type: ${injectionBadgeSmall}
+            </div>
+            <div class="history-pnl-strip" aria-label="Estimated job P&L">
+              <div class="history-pnl-card">
+                <div class="history-pnl-label">Revenue</div>
+                <div class="history-pnl-value">${formatMoney(pnl.revenue)}</div>
+                <div class="history-pnl-sub">${pnl.revenue > 0 ? 'Known revenue' : 'Needs revenue review'}</div>
+              </div>
+              <div class="history-pnl-card ${pnlValueClass}">
+                <div class="history-pnl-label">Profit</div>
+                <div class="history-pnl-value">${formatMoney(pnl.profit)}</div>
+                <div class="history-pnl-sub">${isProfit ? 'Estimated gain' : 'Estimated loss'}</div>
+              </div>
+              <div class="history-pnl-card ${pnlValueClass}">
+                <div class="history-pnl-label">Margin</div>
+                <div class="history-pnl-value">${fmtNumber(pnl.margin, 1)}%</div>
+                <div class="history-pnl-sub">${escapeHtml(pnl.confidence)}</div>
+              </div>
+              <div class="history-pnl-card">
+                <div class="history-pnl-label">Revenue / Lb</div>
+                <div class="history-pnl-value">${formatMoney(revenuePerLb)}</div>
+                <div class="history-pnl-sub">${fmtNumber(pounds, 0)} pumped lbs</div>
+              </div>
             </div>
             <div style="font-size:12px; color:#374151; margin-top:6px;">
               <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))} | <strong>Injection:</strong> ${escapeHtml(injectionInfo.fullLabel)}
@@ -6748,10 +6830,7 @@ const differencePercent =
             ${report.liftAreaNotes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Area Notes:</strong> ${escapeHtml(report.liftAreaNotes)}</div>` : ''}
             ${renderPhotoLinks(report)}
             ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
-            <div style="font-size:12px; margin-top:8px; color:#374151;">
-              <strong>Estimated P&amp;L:</strong> Revenue ${formatMoney(pnl.revenue)} | Profit ${formatMoney(pnl.profit)} | Margin ${fmtNumber(pnl.margin, 1)}% | ${escapeHtml(pnl.confidence)}
-              <div style="margin-top:5px;">${renderQualityPills(pnl)}</div>
-            </div>
+            <div style="margin-top:8px;">${renderQualityPills(pnl)}</div>
             ${managerActions}
           </div>
           <div style="text-align:right; min-width:150px;">
