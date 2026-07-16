@@ -2148,6 +2148,7 @@
           <label>B Lbs Finish <span class="required">*</span><input name="bMeterFinish" id="bMeterFinish" type="number" step="0.01" required></label>
           <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
           <label>Joint Grinding LF <input name="jointGrindingLinearFeet" id="jointGrindingLinearFeet" type="number" step="0.01" min="0" placeholder="0"></label>
+          <label>Grind Depth <input name="jointGrindingDepth" id="jointGrindingDepth" placeholder="e.g. 1/8 in, 1/4 in, flush"></label>
           <label>Lift Height <input name="lift" placeholder="e.g. 1.5 in"></label>
           <label>Small Engine Run Time <input name="smallEngineHours" id="smallEngineHours" type="number" step="0.1" min="0" placeholder="Hours"></label>
           <label class="span-2">Gen Run Time <input name="generatorRunTime"></label>
@@ -2938,6 +2939,7 @@
           <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
           <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
           <label>Joint Grinding LF<input id="editJointGrindingLinearFeet" type="number" step="0.01"></label>
+          <label>Grind Depth<input id="editJointGrindingDepth" placeholder="e.g. 1/8 in, 1/4 in, flush"></label>
           <label>Billable Lbs<input id="editBillableLbs" type="number" step="0.01"></label>
           <label>Billing Rate<input id="editBillingRate" type="number" step="0.01"></label>
           <label class="span-2">Job Group ID<input id="editJobGroupId" placeholder="Example: garland-4406-willett"></label>
@@ -5223,7 +5225,7 @@ const differencePercent =
     const docs = filterReportsForDashboardPeriod(activeDocs);
     const headers = [
       'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Job Group ID', 'Group Day', 'Group Report Count', 'Allocation Method', 'Allocation Share %', 'Grouped Job Revenue', 'Allocated Revenue', 'Direct Report Revenue', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
-      'Billable Lb Revenue', 'Joint Grinding LF', 'Joint Grinding Rate', 'Joint Grinding Revenue',
+      'Billable Lb Revenue', 'Joint Grinding LF', 'Grind Depth', 'Joint Grinding Rate', 'Joint Grinding Revenue',
       'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
       'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles Used', 'Generated Route Miles', 'Route Miles Source', 'Small Engine Hours', 'Generator Runtime',
       'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
@@ -5249,6 +5251,7 @@ const differencePercent =
         fmtNumber(pnl.billingRate, 2),
         fmtNumber(pnl.billableLbRevenue, 2),
         fmtNumber(pnl.jointGrindingLinearFeet, 2),
+        report.jointGrindingDepth || '',
         fmtNumber(pnl.jointGrindingRate, 2),
         fmtNumber(pnl.jointGrindingRevenue, 2),
         fmtNumber(pnl.revenue, 2),
@@ -6612,6 +6615,7 @@ const differencePercent =
         data.bPounds = Math.max(0, bFinish - bStart);
         data.clicks = Number(data.clicks || 0);
         data.jointGrindingLinearFeet = Number(data.jointGrindingLinearFeet || 0);
+        data.jointGrindingDepth = String(data.jointGrindingDepth || '').trim();
         data.jointGrindingRatePerLinearFoot = Number(costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
         data.smallEngineHours = Number(data.smallEngineHours || 0);
         data.billableLbs = Number(data.billableLbs || 0);
@@ -6849,6 +6853,7 @@ const differencePercent =
           report.workAreaOther,
           report.workAreaDisplay,
           report.liftAreaNotes,
+          report.jointGrindingDepth,
           report.jobGroupId,
           report.injectionType,
           getInjectionInfo(report).fullLabel,
@@ -8091,6 +8096,7 @@ function loadFleetGPS() {
     patch.billableLbs = Number(patch.billableLbs || 0);
     patch.billingRate = Number(patch.billingRate || 0);
     patch.jointGrindingLinearFeet = Number(patch.jointGrindingLinearFeet || 0);
+    patch.jointGrindingDepth = String(patch.jointGrindingDepth || '').trim();
     patch.jointGrindingRatePerLinearFoot = Number(patch.jointGrindingRatePerLinearFoot || costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
     patch.jobGroupId = String(patch.jobGroupId || '').trim();
     patch.revenueAllocationMethod = ['laborHours', 'pumpedLbs', 'evenly', 'allOnThisReport'].includes(patch.revenueAllocationMethod) ? patch.revenueAllocationMethod : 'laborHours';
@@ -8163,6 +8169,7 @@ function loadFleetGPS() {
     document.getElementById('editTotalHours').value = getReportHours(report) || '';
     document.getElementById('editLinearFeet').value = report.linearFeet || '';
     document.getElementById('editJointGrindingLinearFeet').value = report.jointGrindingLinearFeet || '';
+    document.getElementById('editJointGrindingDepth').value = report.jointGrindingDepth || '';
     document.getElementById('editBillableLbs').value = report.billableLbs || '';
     document.getElementById('editBillingRate').value = report.billingRate || '';
     document.getElementById('editJobGroupId').value = report.jobGroupId || getSuggestedJobGroupId(report);
@@ -8213,6 +8220,7 @@ function loadFleetGPS() {
       totalHours: document.getElementById('editTotalHours').value,
       linearFeet: document.getElementById('editLinearFeet').value,
       jointGrindingLinearFeet: document.getElementById('editJointGrindingLinearFeet').value,
+      jointGrindingDepth: document.getElementById('editJointGrindingDepth').value,
       jointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
       billableLbs: document.getElementById('editBillableLbs').value,
       billingRate: document.getElementById('editBillingRate').value,
@@ -8439,6 +8447,7 @@ function loadFleetGPS() {
           ${metricBox('Generator Run Time', report.generatorRunTime || '')}
           ${metricBox('Linear Feet', report.linearFeet || '')}
           ${metricBox('Joint Grinding LF', fmtNumber(pnl.jointGrindingLinearFeet, 2))}
+          ${metricBox('Grind Depth', report.jointGrindingDepth || '')}
         </div>
 
         <h2>Estimated Job P&amp;L</h2>
