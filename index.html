@@ -2954,9 +2954,9 @@
           </label>
           <label>Superintendent Count<input id="editSuperintendentCount" type="number" step="1"></label>
           <label>Technician Count<input id="editTechnicianCount" type="number" step="1"></label>
-          <label>Route Miles<input id="editRouteMiles" type="number" step="0.1"></label>
-          <label>Unit MPG<input id="editUnitMpg" type="number" step="0.1"></label>
-          <label>Fuel Price / Gal<input id="editFuelPricePerGallon" type="number" step="0.01"></label>
+          <label>Route Miles Override<input id="editRouteMiles" type="number" step="0.1" placeholder="Auto if blank"></label>
+          <label>Unit MPG Override<input id="editUnitMpg" type="number" step="0.1" placeholder="Auto by truck"></label>
+          <label>Fuel Price Override<input id="editFuelPricePerGallon" type="number" step="0.01" placeholder="Auto from settings"></label>
           <label>Small Engine Hours<input id="editSmallEngineHours" type="number" step="0.1"></label>
           <label>GPS Latitude<input id="editGpsLatitude" type="number" step="0.000001"></label>
           <label>GPS Longitude<input id="editGpsLongitude" type="number" step="0.000001"></label>
@@ -3888,6 +3888,43 @@ const differencePercent =
     return Number(settings.defaultMpg || 0);
   }
 
+  function getReportRouteMiles(report) {
+    const overrideMiles = Number(report.routeMiles || 0);
+    if (Number.isFinite(overrideMiles) && overrideMiles > 0) return overrideMiles;
+    const generatedMiles = Number(report.routeMilesGenerated || report.appRouteMiles || 0);
+    if (Number.isFinite(generatedMiles) && generatedMiles > 0) return generatedMiles;
+    const gpsMiles = Number(report.gpsMiles ?? report.gpsDistanceMiles ?? 0);
+    return Number.isFinite(gpsMiles) && gpsMiles > 0 ? gpsMiles : 0;
+  }
+
+  async function calculateRoundTripRouteMiles(jobAddress, settings = costSettings) {
+    const destination = String(jobAddress || '').trim();
+    const shopAddress = String(settings.shopAddress || DEFAULT_COST_SETTINGS.shopAddress || '').trim();
+    if (!destination || !shopAddress || !window.google?.maps?.DirectionsService) return null;
+
+    const directionsService = new google.maps.DirectionsService();
+    const request = {
+      origin: shopAddress,
+      destination: shopAddress,
+      waypoints: [{ location: destination, stopover: true }],
+      travelMode: google.maps.TravelMode.DRIVING,
+      optimizeWaypoints: false
+    };
+
+    return new Promise(resolve => {
+      directionsService.route(request, (result, status) => {
+        if (status !== 'OK' || !result?.routes?.[0]?.legs?.length) {
+          console.warn('Route mileage calculation failed:', status);
+          resolve(null);
+          return;
+        }
+        const meters = result.routes[0].legs.reduce((sum, leg) => sum + Number(leg.distance?.value || 0), 0);
+        const miles = meters / 1609.344;
+        resolve(Number.isFinite(miles) && miles > 0 ? Number(miles.toFixed(1)) : null);
+      });
+    });
+  }
+
   function parseRunTimeHours(value) {
     const text = String(value || '').trim().toLowerCase();
     if (!text) return 0;
@@ -4020,7 +4057,7 @@ const differencePercent =
     const hasRevenue = revenue > 0;
     const chemicalCost = chemicalLbs * Number(settings.chemicalCostPerLb || 0);
     const disposablesCost = pumpedLbs * Number(settings.disposablesCostPerLb || 0);
-    const routeMiles = Number(report.routeMiles ?? report.gpsMiles ?? report.gpsDistanceMiles ?? 0);
+    const routeMiles = getReportRouteMiles(report);
     const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, settings) || 0);
     const fuelPrice = Number(report.fuelPricePerGallon || settings.fuelPricePerGallon || 0);
     const vehicleFuelGallons = routeMiles > 0 && mpg > 0 ? routeMiles / mpg : 0;
@@ -5188,7 +5225,7 @@ const differencePercent =
       'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Job Group ID', 'Group Day', 'Group Report Count', 'Allocation Method', 'Allocation Share %', 'Grouped Job Revenue', 'Allocated Revenue', 'Direct Report Revenue', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
       'Billable Lb Revenue', 'Joint Grinding LF', 'Joint Grinding Rate', 'Joint Grinding Revenue',
       'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
-      'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles', 'Small Engine Hours', 'Generator Runtime',
+      'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles Used', 'Generated Route Miles', 'Route Miles Source', 'Small Engine Hours', 'Generator Runtime',
       'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
     ];
     const rows = docs.map(report => {
@@ -5230,6 +5267,8 @@ const differencePercent =
         fmtNumber(pnl.generatorGallons, 2),
         fmtNumber(pnl.mpg, 1),
         fmtNumber(pnl.routeMiles, 1),
+        fmtNumber(report.routeMilesGenerated || 0, 1),
+        report.routeMilesSource || '',
         fmtNumber(report.smallEngineHours || 0, 2),
         report.generatorRunTime || '',
         pnl.confidence,
@@ -6560,6 +6599,9 @@ const differencePercent =
         data.addressLatitude = data.addressLatitude || "";
         data.addressLongitude = data.addressLongitude || "";
         data.googlePlaceId = data.googlePlaceId || "";
+        data.routeMilesGenerated = await calculateRoundTripRouteMiles(data.address, costSettings) || 0;
+        data.routeMilesSource = data.routeMilesGenerated > 0 ? 'Google route: shop-job-shop' : 'Not calculated';
+        data.routeMiles = data.routeMiles || "";
 
         const aStart = Number(data.aMeterStart || 0);
         const aFinish = Number(data.aMeterFinish || 0);
@@ -8057,6 +8099,8 @@ function loadFleetGPS() {
     patch.superintendentCount = patch.superintendentCount === '' || patch.superintendentCount === null || typeof patch.superintendentCount === 'undefined' ? '' : Number(patch.superintendentCount || 0);
     patch.technicianCount = patch.technicianCount === '' || patch.technicianCount === null || typeof patch.technicianCount === 'undefined' ? '' : Number(patch.technicianCount || 0);
     patch.routeMiles = Number(patch.routeMiles || 0);
+    patch.routeMilesGenerated = Number(patch.routeMilesGenerated || 0);
+    patch.routeMilesSource = patch.routeMilesSource || '';
     patch.unitMpg = Number(patch.unitMpg || 0);
     patch.fuelPricePerGallon = Number(patch.fuelPricePerGallon || 0);
     patch.smallEngineHours = Number(patch.smallEngineHours || 0);
@@ -8149,7 +8193,7 @@ function loadFleetGPS() {
   async function saveEditedReport() {
     if (!isCurrentUserManager || !currentEditReport) return showMessage('Manager access required.', 'error');
     const docId = document.getElementById('editDocId').value;
-    const patch = recalcReportFields({
+    const editPatchInput = {
       date: document.getElementById('editDate').value,
       city: document.getElementById('editCity').value.trim(),
       truckNumber: document.getElementById('editTruckNumber').value.trim(),
@@ -8188,7 +8232,18 @@ function loadFleetGPS() {
       notes: document.getElementById('editNotes').value.trim(),
       lastModifiedAt: serverTimestamp(),
       lastModifiedBy: auth.currentUser.email
-    });
+    };
+
+    if (!Number(editPatchInput.routeMiles || 0)) {
+      const generatedRouteMiles = await calculateRoundTripRouteMiles(editPatchInput.address, costSettings);
+      editPatchInput.routeMilesGenerated = generatedRouteMiles || currentEditReport.routeMilesGenerated || 0;
+      editPatchInput.routeMilesSource = generatedRouteMiles ? 'Google route: shop-job-shop' : (currentEditReport.routeMilesSource || 'Not calculated');
+    } else {
+      editPatchInput.routeMilesGenerated = currentEditReport.routeMilesGenerated || 0;
+      editPatchInput.routeMilesSource = currentEditReport.routeMilesSource || '';
+    }
+
+    const patch = recalcReportFields(editPatchInput);
 
     const initials = document.getElementById('editManagerInitials').value.trim();
     const auditNote = initials ? `Edited by manager initials: ${initials}` : 'Manager edited report fields.';
@@ -8411,6 +8466,8 @@ function loadFleetGPS() {
           ${metricBox('Generator Fuel Gal', fmtNumber(pnl.generatorGallons, 2))}
           ${metricBox('MPG Used', fmtNumber(pnl.mpg, 1))}
           ${metricBox('Route Miles', fmtNumber(pnl.routeMiles, 1))}
+          ${metricBox('Generated Route Miles', report.routeMilesGenerated ? `${fmtNumber(report.routeMilesGenerated, 1)} mi` : '')}
+          ${metricBox('Route Miles Source', report.routeMilesSource || '')}
           ${metricBox('Direct Costs', formatMoney(pnl.directCost))}
           ${metricBox('Estimated Profit', formatMoney(pnl.profit))}
           ${metricBox('Estimated Margin', `${fmtNumber(pnl.margin, 1)}%`)}
