@@ -2940,6 +2940,18 @@
           <label>Joint Grinding LF<input id="editJointGrindingLinearFeet" type="number" step="0.01"></label>
           <label>Billable Lbs<input id="editBillableLbs" type="number" step="0.01"></label>
           <label>Billing Rate<input id="editBillingRate" type="number" step="0.01"></label>
+          <label class="span-2">Job Group ID<input id="editJobGroupId" placeholder="Example: garland-4406-willett"></label>
+          <label>Revenue Allocation
+            <select id="editRevenueAllocationMethod">
+              <option value="laborHours">By labor hours</option>
+              <option value="pumpedLbs">By pumped lbs</option>
+              <option value="evenly">Evenly by report</option>
+              <option value="allOnThisReport">All on this report</option>
+            </select>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; padding-top:20px;">
+            <input id="editFinalRevenueReport" type="checkbox" style="width:18px; height:18px; margin:0;"> Final revenue entered here
+          </label>
           <label>Superintendent Count<input id="editSuperintendentCount" type="number" step="1"></label>
           <label>Technician Count<input id="editTechnicianCount" type="number" step="1"></label>
           <label>Route Miles<input id="editRouteMiles" type="number" step="0.1"></label>
@@ -3914,6 +3926,86 @@ const differencePercent =
     };
   }
 
+  function normalizeJobGroupPart(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80);
+  }
+
+  function getSuggestedJobGroupId(report) {
+    const city = normalizeJobGroupPart(getNormalizedCity(report));
+    const address = normalizeJobGroupPart(report.address || 'no-address');
+    return [city, address].filter(Boolean).join('-') || 'job-group';
+  }
+
+  function getExplicitJobGroupId(report) {
+    return String(report?.jobGroupId || '').trim();
+  }
+
+  function getRevenueAllocationMethod(report, group = []) {
+    const allowed = ['laborHours', 'pumpedLbs', 'evenly', 'allOnThisReport'];
+    const ownMethod = String(report?.revenueAllocationMethod || '').trim();
+    if (allowed.includes(ownMethod)) return ownMethod;
+    const groupMethod = (group || []).map(item => String(item.revenueAllocationMethod || '').trim()).find(method => allowed.includes(method));
+    return groupMethod || 'laborHours';
+  }
+
+  function getRevenueJobGroup(report, docs = []) {
+    const groupId = getExplicitJobGroupId(report);
+    if (!groupId) return [report];
+    const group = (docs || []).filter(item => item.deleted !== true && getExplicitJobGroupId(item) === groupId);
+    return group.length ? group : [report];
+  }
+
+  function getAllocationBasis(report, method) {
+    if (method === 'pumpedLbs') return getReportPounds(report);
+    if (method === 'evenly') return 1;
+    return getReportHours(report);
+  }
+
+  function formatRevenueAllocationMethod(method) {
+    const labels = {
+      laborHours: 'by labor hours',
+      pumpedLbs: 'by pumped lbs',
+      evenly: 'evenly by report',
+      allOnThisReport: 'all on this report'
+    };
+    return labels[method] || labels.laborHours;
+  }
+
+  function getAllocatedRevenueParts(report, docs = allReports, settings = costSettings) {
+    const direct = calculateReportRevenue(report, settings);
+    const group = getRevenueJobGroup(report, docs);
+    const method = getRevenueAllocationMethod(report, group);
+    const groupId = getExplicitJobGroupId(report);
+    const groupRevenue = group.reduce((sum, item) => sum + calculateReportRevenue(item, settings).revenue, 0);
+    const totalBasis = group.reduce((sum, item) => sum + getAllocationBasis(item, method), 0);
+    const basis = getAllocationBasis(report, method);
+    const share = method === 'allOnThisReport'
+      ? (direct.revenue > 0 ? 1 : 0)
+      : (totalBasis > 0 ? basis / totalBasis : 1 / Math.max(1, group.length));
+    const allocatedRevenue = groupId && group.length > 1 && method !== 'allOnThisReport'
+      ? groupRevenue * share
+      : direct.revenue;
+
+    return {
+      ...direct,
+      revenue: allocatedRevenue,
+      directRevenue: direct.revenue,
+      allocatedRevenue,
+      groupRevenue,
+      groupId,
+      groupSize: group.length,
+      groupIndex: group.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).findIndex(item => item.id === report.id) + 1,
+      allocationMethod: method,
+      allocationShare: share,
+      isGroupedRevenue: Boolean(groupId && group.length > 1),
+      revenueSourceCount: group.filter(item => calculateReportRevenue(item, settings).revenue > 0).length
+    };
+  }
+
   function calculateReportPnl(report, docs = allReports, settings = costSettings) {
     const group = getSameUnitDayReports(report, docs);
     const share = getJobShareOfDay(report, group);
@@ -3923,7 +4015,7 @@ const differencePercent =
     const laborCost = dailyLabor * share;
     const pumpedLbs = getReportFlowMeterPounds(report) || getReportPounds(report);
     const chemicalLbs = getReportPounds(report);
-    const revenueParts = calculateReportRevenue(report, settings);
+    const revenueParts = getAllocatedRevenueParts(report, docs, settings);
     const revenue = revenueParts.revenue;
     const hasRevenue = revenue > 0;
     const chemicalCost = chemicalLbs * Number(settings.chemicalCostPerLb || 0);
@@ -3944,7 +4036,7 @@ const differencePercent =
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const quality = {
-      revenue: hasRevenue ? (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed') : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
+      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
       material: 'Materials: Chemical from clicks',
@@ -3954,6 +4046,16 @@ const differencePercent =
     const confidence = !hasRevenue ? 'Needs review' : warningCount === 0 ? 'High confidence' : warningCount <= 2 ? 'Medium confidence' : 'Low confidence';
     return {
       revenue,
+      directRevenue: revenueParts.directRevenue,
+      groupRevenue: revenueParts.groupRevenue,
+      allocatedRevenue: revenueParts.allocatedRevenue,
+      groupId: revenueParts.groupId,
+      groupSize: revenueParts.groupSize,
+      groupIndex: revenueParts.groupIndex,
+      allocationMethod: revenueParts.allocationMethod,
+      allocationShare: revenueParts.allocationShare,
+      isGroupedRevenue: revenueParts.isGroupedRevenue,
+      revenueSourceCount: revenueParts.revenueSourceCount,
       billableLbs: revenueParts.billableLbs,
       billingRate: revenueParts.billingRate,
       billableLbRevenue: revenueParts.billableLbRevenue,
@@ -5083,7 +5185,7 @@ const differencePercent =
     const activeDocs = activeReportsOnly(dashboardReports || []);
     const docs = filterReportsForDashboardPeriod(activeDocs);
     const headers = [
-      'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
+      'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Job Group ID', 'Group Day', 'Group Report Count', 'Allocation Method', 'Allocation Share %', 'Grouped Job Revenue', 'Allocated Revenue', 'Direct Report Revenue', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
       'Billable Lb Revenue', 'Joint Grinding LF', 'Joint Grinding Rate', 'Joint Grinding Revenue',
       'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
       'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles', 'Small Engine Hours', 'Generator Runtime',
@@ -5097,6 +5199,14 @@ const differencePercent =
         report.address || '',
         getNormalizedTruck(report),
         getNormalizedCrew(report),
+        pnl.groupId || '',
+        pnl.isGroupedRevenue ? fmtNumber(pnl.groupIndex || 1, 0) : '',
+        pnl.isGroupedRevenue ? fmtNumber(pnl.groupSize || 1, 0) : '',
+        formatRevenueAllocationMethod(pnl.allocationMethod),
+        fmtNumber((pnl.allocationShare || 0) * 100, 2),
+        fmtNumber(pnl.groupRevenue, 2),
+        fmtNumber(pnl.allocatedRevenue, 2),
+        fmtNumber(pnl.directRevenue, 2),
         fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
         fmtNumber(pnl.billableLbs, 2),
         fmtNumber(pnl.billingRate, 2),
@@ -6697,6 +6807,7 @@ const differencePercent =
           report.workAreaOther,
           report.workAreaDisplay,
           report.liftAreaNotes,
+          report.jobGroupId,
           report.injectionType,
           getInjectionInfo(report).fullLabel,
           getInjectionInfo(report).label
@@ -6774,6 +6885,14 @@ const differencePercent =
       const pnlToneClass = isProfit ? 'pnl-profit' : 'pnl-loss';
       const pnlValueClass = isProfit ? 'history-pnl-profit' : 'history-pnl-loss';
       const revenuePerLb = pounds > 0 ? pnl.revenue / pounds : 0;
+      const groupMeta = pnl.isGroupedRevenue ? `
+        <div style="font-size:12px; color:#374151; margin-top:6px;">
+          <strong>Job Group:</strong> ${escapeHtml(pnl.groupId)} |
+          <strong>Day:</strong> ${fmtNumber(pnl.groupIndex || 1, 0)} of ${fmtNumber(pnl.groupSize || 1, 0)} |
+          <strong>Grouped Job Revenue:</strong> ${formatMoney(pnl.groupRevenue)} |
+          <strong>Allocated:</strong> ${formatMoney(pnl.allocatedRevenue)} (${fmtNumber((pnl.allocationShare || 0) * 100, 1)}% ${escapeHtml(formatRevenueAllocationMethod(pnl.allocationMethod))})
+        </div>
+      ` : '';
       const managerActions = isCurrentUserManager ? `
         <div class="history-actions">
           ${report.deleted === true ? `
@@ -6804,7 +6923,7 @@ const differencePercent =
               <div class="history-pnl-card">
                 <div class="history-pnl-label">Revenue</div>
                 <div class="history-pnl-value">${formatMoney(pnl.revenue)}</div>
-                <div class="history-pnl-sub">${pnl.revenue > 0 ? 'Known revenue' : 'Needs revenue review'}</div>
+                <div class="history-pnl-sub">${pnl.isGroupedRevenue ? 'Allocated revenue' : (pnl.revenue > 0 ? 'Known revenue' : 'Needs revenue review')}</div>
               </div>
               <div class="history-pnl-card ${pnlValueClass}">
                 <div class="history-pnl-label">Profit</div>
@@ -6822,6 +6941,7 @@ const differencePercent =
                 <div class="history-pnl-sub">${fmtNumber(pounds, 0)} pumped lbs</div>
               </div>
             </div>
+            ${groupMeta}
             <div style="font-size:12px; color:#374151; margin-top:6px;">
               <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))} | <strong>Injection:</strong> ${escapeHtml(injectionInfo.fullLabel)}
               ${Number(report.liftAreaSqFt || 0) > 0 ? ` | <strong>Dimensions:</strong> ${escapeHtml(report.liftAreaLength || '')}' x ${escapeHtml(report.liftAreaWidth || '')}' (${fmtNumber(report.liftAreaSqFt, 2)} sq ft)` : ''}
@@ -7930,6 +8050,9 @@ function loadFleetGPS() {
     patch.billingRate = Number(patch.billingRate || 0);
     patch.jointGrindingLinearFeet = Number(patch.jointGrindingLinearFeet || 0);
     patch.jointGrindingRatePerLinearFoot = Number(patch.jointGrindingRatePerLinearFoot || costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
+    patch.jobGroupId = String(patch.jobGroupId || '').trim();
+    patch.revenueAllocationMethod = ['laborHours', 'pumpedLbs', 'evenly', 'allOnThisReport'].includes(patch.revenueAllocationMethod) ? patch.revenueAllocationMethod : 'laborHours';
+    patch.finalRevenueReport = Boolean(patch.finalRevenueReport);
     patch.calculatedRevenue = calculateReportRevenue(patch, costSettings).revenue;
     patch.superintendentCount = patch.superintendentCount === '' || patch.superintendentCount === null || typeof patch.superintendentCount === 'undefined' ? '' : Number(patch.superintendentCount || 0);
     patch.technicianCount = patch.technicianCount === '' || patch.technicianCount === null || typeof patch.technicianCount === 'undefined' ? '' : Number(patch.technicianCount || 0);
@@ -7998,6 +8121,9 @@ function loadFleetGPS() {
     document.getElementById('editJointGrindingLinearFeet').value = report.jointGrindingLinearFeet || '';
     document.getElementById('editBillableLbs').value = report.billableLbs || '';
     document.getElementById('editBillingRate').value = report.billingRate || '';
+    document.getElementById('editJobGroupId').value = report.jobGroupId || getSuggestedJobGroupId(report);
+    document.getElementById('editRevenueAllocationMethod').value = report.revenueAllocationMethod || 'laborHours';
+    document.getElementById('editFinalRevenueReport').checked = Boolean(report.finalRevenueReport);
     const editCrewCounts = getCrewCountsForManagerEdit(report);
     document.getElementById('editSuperintendentCount').value = editCrewCounts.superintendentCount;
     document.getElementById('editTechnicianCount').value = editCrewCounts.technicianCount;
@@ -8046,6 +8172,9 @@ function loadFleetGPS() {
       jointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
       billableLbs: document.getElementById('editBillableLbs').value,
       billingRate: document.getElementById('editBillingRate').value,
+      jobGroupId: document.getElementById('editJobGroupId').value,
+      revenueAllocationMethod: document.getElementById('editRevenueAllocationMethod').value,
+      finalRevenueReport: document.getElementById('editFinalRevenueReport').checked,
       superintendentCount: document.getElementById('editSuperintendentCount').value,
       technicianCount: document.getElementById('editTechnicianCount').value,
       routeMiles: document.getElementById('editRouteMiles').value,
@@ -8261,6 +8390,13 @@ function loadFleetGPS() {
         <p class="section-note">Management estimate using editable app settings. Overhead is ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue.</p>
         <div class="grid-3">
           ${metricBox('Revenue', formatMoney(pnl.revenue))}
+          ${metricBox('Revenue Source', pnl.isGroupedRevenue ? 'Allocated from job group' : 'Direct report revenue')}
+          ${metricBox('Job Group ID', pnl.groupId || '')}
+          ${metricBox('Group Day', pnl.isGroupedRevenue ? `${fmtNumber(pnl.groupIndex || 1, 0)} of ${fmtNumber(pnl.groupSize || 1, 0)}` : '')}
+          ${metricBox('Grouped Job Revenue', pnl.isGroupedRevenue ? formatMoney(pnl.groupRevenue) : '')}
+          ${metricBox('Allocation Method', pnl.isGroupedRevenue ? formatRevenueAllocationMethod(pnl.allocationMethod) : '')}
+          ${metricBox('Allocation Share', pnl.isGroupedRevenue ? `${fmtNumber((pnl.allocationShare || 0) * 100, 1)}%` : '')}
+          ${metricBox('Direct Report Revenue', formatMoney(pnl.directRevenue))}
           ${metricBox('Billable Lb Revenue', formatMoney(pnl.billableLbRevenue))}
           ${metricBox('Joint Grinding Revenue', formatMoney(pnl.jointGrindingRevenue))}
           ${metricBox('Labor', formatMoney(pnl.laborCost))}
