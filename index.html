@@ -462,47 +462,59 @@
     }
 
     .profit-signal-list {
-      display: grid;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .profit-signal-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: center;
-      padding: 9px 10px;
-      border: 1px solid #e5e7eb;
+      margin-top: 8px;
+      overflow-x: auto;
+      border: 1px solid #dbeafe;
       border-radius: 10px;
       background: #fff;
     }
 
-    .profit-signal-name {
+    .profit-signal-table {
+      width: 100%;
+      min-width: 620px;
+      border-collapse: collapse;
+    }
+
+    .profit-signal-table th {
+      background: #f8fbff;
+      color: var(--kke-dark-blue);
+      border-bottom: 1px solid #dbeafe;
+      padding: 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      text-align: left;
+    }
+
+    .profit-signal-table td {
+      border-bottom: 1px solid #eef2ff;
+      padding: 8px;
+      font-size: 12px;
+      vertical-align: top;
+    }
+
+    .profit-signal-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .profit-signal-job {
+      max-width: 260px;
       font-weight: 900;
       color: var(--kke-dark-blue);
       overflow-wrap: anywhere;
     }
 
-    .profit-signal-meta {
-      color: #64748b;
-      font-size: 11px;
-      font-weight: 700;
-      margin-top: 2px;
-    }
-
-    .profit-signal-amount {
-      font-weight: 900;
+    .profit-signal-number {
       text-align: right;
-      color: #15803d;
       white-space: nowrap;
+      font-weight: 900;
+      color: #15803d;
     }
 
-    .profit-signal-amount.loss {
+    .profit-signal-number.loss {
       color: #b91c1c;
     }
 
-    .profit-signal-amount.warn {
+    .profit-signal-number.warn {
       color: #b45309;
     }
 
@@ -2033,8 +2045,6 @@
       .dashboard-filter-row { grid-template-columns: 1fr; }
       .dashboard-range-pill { border-radius: 12px; }
       .profit-signals-grid { grid-template-columns: 1fr; }
-      .profit-signal-row { grid-template-columns: 1fr; }
-      .profit-signal-amount { text-align: left; }
       .mom-grid { grid-template-columns: 1fr 1fr; }
       .fleet-summary-grid { grid-template-columns: 1fr 1fr; }
       #fleetGPS .fleet-command-topbar { grid-template-columns: 1fr; }
@@ -5357,24 +5367,47 @@ const differencePercent =
     return (flags || []).map(flag => `<span class="profit-watch-tag ${escapeHtml(flag.tone || '')}">${escapeHtml(flag.label)}</span>`).join('');
   }
 
-  function renderProfitSignalRows(rows, amountFormatter, emptyText = 'No matching profit signals.') {
+  function getProfitNumberClass(value, margin = 100) {
+    if (Number(value || 0) < 0) return ' loss';
+    if (Number(margin || 0) < 30) return ' warn';
+    return '';
+  }
+
+  function renderProfitSignalTable(rows, emptyText = 'No matching profit signals.') {
     if (!rows || !rows.length) return `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
-    return rows.map(row => {
-      const pnl = row.pnl || row;
-      const amount = amountFormatter(row);
-      const lossClass = Number(pnl.profit || row.profit || 0) < 0 ? ' loss' : Number(pnl.margin || row.margin || 0) < 30 ? ' warn' : '';
-      const flags = row.flags ? renderProfitSignalTags(row.flags) : '';
-      return `
-        <div class="profit-signal-row">
-          <div>
-            <div class="profit-signal-name">${escapeHtml(row.name)}</div>
-            <div class="profit-signal-meta">${escapeHtml(row.meta || '')}</div>
-            ${flags ? `<div>${flags}</div>` : ''}
-          </div>
-          <div class="profit-signal-amount${lossClass}">${escapeHtml(amount)}</div>
-        </div>
-      `;
-    }).join('');
+    return `
+      <table class="profit-signal-table">
+        <thead>
+          <tr>
+            <th>Job / Group</th>
+            <th style="text-align:right;">Profit</th>
+            <th style="text-align:right;">Margin</th>
+            <th style="text-align:right;">Rev/Lb</th>
+            <th>Flags</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => {
+            const pnl = row.pnl || row;
+            const revenueReady = row.revenueReady !== false && Number(pnl.revenue || row.revenue || 0) > 0;
+            const profit = Number(pnl.profit || row.profit || 0);
+            const margin = Number(pnl.margin || row.margin || 0);
+            const revenuePerLb = Number(row.revenuePerLb || 0);
+            const numberClass = getProfitNumberClass(profit, margin);
+            const flags = row.flags ? renderProfitSignalTags(row.flags) : '';
+            return `
+              <tr>
+                <td class="profit-signal-job">${escapeHtml(row.name)}</td>
+                <td class="profit-signal-number${numberClass}">${revenueReady ? formatMoney(profit) : 'Incomplete'}</td>
+                <td class="profit-signal-number${numberClass}">${revenueReady ? `${fmtNumber(margin, 1)}%` : '-'}</td>
+                <td class="profit-signal-number">${revenueReady ? formatMoney(revenuePerLb) : '-'}</td>
+                <td>${flags || '<span class="profit-watch-tag good">Clear</span>'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   function renderDashboardProfitSignals(docs) {
@@ -5406,25 +5439,20 @@ const differencePercent =
 
     const topBox = document.getElementById('profitTopMakers');
     if (topBox) {
-      topBox.innerHTML = renderProfitSignalRows(
+      topBox.innerHTML = renderProfitSignalTable(
         signals.topProfitJobs.map(row => ({
           ...row,
-          meta: `Margin ${fmtNumber(row.pnl.margin, 1)}% | Revenue/Lb ${formatMoney(row.revenuePerLb)}`
-        })),
-        row => `${formatMoney(row.pnl.profit)}`
+          flags: row.flags?.length ? row.flags : [{ label: 'Money Maker', tone: 'good' }]
+        }))
       );
     }
 
     const watchBox = document.getElementById('profitWatchlist');
     if (watchBox) {
-      watchBox.innerHTML = renderProfitSignalRows(
+      watchBox.innerHTML = renderProfitSignalTable(
         signals.watchlist.map(row => ({
-          ...row,
-          meta: row.revenueReady
-            ? `Profit ${formatMoney(row.pnl.profit)} | Margin ${fmtNumber(row.pnl.margin, 1)}%`
-            : 'Revenue incomplete: not counted as a loss'
+          ...row
         })),
-        row => row.revenueReady ? `${fmtNumber(row.pnl.margin, 1)}%` : 'Incomplete',
         'No loss or margin watch items found.'
       );
     }
