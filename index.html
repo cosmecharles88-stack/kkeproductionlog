@@ -2528,6 +2528,7 @@
           <label>Diesel Generator Gal / Hour<input id="costDieselGeneratorGalPerHour" type="number" step="0.01"></label>
           <label>Fuel Price / Gallon<input id="costFuelPricePerGallon" type="number" step="0.01"></label>
           <label>Shop Start / End Address<input id="costShopAddress"></label>
+          <label>Apply Rules Starting<input id="costEffectiveDate" type="date"></label>
           <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
         </div>
         <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
@@ -3113,6 +3114,9 @@
           <label>Grind Depth<input id="editJointGrindingDepth" placeholder="e.g. 1/8 in, 1/4 in, flush"></label>
           <label>Billable Lbs<input id="editBillableLbs" type="number" step="0.01"></label>
           <label>Billing Rate<input id="editBillingRate" type="number" step="0.01"></label>
+          <label style="display:flex; align-items:center; gap:8px; padding-top:20px;">
+            <input id="editFreeChemicalUsed" type="checkbox" style="width:18px; height:18px; margin:0;"> Free chemical used
+          </label>
           <label class="span-2">Job Group ID<input id="editJobGroupId" placeholder="Example: garland-4406-willett"></label>
           <label>Revenue Allocation
             <select id="editRevenueAllocationMethod">
@@ -3366,6 +3370,8 @@
     dieselGeneratorGalPerHour: 3,
     fuelPricePerGallon: 3.5,
     fuelAllocationMethod: 'report-route-miles',
+    effectiveDate: '',
+    ruleHistory: [],
     updatedBy: '',
     updatedAt: '',
     changeNote: ''
@@ -3885,7 +3891,47 @@ const differencePercent =
     merged.shopAddress = merged.shopAddress || DEFAULT_COST_SETTINGS.shopAddress;
     merged.bigRigUnits = merged.bigRigUnits || DEFAULT_COST_SETTINGS.bigRigUnits;
     merged.smallTruckUnits = merged.smallTruckUnits || DEFAULT_COST_SETTINGS.smallTruckUnits;
+    merged.effectiveDate = normalizeDateInput(merged.effectiveDate || value.effectiveDate || '');
+    merged.ruleHistory = Array.isArray(value.ruleHistory) ? value.ruleHistory : [];
     return merged;
+  }
+
+  function normalizeDateInput(value) {
+    const text = String(value || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+    return '';
+  }
+
+  function getTodayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function getReportDateKey(report) {
+    return normalizeDateInput(report?.date || report?.createdAt || '') || getTodayKey();
+  }
+
+  function makeCostRuleVersion(settings = costSettings) {
+    const merged = mergeCostSettings(settings);
+    const version = { ...merged };
+    delete version.ruleHistory;
+    version.effectiveDate = normalizeDateInput(version.effectiveDate) || getTodayKey();
+    version.updatedBy = auth.currentUser?.email || merged.updatedBy || 'local';
+    version.updatedAt = new Date().toISOString();
+    version.changeNote = String(merged.changeNote || '').trim();
+    return version;
+  }
+
+  function getEffectiveCostSettingsForReport(report, settings = costSettings) {
+    const reportDate = getReportDateKey(report);
+    const versions = (Array.isArray(settings.ruleHistory) ? settings.ruleHistory : [])
+      .concat(settings.effectiveDate ? [makeCostRuleVersion(settings)] : [])
+      .map(item => ({ ...item, effectiveDate: normalizeDateInput(item.effectiveDate) }))
+      .filter(item => item.effectiveDate && item.effectiveDate <= reportDate)
+      .sort((a, b) => String(a.effectiveDate).localeCompare(String(b.effectiveDate)));
+    const activeVersion = versions[versions.length - 1];
+    return activeVersion ? mergeCostSettings({ ...settings, ...activeVersion, ruleHistory: settings.ruleHistory || [] }) : mergeCostSettings(settings);
   }
 
   function costSettingsRef() {
@@ -3911,7 +3957,7 @@ const differencePercent =
         costSettings = mergeCostSettings(snap.data());
         localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
         populateCostSettingsForm();
-        setText('costSettingsStatus', `Loaded shared cost settings${costSettings.updatedAt ? ` | Last updated ${costSettings.updatedAt}` : ''}.`);
+        setText('costSettingsStatus', `Loaded shared cost settings${costSettings.updatedAt ? ` | Last updated ${costSettings.updatedAt}` : ''}. Effective ${costSettings.effectiveDate || 'today'} with ${fmtNumber((costSettings.ruleHistory || []).length, 0)} rule version(s).`);
       }
     } catch (err) {
       console.warn('Shared cost settings unavailable; using local/default settings.', err);
@@ -3937,7 +3983,8 @@ const differencePercent =
       costSmallEngineGalPerHour: costSettings.smallEngineGalPerHour,
       costDieselGeneratorGalPerHour: costSettings.dieselGeneratorGalPerHour,
       costFuelPricePerGallon: costSettings.fuelPricePerGallon,
-      costShopAddress: costSettings.shopAddress
+      costShopAddress: costSettings.shopAddress,
+      costEffectiveDate: costSettings.effectiveDate || getTodayKey()
     };
     Object.entries(fields).forEach(([id, value]) => {
       const input = document.getElementById(id);
@@ -3964,6 +4011,8 @@ const differencePercent =
       dieselGeneratorGalPerHour: document.getElementById('costDieselGeneratorGalPerHour')?.value,
       fuelPricePerGallon: document.getElementById('costFuelPricePerGallon')?.value,
       shopAddress: document.getElementById('costShopAddress')?.value?.trim() || DEFAULT_COST_SETTINGS.shopAddress,
+      effectiveDate: document.getElementById('costEffectiveDate')?.value || getTodayKey(),
+      ruleHistory: costSettings.ruleHistory || [],
       changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
       updatedBy: auth.currentUser?.email || 'local',
       updatedAt: new Date().toISOString()
@@ -3972,13 +4021,20 @@ const differencePercent =
 
   async function saveCostSettings() {
     if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
-    costSettings = readCostSettingsForm();
+    const nextSettings = readCostSettingsForm();
+    const nextVersion = makeCostRuleVersion(nextSettings);
+    const existingHistory = Array.isArray(costSettings.ruleHistory) ? costSettings.ruleHistory : [];
+    const ruleHistory = existingHistory
+      .filter(item => normalizeDateInput(item.effectiveDate) !== nextVersion.effectiveDate)
+      .concat(nextVersion)
+      .sort((a, b) => String(a.effectiveDate || '').localeCompare(String(b.effectiveDate || '')));
+    costSettings = mergeCostSettings({ ...nextSettings, ruleHistory });
     localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
     populateCostSettingsForm();
     setText('costSettingsStatus', 'Saved locally. Trying to save shared settings...');
     try {
       await setDoc(costSettingsRef(), costSettings, { merge: true });
-      setText('costSettingsStatus', `Shared cost settings saved by ${costSettings.updatedBy}.`);
+      setText('costSettingsStatus', `Shared cost settings saved by ${costSettings.updatedBy}. Effective ${costSettings.effectiveDate}. ${ruleHistory.length} rule version(s) available.`);
       showMessage('Cost settings saved.');
     } catch (err) {
       console.warn(err);
@@ -3989,7 +4045,7 @@ const differencePercent =
   }
 
   function resetCostSettings() {
-    costSettings = { ...DEFAULT_COST_SETTINGS, updatedBy: auth.currentUser?.email || '', updatedAt: new Date().toISOString(), changeNote: 'Reset to defaults' };
+    costSettings = mergeCostSettings({ ...DEFAULT_COST_SETTINGS, effectiveDate: getTodayKey(), updatedBy: auth.currentUser?.email || '', updatedAt: new Date().toISOString(), changeNote: 'Reset to defaults', ruleHistory: [] });
     localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
     populateCostSettingsForm();
     renderDashboardAnalytics(dashboardReports);
@@ -4217,30 +4273,32 @@ const differencePercent =
   }
 
   function calculateReportPnl(report, docs = allReports, settings = costSettings) {
+    const activeSettings = getEffectiveCostSettingsForReport(report, settings);
     const group = getSameUnitDayReports(report, docs);
     const share = getJobShareOfDay(report, group);
-    const crewCounts = getReportCrewCounts(report, settings);
-    const dailyLabor = (crewCounts.superintendentCount * Number(settings.superintendentDayRate || 0)) +
-      (crewCounts.technicianCount * Number(settings.technicianDayRate || 0));
+    const crewCounts = getReportCrewCounts(report, activeSettings);
+    const dailyLabor = (crewCounts.superintendentCount * Number(activeSettings.superintendentDayRate || 0)) +
+      (crewCounts.technicianCount * Number(activeSettings.technicianDayRate || 0));
     const laborCost = dailyLabor * share;
     const pumpedLbs = getReportFlowMeterPounds(report) || getReportPounds(report);
     const chemicalLbs = getReportPounds(report);
-    const revenueParts = getAllocatedRevenueParts(report, docs, settings);
+    const revenueParts = getAllocatedRevenueParts(report, docs, activeSettings);
     const revenue = revenueParts.revenue;
     const hasRevenue = revenue > 0;
-    const chemicalCost = chemicalLbs * Number(settings.chemicalCostPerLb || 0);
-    const disposablesCost = pumpedLbs * Number(settings.disposablesCostPerLb || 0);
+    const freeChemicalUsed = Boolean(report.freeChemicalUsed);
+    const chemicalCost = freeChemicalUsed ? 0 : chemicalLbs * Number(activeSettings.chemicalCostPerLb || 0);
+    const disposablesCost = pumpedLbs * Number(activeSettings.disposablesCostPerLb || 0);
     const routeMiles = getReportRouteMiles(report);
-    const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, settings) || 0);
-    const fuelPrice = Number(report.fuelPricePerGallon || settings.fuelPricePerGallon || 0);
+    const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, activeSettings) || 0);
+    const fuelPrice = Number(report.fuelPricePerGallon || activeSettings.fuelPricePerGallon || 0);
     const vehicleFuelGallons = routeMiles > 0 && mpg > 0 ? routeMiles / mpg : 0;
     const smallEngineHours = Number(report.smallEngineHours || 0);
-    const smallEngineGallons = Number.isFinite(smallEngineHours) && smallEngineHours > 0 ? smallEngineHours * Number(settings.smallEngineGalPerHour || 0) : 0;
+    const smallEngineGallons = Number.isFinite(smallEngineHours) && smallEngineHours > 0 ? smallEngineHours * Number(activeSettings.smallEngineGalPerHour || 0) : 0;
     const generatorHours = parseRunTimeHours(report.generatorRunTime);
-    const generatorGallons = generatorHours > 0 ? generatorHours * Number(settings.dieselGeneratorGalPerHour || 0) : 0;
+    const generatorGallons = generatorHours > 0 ? generatorHours * Number(activeSettings.dieselGeneratorGalPerHour || 0) : 0;
     const fuelGallons = vehicleFuelGallons + smallEngineGallons + generatorGallons;
     const fuelCost = fuelGallons > 0 && fuelPrice > 0 ? fuelGallons * fuelPrice : 0;
-    const overheadCost = revenue * (Number(settings.overheadPercentOfRevenue || 0) / 100);
+    const overheadCost = revenue * (Number(activeSettings.overheadPercentOfRevenue || 0) / 100);
     const directCost = laborCost + chemicalCost + fuelCost + disposablesCost;
     const totalCost = directCost + overheadCost;
     const profit = revenue - totalCost;
@@ -4249,8 +4307,8 @@ const differencePercent =
       revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
-      material: 'Materials: Chemical from clicks',
-      overhead: `Overhead: ${fmtNumber(settings.overheadPercentOfRevenue, 1)}% of revenue`
+      material: freeChemicalUsed ? 'Materials: Free chemical used' : 'Materials: Chemical from clicks',
+      overhead: `Overhead: ${fmtNumber(activeSettings.overheadPercentOfRevenue, 1)}% of revenue`
     };
     const warningCount = Object.values(quality).filter(label => /Missing|Needs|Default|Partial/.test(label)).length;
     const confidence = !hasRevenue ? 'Needs review' : warningCount === 0 ? 'High confidence' : warningCount <= 2 ? 'Medium confidence' : 'Low confidence';
@@ -4272,6 +4330,8 @@ const differencePercent =
       jointGrindingLinearFeet: revenueParts.jointGrindingLinearFeet,
       jointGrindingRate: revenueParts.jointGrindingRate,
       jointGrindingRevenue: revenueParts.jointGrindingRevenue,
+      freeChemicalUsed,
+      chemicalRate: freeChemicalUsed ? 0 : Number(activeSettings.chemicalCostPerLb || 0),
       laborCost,
       chemicalCost,
       chemicalLbs,
@@ -4290,6 +4350,7 @@ const differencePercent =
       smallEngineGallons,
       generatorGallons,
       mpg,
+      costRuleEffectiveDate: activeSettings.effectiveDate || '',
       share,
       dailyLabor
     };
@@ -5599,9 +5660,9 @@ const differencePercent =
     const headers = [
       'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Job Group ID', 'Group Day', 'Group Report Count', 'Allocation Method', 'Allocation Share %', 'Grouped Job Revenue', 'Allocated Revenue', 'Direct Report Revenue', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
       'Billable Lb Revenue', 'Joint Grinding LF', 'Grind Depth', 'Joint Grinding Rate', 'Joint Grinding Revenue',
-      'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
+      'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Free Chemical Used', 'Chemical Rate', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
       'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles Used', 'Generated Route Miles', 'Route Miles Source', 'Small Engine Hours', 'Generator Runtime',
-      'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
+      'Cost Rule Effective Date', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
     ];
     const rows = docs.map(report => {
       const pnl = calculateReportPnl(report, docs, costSettings);
@@ -5630,6 +5691,8 @@ const differencePercent =
         fmtNumber(pnl.revenue, 2),
         fmtNumber(pnl.laborCost, 2),
         fmtNumber(pnl.chemicalLbs, 2),
+        pnl.freeChemicalUsed ? 'Yes' : 'No',
+        fmtNumber(pnl.chemicalRate, 2),
         fmtNumber(pnl.chemicalCost, 2),
         fmtNumber(pnl.fuelCost, 2),
         fmtNumber(pnl.disposablesCost, 2),
@@ -5647,6 +5710,7 @@ const differencePercent =
         report.routeMilesSource || '',
         fmtNumber(report.smallEngineHours || 0, 2),
         report.generatorRunTime || '',
+        pnl.costRuleEffectiveDate || '',
         pnl.confidence,
         pnl.quality.revenue,
         pnl.quality.labor,
@@ -8537,6 +8601,7 @@ function loadFleetGPS() {
     patch.clicks = Number(patch.clicks || 0);
     patch.billableLbs = Number(patch.billableLbs || 0);
     patch.billingRate = Number(patch.billingRate || 0);
+    patch.freeChemicalUsed = Boolean(patch.freeChemicalUsed);
     patch.jointGrindingLinearFeet = Number(patch.jointGrindingLinearFeet || 0);
     patch.jointGrindingDepth = String(patch.jointGrindingDepth || '').trim();
     patch.jointGrindingRatePerLinearFoot = Number(patch.jointGrindingRatePerLinearFoot || costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
@@ -8614,6 +8679,7 @@ function loadFleetGPS() {
     document.getElementById('editJointGrindingDepth').value = report.jointGrindingDepth || '';
     document.getElementById('editBillableLbs').value = report.billableLbs || '';
     document.getElementById('editBillingRate').value = report.billingRate || '';
+    document.getElementById('editFreeChemicalUsed').checked = Boolean(report.freeChemicalUsed);
     document.getElementById('editJobGroupId').value = report.jobGroupId || getSuggestedJobGroupId(report);
     document.getElementById('editRevenueAllocationMethod').value = report.revenueAllocationMethod || 'laborHours';
     document.getElementById('editFinalRevenueReport').checked = Boolean(report.finalRevenueReport);
@@ -8666,6 +8732,7 @@ function loadFleetGPS() {
       jointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
       billableLbs: document.getElementById('editBillableLbs').value,
       billingRate: document.getElementById('editBillingRate').value,
+      freeChemicalUsed: document.getElementById('editFreeChemicalUsed').checked,
       jobGroupId: document.getElementById('editJobGroupId').value,
       revenueAllocationMethod: document.getElementById('editRevenueAllocationMethod').value,
       finalRevenueReport: document.getElementById('editFinalRevenueReport').checked,
@@ -8907,6 +8974,8 @@ function loadFleetGPS() {
           ${metricBox('Joint Grinding Revenue', formatMoney(pnl.jointGrindingRevenue))}
           ${metricBox('Labor', formatMoney(pnl.laborCost))}
           ${metricBox('Chemical Lbs From Clicks', `${fmtNumber(pnl.chemicalLbs, 0)} lbs`)}
+          ${metricBox('Free Chemical Used', pnl.freeChemicalUsed ? 'Yes' : 'No')}
+          ${metricBox('Chemical Rate', formatMoney(pnl.chemicalRate))}
           ${metricBox('Chemical', formatMoney(pnl.chemicalCost))}
           ${metricBox('Fuel', formatMoney(pnl.fuelCost))}
           ${metricBox('Disposables', formatMoney(pnl.disposablesCost))}
@@ -8922,6 +8991,7 @@ function loadFleetGPS() {
           ${metricBox('Direct Costs', formatMoney(pnl.directCost))}
           ${metricBox('Estimated Profit', formatMoney(pnl.profit))}
           ${metricBox('Estimated Margin', `${fmtNumber(pnl.margin, 1)}%`)}
+          ${metricBox('Cost Rule Date', pnl.costRuleEffectiveDate || '')}
         </div>
         <div class="box" style="margin-top:10px;"><div class="label">Cost Quality</div><div class="value">${safe(Object.values(pnl.quality).join(' | '))} | ${safe(pnl.confidence)}</div></div>
 
