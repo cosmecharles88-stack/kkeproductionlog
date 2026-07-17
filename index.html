@@ -467,12 +467,31 @@
       border: 1px solid #dbeafe;
       border-radius: 10px;
       background: #fff;
+      max-width: 100%;
+    }
+
+    .profit-signal-table-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
+      margin-top: 14px;
+    }
+
+    .profit-signal-panel {
+      min-width: 0;
+    }
+
+    .profit-signal-panel h3 {
+      margin: 0 0 8px;
+      color: var(--kke-dark-blue);
     }
 
     .profit-signal-table {
       width: 100%;
-      min-width: 620px;
+      min-width: 0;
       border-collapse: collapse;
+      table-layout: fixed;
     }
 
     .profit-signal-table th {
@@ -496,8 +515,22 @@
       border-bottom: 0;
     }
 
+    .profit-signal-table th:nth-child(1),
+    .profit-signal-table td:nth-child(1) { width: 42%; }
+
+    .profit-signal-table th:nth-child(2),
+    .profit-signal-table td:nth-child(2) { width: 14%; }
+
+    .profit-signal-table th:nth-child(3),
+    .profit-signal-table td:nth-child(3) { width: 12%; }
+
+    .profit-signal-table th:nth-child(4),
+    .profit-signal-table td:nth-child(4) { width: 12%; }
+
+    .profit-signal-table th:nth-child(5),
+    .profit-signal-table td:nth-child(5) { width: 20%; }
+
     .profit-signal-job {
-      max-width: 260px;
       font-weight: 900;
       color: var(--kke-dark-blue);
       overflow-wrap: anywhere;
@@ -528,6 +561,13 @@
       font-weight: 900;
       background: #eff6ff;
       color: #1d4ed8;
+    }
+
+    .profit-signal-flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      align-items: center;
     }
 
     .profit-watch-tag.danger { background: #fee2e2; color: #b91c1c; }
@@ -2045,6 +2085,8 @@
       .dashboard-filter-row { grid-template-columns: 1fr; }
       .dashboard-range-pill { border-radius: 12px; }
       .profit-signals-grid { grid-template-columns: 1fr; }
+      .profit-signal-table-grid { grid-template-columns: 1fr; }
+      .profit-signal-table { min-width: 560px; }
       .mom-grid { grid-template-columns: 1fr 1fr; }
       .fleet-summary-grid { grid-template-columns: 1fr 1fr; }
       #fleetGPS .fleet-command-topbar { grid-template-columns: 1fr; }
@@ -2549,13 +2591,13 @@
       <div id="profitSignalsSummary" class="profit-signals-grid">
         <div class="empty-state">Waiting for reviewed revenue data.</div>
       </div>
-      <div class="grid" style="margin-top:14px;">
-        <div>
-          <h3 style="margin:0 0 8px; color:var(--kke-dark-blue);">Top Money Makers</h3>
+      <div class="profit-signal-table-grid">
+        <div class="profit-signal-panel">
+          <h3>Top Money Makers</h3>
           <div id="profitTopMakers" class="profit-signal-list"></div>
         </div>
-        <div>
-          <h3 style="margin:0 0 8px; color:var(--kke-dark-blue);">Margin Watchlist</h3>
+        <div class="profit-signal-panel">
+          <h3>Margin Watchlist</h3>
           <div id="profitWatchlist" class="profit-signal-list"></div>
         </div>
       </div>
@@ -5401,7 +5443,7 @@ const differencePercent =
                 <td class="profit-signal-number${numberClass}">${revenueReady ? formatMoney(profit) : 'Incomplete'}</td>
                 <td class="profit-signal-number${numberClass}">${revenueReady ? `${fmtNumber(margin, 1)}%` : '-'}</td>
                 <td class="profit-signal-number">${revenueReady ? formatMoney(revenuePerLb) : '-'}</td>
-                <td>${flags || '<span class="profit-watch-tag good">Clear</span>'}</td>
+                <td><div class="profit-signal-flags">${flags || '<span class="profit-watch-tag good">Clear</span>'}</div></td>
               </tr>
             `;
           }).join('')}
