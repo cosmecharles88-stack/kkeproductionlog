@@ -424,156 +424,6 @@
       font-weight: 900;
     }
 
-    .profit-signals-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .profit-signal-box {
-      border: 1px solid #dbeafe;
-      background: #f8fbff;
-      border-radius: 10px;
-      padding: 10px;
-      min-height: 78px;
-    }
-
-    .profit-signal-label {
-      font-size: 10px;
-      color: #64748b;
-      font-weight: 900;
-      text-transform: uppercase;
-    }
-
-    .profit-signal-value {
-      color: var(--kke-dark-blue);
-      font-size: 16px;
-      font-weight: 900;
-      margin-top: 4px;
-      overflow-wrap: anywhere;
-    }
-
-    .profit-signal-sub {
-      color: #64748b;
-      font-size: 11px;
-      font-weight: 700;
-      margin-top: 3px;
-    }
-
-    .profit-signal-list {
-      margin-top: 8px;
-      overflow-x: auto;
-      border: 1px solid #dbeafe;
-      border-radius: 10px;
-      background: #fff;
-      max-width: 100%;
-    }
-
-    .profit-signal-table-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-      align-items: start;
-      margin-top: 14px;
-    }
-
-    .profit-signal-panel {
-      min-width: 0;
-    }
-
-    .profit-signal-panel h3 {
-      margin: 0 0 8px;
-      color: var(--kke-dark-blue);
-    }
-
-    .profit-signal-table {
-      width: 100%;
-      min-width: 0;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-
-    .profit-signal-table th {
-      background: #f8fbff;
-      color: var(--kke-dark-blue);
-      border-bottom: 1px solid #dbeafe;
-      padding: 8px;
-      font-size: 10px;
-      text-transform: uppercase;
-      text-align: left;
-    }
-
-    .profit-signal-table td {
-      border-bottom: 1px solid #eef2ff;
-      padding: 8px;
-      font-size: 12px;
-      vertical-align: top;
-    }
-
-    .profit-signal-table tr:last-child td {
-      border-bottom: 0;
-    }
-
-    .profit-signal-table th:nth-child(1),
-    .profit-signal-table td:nth-child(1) { width: 42%; }
-
-    .profit-signal-table th:nth-child(2),
-    .profit-signal-table td:nth-child(2) { width: 14%; }
-
-    .profit-signal-table th:nth-child(3),
-    .profit-signal-table td:nth-child(3) { width: 12%; }
-
-    .profit-signal-table th:nth-child(4),
-    .profit-signal-table td:nth-child(4) { width: 12%; }
-
-    .profit-signal-table th:nth-child(5),
-    .profit-signal-table td:nth-child(5) { width: 20%; }
-
-    .profit-signal-job {
-      font-weight: 900;
-      color: var(--kke-dark-blue);
-      overflow-wrap: anywhere;
-    }
-
-    .profit-signal-number {
-      text-align: right;
-      white-space: nowrap;
-      font-weight: 900;
-      color: #15803d;
-    }
-
-    .profit-signal-number.loss {
-      color: #b91c1c;
-    }
-
-    .profit-signal-number.warn {
-      color: #b45309;
-    }
-
-    .profit-watch-tag {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 2px 7px;
-      margin: 2px 3px 0 0;
-      font-size: 10px;
-      font-weight: 900;
-      background: #eff6ff;
-      color: #1d4ed8;
-    }
-
-    .profit-signal-flags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-      align-items: center;
-    }
-
-    .profit-watch-tag.danger { background: #fee2e2; color: #b91c1c; }
-    .profit-watch-tag.warn { background: #fef3c7; color: #92400e; }
-    .profit-watch-tag.good { background: #dcfce7; color: #166534; }
-
     .chart-wrap {
       display: grid;
       gap: 12px;
@@ -2084,9 +1934,6 @@
       .new-city-grid { grid-template-columns: 1fr; }
       .dashboard-filter-row { grid-template-columns: 1fr; }
       .dashboard-range-pill { border-radius: 12px; }
-      .profit-signals-grid { grid-template-columns: 1fr; }
-      .profit-signal-table-grid { grid-template-columns: 1fr; }
-      .profit-signal-table { min-width: 560px; }
       .mom-grid { grid-template-columns: 1fr 1fr; }
       .fleet-summary-grid { grid-template-columns: 1fr 1fr; }
       #fleetGPS .fleet-command-topbar { grid-template-columns: 1fr; }
@@ -2585,24 +2432,6 @@
         </div>
       </div>
       <div id="dashCostQualityRead" class="dashboard-note" style="margin-top:10px;">P&amp;L quality will appear after revenue fields are reviewed.</div>
-    </div>
-
-    <div class="card">
-      <h2>Profit Signals</h2>
-      <p class="dashboard-note">Highlights work making strong money and work that is losing money or dragging margin. Missing revenue is flagged as incomplete, not as a loss.</p>
-      <div id="profitSignalsSummary" class="profit-signals-grid">
-        <div class="empty-state">Waiting for reviewed revenue data.</div>
-      </div>
-      <div class="profit-signal-table-grid">
-        <div class="profit-signal-panel">
-          <h3>Top Money Makers</h3>
-          <div id="profitTopMakers" class="profit-signal-list"></div>
-        </div>
-        <div class="profit-signal-panel">
-          <h3>Margin Watchlist</h3>
-          <div id="profitWatchlist" class="profit-signal-list"></div>
-        </div>
-      </div>
     </div>
 
     <div class="card" id="monthOverMonthCard">
@@ -5605,103 +5434,6 @@ const differencePercent =
     };
   }
 
-  function renderProfitSignalTags(flags) {
-    return (flags || []).map(flag => `<span class="profit-watch-tag ${escapeHtml(flag.tone || '')}">${escapeHtml(flag.label)}</span>`).join('');
-  }
-
-  function getProfitNumberClass(value, margin = 100) {
-    if (Number(value || 0) < 0) return ' loss';
-    if (Number(margin || 0) < 30) return ' warn';
-    return '';
-  }
-
-  function renderProfitSignalTable(rows, emptyText = 'No matching profit signals.') {
-    if (!rows || !rows.length) return `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
-    return `
-      <table class="profit-signal-table">
-        <thead>
-          <tr>
-            <th>Job / Group</th>
-            <th style="text-align:right;">Profit</th>
-            <th style="text-align:right;">Margin</th>
-            <th style="text-align:right;">Rev/Lb</th>
-            <th>Flags</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(row => {
-            const pnl = row.pnl || row;
-            const revenueReady = row.revenueReady !== false && Number(pnl.revenue || row.revenue || 0) > 0;
-            const profit = Number(pnl.profit || row.profit || 0);
-            const margin = Number(pnl.margin || row.margin || 0);
-            const revenuePerLb = Number(row.revenuePerLb || 0);
-            const numberClass = getProfitNumberClass(profit, margin);
-            const flags = row.flags ? renderProfitSignalTags(row.flags) : '';
-            return `
-              <tr>
-                <td class="profit-signal-job">${escapeHtml(row.name)}</td>
-                <td class="profit-signal-number${numberClass}">${revenueReady ? formatMoney(profit) : 'Incomplete'}</td>
-                <td class="profit-signal-number${numberClass}">${revenueReady ? `${fmtNumber(margin, 1)}%` : '-'}</td>
-                <td class="profit-signal-number">${revenueReady ? formatMoney(revenuePerLb) : '-'}</td>
-                <td><div class="profit-signal-flags">${flags || '<span class="profit-watch-tag good">Clear</span>'}</div></td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-  }
-
-  function renderDashboardProfitSignals(docs) {
-    const signals = buildProfitSignals(docs || []);
-    const biggestProfit = signals.topProfitJobs[0];
-    const biggestLoss = signals.lossJobs[0];
-    const lowestMargin = signals.bottomMarginJobs[0];
-    const bestRevenuePerLb = signals.revenueReadyRows.slice().sort((a, b) => b.revenuePerLb - a.revenuePerLb)[0];
-    const worstRevenuePerLb = signals.revenueReadyRows.slice().sort((a, b) => a.revenuePerLb - b.revenuePerLb)[0];
-    const truckReview = signals.truckProfit.slice().reverse().find(item => item.reports > 0);
-
-    const summaryBox = document.getElementById('profitSignalsSummary');
-    if (summaryBox) {
-      summaryBox.innerHTML = [
-        { label: 'Biggest Profit Job', value: biggestProfit ? formatMoney(biggestProfit.pnl.profit) : 'None', sub: biggestProfit?.name || '' },
-        { label: 'Biggest Loss Job', value: biggestLoss ? formatMoney(biggestLoss.pnl.profit) : 'No losses', sub: biggestLoss?.name || '' },
-        { label: 'Lowest Margin Job', value: lowestMargin ? `${fmtNumber(lowestMargin.pnl.margin, 1)}%` : 'None', sub: lowestMargin?.name || '' },
-        { label: 'Best Revenue / Lb', value: bestRevenuePerLb ? formatMoney(bestRevenuePerLb.revenuePerLb) : '$0', sub: bestRevenuePerLb?.name || '' },
-        { label: 'Worst Revenue / Lb', value: worstRevenuePerLb ? formatMoney(worstRevenuePerLb.revenuePerLb) : '$0', sub: worstRevenuePerLb?.name || '' },
-        { label: 'Trucks Needing Review', value: truckReview ? `Truck ${truckReview.name}` : 'None', sub: truckReview ? `${formatMoney(truckReview.profitPerLaborHour)} profit/hr` : '' }
-      ].map(item => `
-        <div class="profit-signal-box">
-          <div class="profit-signal-label">${escapeHtml(item.label)}</div>
-          <div class="profit-signal-value">${escapeHtml(item.value)}</div>
-          <div class="profit-signal-sub">${escapeHtml(item.sub)}</div>
-        </div>
-      `).join('');
-    }
-
-    const topBox = document.getElementById('profitTopMakers');
-    if (topBox) {
-      topBox.innerHTML = renderProfitSignalTable(
-        signals.topProfitJobs.map(row => ({
-          ...row,
-          flags: row.flags?.length ? row.flags : [{ label: 'Money Maker', tone: 'good' }]
-        }))
-      );
-    }
-
-    const watchBox = document.getElementById('profitWatchlist');
-    if (watchBox) {
-      watchBox.innerHTML = renderProfitSignalTable(
-        signals.watchlist.map(row => ({
-          ...row
-        })),
-        'No loss or margin watch items found.'
-      );
-    }
-
-    return signals;
-  }
-
   function getProductionConcentrationRisk(entries, totalPounds) {
     const top = entries?.[0];
     if (!top || totalPounds <= 0) return { percent: 0, text: 'No concentration risk detected because there is not enough city production data.' };
@@ -6443,7 +6175,6 @@ const differencePercent =
     const transitions = calculateTransitions(docs);
     const transitionStats = buildTransitionStats(transitions);
     const pnlSummary = summarizePnl(docs, costSettings);
-    renderDashboardProfitSignals(docs);
 
     let totalClicks = 0;
     let totalPounds = 0;
