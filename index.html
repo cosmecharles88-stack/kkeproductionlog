@@ -5186,10 +5186,20 @@ const differencePercent =
   }
 
   function renderScorecard(rows) {
-    return renderExecutiveTable(
-      ['Metric', 'Goal', 'Actual', 'Trend', 'Status'],
-      rows.map(row => [row.metric, row.goal, row.actual, row.trend || '-', row.status])
-    );
+    if (!rows.length) return '<p>No scorecard data available.</p>';
+    return `
+      <table class="exec-table exec-scorecard-table">
+        <thead><tr><th>Metric</th><th>Goal</th><th>Actual</th><th>Trend</th></tr></thead>
+        <tbody>${rows.map(row => `
+          <tr class="exec-scorecard-${String(row.status || '').toLowerCase()}">
+            <td>${escapeHtml(row.metric)}</td>
+            <td>${escapeHtml(row.goal)}</td>
+            <td>${escapeHtml(row.actual)}</td>
+            <td>${escapeHtml(row.trend || '-')}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
   }
 
   function trendText(current, previous, suffix = '', lowerIsBetter = false) {
@@ -5906,8 +5916,6 @@ const differencePercent =
     const smallJobDrag = getSmallJobDrag(dashboardDocs, 150);
     const concentration = getProductionConcentrationRisk(cityEntries, tableSummary.pounds);
     const whatChanged = getWhatChangedAndWhy(summary, previousSummary, cityEntries, truckEntries);
-    const winsConcerns = getTopWinsAndConcerns(summary, tableSummary, transitionStats, cityEntries, truckEntries, crewEntries, outliers, smallJobDrag, concentration);
-    const actionItems = getActionItems(truckEntries, smallJobDrag, concentration, dataQuality, outliers);
     const workingDays = dashboardRangeObj?.key === 'all' ? null : countWeekdaysInRange(dashboardRangeObj);
     const dailyAverage = workingDays ? summary.pounds / Math.max(1, workingDays) : summary.reports ? summary.pounds / Math.max(1, Object.keys(summary.byDate).length) : 0;
     const nextWeekForecast = dailyAverage * 5;
@@ -6165,51 +6173,6 @@ const differencePercent =
       </section>
 
       <section class="exec-section">
-        <h2>Top 3 Wins / Top 3 Concerns</h2>
-        <div class="exec-two-col">
-          <div>
-            <h3>Operational Wins</h3>
-            <ol>${winsConcerns.wins.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
-          </div>
-          <div>
-            <h3>Concerns</h3>
-            <ol>${winsConcerns.concerns.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
-          </div>
-        </div>
-      </section>
-
-      <section class="exec-section">
-        <h2>Executive Decisions Needed</h2>
-        <ol>${dedupeActionItems(actionItems, 4).map(item => `<li>${escapeHtml(item)}</li>`).join('') || '<li>No executive decision is required from the current data.</li>'}</ol>
-      </section>
-
-      <section class="exec-section">
-        <h2>Things We Control / Things We Do Not</h2>
-        <div class="exec-two-col">
-          <div>
-            <h3>Internal Factors</h3>
-            <ul>
-              <li>Dispatch sequencing and geographic grouping</li>
-              <li>Crew efficiency and truck assignment</li>
-              <li>Mobilization on small jobs</li>
-              <li>Data quality and report completion</li>
-              <li>Scheduling large municipal work on benchmark crews</li>
-            </ul>
-          </div>
-          <div>
-            <h3>External Factors</h3>
-            <ul>
-              <li>Weather and rain delays</li>
-              <li>Customer access delays</li>
-              <li>Municipal scheduling requirements</li>
-              <li>Traffic control requirements</li>
-              <li>Emergency or punch-list work mix</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <section class="exec-section">
         <h2>Root Cause Analysis</h2>
         <p><strong>Small-job drag:</strong> ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} labor hours while producing ${fmtNumber(smallJobDrag.pounds, 0)} lbs. That work averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr, which points to mobilization, travel, warranty, punch-list, or isolated service-call friction rather than crew production capacity alone.` : 'Small-job drag did not appear materially in this period.'}</p>
         <p><strong>Benchmark truck context:</strong> ${topTruck ? `Truck ${topTruck.name} is the benchmark because it combined volume, repeated report count, and efficiency: ${fmtNumber(topTruck.pounds, 0)} lbs, ${fmtNumber(topTruck.reports, 0)} reports, and ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr.` : 'No benchmark truck is available for this period.'}</p>
@@ -6406,6 +6369,9 @@ const differencePercent =
           .exec-table-risk td:nth-child(2),
           .exec-table-risk td:nth-child(3) { color:#b91c1c; font-weight:800; }
           .exec-table-risk td:last-child { color:#b45309; font-weight:700; }
+          .exec-scorecard-table tr.exec-scorecard-green td { background:#dcfce7; color:#14532d; border-color:#bbf7d0; font-weight:800; }
+          .exec-scorecard-table tr.exec-scorecard-yellow td { background:#fef3c7; color:#92400e; border-color:#fde68a; font-weight:800; }
+          .exec-scorecard-table tr.exec-scorecard-red td { background:#fee2e2; color:#991b1b; border-color:#fecaca; font-weight:800; }
           .exec-comparison-wrap { overflow-x:auto; margin-top:8px; }
           .exec-comparison-table { font-size:10px; min-width:980px; }
           .exec-comparison-table th { background:#e0f2fe; color:#0c4a6e; }
