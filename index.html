@@ -6172,129 +6172,134 @@ const differencePercent =
         ]) : '<p>No prior comparable period is available for this selected view.</p>'}
       </section>
 
-      <section class="exec-section">
-        <h2>Root Cause Analysis</h2>
-        <p><strong>Small-job drag:</strong> ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} labor hours while producing ${fmtNumber(smallJobDrag.pounds, 0)} lbs. That work averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr, which points to mobilization, travel, warranty, punch-list, or isolated service-call friction rather than crew production capacity alone.` : 'Small-job drag did not appear materially in this period.'}</p>
-        <p><strong>Benchmark truck context:</strong> ${topTruck ? `Truck ${topTruck.name} is the benchmark because it combined volume, repeated report count, and efficiency: ${fmtNumber(topTruck.pounds, 0)} lbs, ${fmtNumber(topTruck.reports, 0)} reports, and ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr.` : 'No benchmark truck is available for this period.'}</p>
-        <p><strong>Concentration:</strong> ${escapeHtml(concentration.text)} This is positive when scheduling is controlled, but risky if one city/project carries too much of the period.</p>
-      </section>
+      <details class="exec-operator-details">
+        <summary>Show Operator Details</summary>
+        <div class="exec-operator-body">
+          <section class="exec-section">
+            <h2>Root Cause Analysis</h2>
+            <p><strong>Small-job drag:</strong> ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} labor hours while producing ${fmtNumber(smallJobDrag.pounds, 0)} lbs. That work averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr, which points to mobilization, travel, warranty, punch-list, or isolated service-call friction rather than crew production capacity alone.` : 'Small-job drag did not appear materially in this period.'}</p>
+            <p><strong>Benchmark truck context:</strong> ${topTruck ? `Truck ${topTruck.name} is the benchmark because it combined volume, repeated report count, and efficiency: ${fmtNumber(topTruck.pounds, 0)} lbs, ${fmtNumber(topTruck.reports, 0)} reports, and ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr.` : 'No benchmark truck is available for this period.'}</p>
+            <p><strong>Concentration:</strong> ${escapeHtml(concentration.text)} This is positive when scheduling is controlled, but risky if one city/project carries too much of the period.</p>
+          </section>
 
-      <section class="exec-section">
-        <h2>Production Performance</h2>
-        <p>The production view is based on <strong>${escapeHtml(dashboardRange)}</strong>. City and table detail are based on <strong>${escapeHtml(tableRange)}</strong>.</p>
-        <div class="exec-two-col">
-          <div>
-            <h3>Recent Production Trend</h3>
-            ${renderExecutiveBarTable(trendRows.map(item => ({ ...item, name: item.name, value: item.pounds })), item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
-          </div>
-          <div>
-            <h3>Work Type Mix</h3>
+          <section class="exec-section">
+            <h2>Production Performance</h2>
+            <p>The production view is based on <strong>${escapeHtml(dashboardRange)}</strong>. City and table detail are based on <strong>${escapeHtml(tableRange)}</strong>.</p>
+            <div class="exec-two-col">
+              <div>
+                <h3>Recent Production Trend</h3>
+                ${renderExecutiveBarTable(trendRows.map(item => ({ ...item, name: item.name, value: item.pounds })), item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+              </div>
+              <div>
+                <h3>Work Type Mix</h3>
+                ${renderExecutiveMetricGrid([
+                  { label: 'Method', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports | ${fmtNumber(summary.methodHours, 2)} hrs` },
+                  { label: 'DI', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports | ${fmtNumber(summary.diHours, 2)} hrs` },
+                  { label: 'Missing Type', value: `${fmtNumber(summary.unknownPounds, 0)} lbs`, sub: `${fmtNumber(summary.unknownReports, 0)} reports | ${fmtNumber(summary.unknownHours, 2)} hrs` },
+                  { label: 'Flux', value: `${fmtNumber(summary.differencePercent, 1)}%`, sub: `${fmtNumber(summary.differencePounds, 0)} lbs variance` }
+                ])}
+              </div>
+            </div>
+          </section>
+
+          <section class="exec-section">
+            <h2>DI vs Method Labor Comparison</h2>
+            <p>${escapeHtml(getInjectionLaborRead(summary))}</p>
             ${renderExecutiveMetricGrid([
-              { label: 'Method', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports | ${fmtNumber(summary.methodHours, 2)} hrs` },
-              { label: 'DI', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports | ${fmtNumber(summary.diHours, 2)} hrs` },
-              { label: 'Missing Type', value: `${fmtNumber(summary.unknownPounds, 0)} lbs`, sub: `${fmtNumber(summary.unknownReports, 0)} reports | ${fmtNumber(summary.unknownHours, 2)} hrs` },
-              { label: 'Flux', value: `${fmtNumber(summary.differencePercent, 1)}%`, sub: `${fmtNumber(summary.differencePounds, 0)} lbs variance` }
+              { label: 'Method Hours', value: fmtNumber(summary.methodHours, 2), sub: `${fmtNumber(summary.methodReports, 0)} reports` },
+              { label: 'Method Lbs / Hr', value: fmtNumber(summary.methodLbsPerHour, 0), sub: `${fmtNumber(summary.methodPounds, 0)} lbs` },
+              { label: 'DI Hours', value: fmtNumber(summary.diHours, 2), sub: `${fmtNumber(summary.diReports, 0)} reports` },
+              { label: 'DI Lbs / Hr', value: fmtNumber(summary.diLbsPerHour, 0), sub: `${fmtNumber(summary.diPounds, 0)} lbs` }
             ])}
-          </div>
+          </section>
+
+          <section class="exec-section">
+            <h2>Market and City Performance</h2>
+            <p>City performance shows where production is concentrated and where management should watch scheduling capacity, travel time, and customer follow-up.</p>
+            ${renderExecutiveBarTable(cityEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+            <div class="exec-warning">${escapeHtml(concentration.text)}</div>
+            <h3>Work Area Mix</h3>
+            ${renderExecutiveBarTable(areaEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 8)}
+          </section>
+
+          <section class="exec-section">
+            <h2>Truck and Crew Performance</h2>
+            <p>Truck and crew efficiency are ranked by pounds per hour, using active truck bosses only for the crew leaderboard. ${topTruck ? `Truck ${topTruck.name} is the benchmark not only because it ranked first, but because it carried ${fmtNumber(topTruck.pounds, 0)} lbs across ${fmtNumber(topTruck.reports, 0)} reports while maintaining ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr. That combination of volume, repeated work, and efficiency is the operating profile other trucks should be compared against.` : ''}</p>
+            <div class="exec-two-col">
+              <div>
+                <h3>Truck Efficiency</h3>
+                ${renderExecutiveTable(
+                  ['Truck', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
+                  truckEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
+                )}
+              </div>
+              <div>
+                <h3>Crew Efficiency</h3>
+                ${renderExecutiveTable(
+                  ['Crew', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
+                  crewEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section class="exec-section">
+            <h2>Dispatch and Transition Read</h2>
+            <p>${escapeHtml(narrative.dispatchTone)}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Same-Day Transitions', value: fmtNumber(transitions.length, 0), sub: 'Truck job-to-job moves' },
+              { label: 'Average Transition', value: `${fmtNumber(transitionStats.avgMinutes, 0)} min`, sub: 'Between same-day jobs' },
+              { label: 'Average GPS Miles', value: `${fmtNumber(transitionStats.avgMiles, 1)} mi`, sub: 'Where GPS distance exists' },
+              { label: 'Longest Gap', value: `${fmtNumber(transitionStats.longest, 0)} min`, sub: 'Largest transition' }
+            ])}
+            ${renderExecutiveTable(['Date', 'Truck', 'Route', 'Time', 'GPS Distance'], transitionRows)}
+          </section>
+
+          <section class="exec-section">
+            <h2>Exceptions, Outliers, and Data Quality</h2>
+            <p>${outliers.length ? `${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} need review.` : 'No exceptions were detected for the selected dashboard period.'}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Data Quality Score', value: `${fmtNumber(dataQuality.score, 0)}%`, sub: `${fmtNumber(dataQuality.issueCount, 0)} issues counted` },
+              { label: 'Zero-Report Workdays', value: fmtNumber(dataQuality.zeroReportWorkingDays, 0), sub: 'Mon-Fri days with no report' },
+              { label: 'Missing Hours', value: fmtNumber(dataQuality.missingHours, 0), sub: 'Reports needing time cleanup' },
+              { label: 'City Other / Unknown', value: fmtNumber(dataQuality.cityOther, 0), sub: 'Needs city normalization' },
+              { label: 'Duplicate Addresses', value: fmtNumber(dataQuality.duplicateAddressEntries, 0), sub: 'Same date/city/address repeats' },
+              { label: 'Missing GPS', value: fmtNumber(dataQuality.missingGps, 0), sub: 'Reports without location' },
+              { label: 'Zero Clicks', value: fmtNumber(dataQuality.zeroClicks, 0), sub: 'Production entry issue' },
+              { label: 'Missing Truck Boss', value: fmtNumber(dataQuality.missingTruckBoss, 0), sub: 'Crew lead missing' }
+            ])}
+          </section>
+
+          <section class="exec-section">
+            <h2>Small-Job Drag and Forecast</h2>
+            <p>Small jobs matter because they consume setup, travel, and crew time without producing enough pounds to offset mobilization. ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} hours while producing only ${fmtNumber(smallJobDrag.pounds, 0)} lbs, averaging ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr.` : 'No small-job drag was detected in this period.'}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Small Jobs', value: fmtNumber(smallJobDrag.count, 0), sub: `Under ${fmtNumber(smallJobDrag.threshold, 0)} lbs` },
+              { label: 'Small-Job Pounds', value: `${fmtNumber(smallJobDrag.pounds, 0)} lbs`, sub: `${fmtNumber(smallJobDrag.hours, 2)} hours` },
+              { label: 'Small-Job Efficiency', value: `${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr`, sub: 'Mobilization drag signal' },
+              { label: 'Next-Week Forecast', value: `${fmtNumber(forecast.expected, 0)} lbs`, sub: `Likely range ${fmtNumber(forecast.low, 0)}-${fmtNumber(forecast.high, 0)} lbs | ${fmtNumber(forecast.confidence, 0)}% confidence` }
+            ])}
+          </section>
+
+          <section class="exec-section">
+            <h2>Capacity and Production Opportunity</h2>
+            <p>At the current labor level, the simplest opportunity is raising average production rate toward the 125 lbs/hr operating target.</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Current Capacity', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.hours, 1)} labor hours` },
+              { label: 'Current Average', value: `${fmtNumber(summary.lbsPerHour, 0)} lbs/hr`, sub: 'Actual period rate' },
+              { label: 'At 125 Lbs/Hr', value: `${fmtNumber(capacity.potential, 0)} lbs`, sub: 'Potential production' },
+              { label: 'Opportunity Gap', value: `${fmtNumber(capacity.gap, 0)} lbs`, sub: 'Production left on table' }
+            ])}
+            <h3>Estimated Recoverable Production</h3>
+            ${renderExecutiveMetricGrid([
+              { label: 'Small Job Drag', value: `${fmtNumber(recoverable.smallJobLost, 0)} lbs`, sub: 'Against 125 lbs/hr target' },
+              { label: 'Dispatch Delays', value: `${fmtNumber(recoverable.transitionLost, 0)} lbs`, sub: 'Above 25-minute transition target' },
+              { label: 'Data Issues', value: `${fmtNumber(recoverable.dataLost, 0)} lbs`, sub: 'Zero-click or missing-hour records' },
+              { label: 'Recoverable Total', value: `${fmtNumber(recoverable.total, 0)} lbs`, sub: 'Estimated opportunity' }
+            ])}
+          </section>
         </div>
-      </section>
-
-      <section class="exec-section">
-        <h2>DI vs Method Labor Comparison</h2>
-        <p>${escapeHtml(getInjectionLaborRead(summary))}</p>
-        ${renderExecutiveMetricGrid([
-          { label: 'Method Hours', value: fmtNumber(summary.methodHours, 2), sub: `${fmtNumber(summary.methodReports, 0)} reports` },
-          { label: 'Method Lbs / Hr', value: fmtNumber(summary.methodLbsPerHour, 0), sub: `${fmtNumber(summary.methodPounds, 0)} lbs` },
-          { label: 'DI Hours', value: fmtNumber(summary.diHours, 2), sub: `${fmtNumber(summary.diReports, 0)} reports` },
-          { label: 'DI Lbs / Hr', value: fmtNumber(summary.diLbsPerHour, 0), sub: `${fmtNumber(summary.diPounds, 0)} lbs` }
-        ])}
-      </section>
-
-      <section class="exec-section">
-        <h2>Market and City Performance</h2>
-        <p>City performance shows where production is concentrated and where management should watch scheduling capacity, travel time, and customer follow-up.</p>
-        ${renderExecutiveBarTable(cityEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
-        <div class="exec-warning">${escapeHtml(concentration.text)}</div>
-        <h3>Work Area Mix</h3>
-        ${renderExecutiveBarTable(areaEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 8)}
-      </section>
-
-      <section class="exec-section">
-        <h2>Truck and Crew Performance</h2>
-        <p>Truck and crew efficiency are ranked by pounds per hour, using active truck bosses only for the crew leaderboard. ${topTruck ? `Truck ${topTruck.name} is the benchmark not only because it ranked first, but because it carried ${fmtNumber(topTruck.pounds, 0)} lbs across ${fmtNumber(topTruck.reports, 0)} reports while maintaining ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr. That combination of volume, repeated work, and efficiency is the operating profile other trucks should be compared against.` : ''}</p>
-        <div class="exec-two-col">
-          <div>
-            <h3>Truck Efficiency</h3>
-            ${renderExecutiveTable(
-              ['Truck', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
-              truckEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
-            )}
-          </div>
-          <div>
-            <h3>Crew Efficiency</h3>
-            ${renderExecutiveTable(
-              ['Crew', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
-              crewEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section class="exec-section">
-        <h2>Dispatch and Transition Read</h2>
-        <p>${escapeHtml(narrative.dispatchTone)}</p>
-        ${renderExecutiveMetricGrid([
-          { label: 'Same-Day Transitions', value: fmtNumber(transitions.length, 0), sub: 'Truck job-to-job moves' },
-          { label: 'Average Transition', value: `${fmtNumber(transitionStats.avgMinutes, 0)} min`, sub: 'Between same-day jobs' },
-          { label: 'Average GPS Miles', value: `${fmtNumber(transitionStats.avgMiles, 1)} mi`, sub: 'Where GPS distance exists' },
-          { label: 'Longest Gap', value: `${fmtNumber(transitionStats.longest, 0)} min`, sub: 'Largest transition' }
-        ])}
-        ${renderExecutiveTable(['Date', 'Truck', 'Route', 'Time', 'GPS Distance'], transitionRows)}
-      </section>
-
-      <section class="exec-section">
-        <h2>Exceptions, Outliers, and Data Quality</h2>
-        <p>${outliers.length ? `${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} need review.` : 'No exceptions were detected for the selected dashboard period.'}</p>
-        ${renderExecutiveMetricGrid([
-          { label: 'Data Quality Score', value: `${fmtNumber(dataQuality.score, 0)}%`, sub: `${fmtNumber(dataQuality.issueCount, 0)} issues counted` },
-          { label: 'Zero-Report Workdays', value: fmtNumber(dataQuality.zeroReportWorkingDays, 0), sub: 'Mon-Fri days with no report' },
-          { label: 'Missing Hours', value: fmtNumber(dataQuality.missingHours, 0), sub: 'Reports needing time cleanup' },
-          { label: 'City Other / Unknown', value: fmtNumber(dataQuality.cityOther, 0), sub: 'Needs city normalization' },
-          { label: 'Duplicate Addresses', value: fmtNumber(dataQuality.duplicateAddressEntries, 0), sub: 'Same date/city/address repeats' },
-          { label: 'Missing GPS', value: fmtNumber(dataQuality.missingGps, 0), sub: 'Reports without location' },
-          { label: 'Zero Clicks', value: fmtNumber(dataQuality.zeroClicks, 0), sub: 'Production entry issue' },
-          { label: 'Missing Truck Boss', value: fmtNumber(dataQuality.missingTruckBoss, 0), sub: 'Crew lead missing' }
-        ])}
-      </section>
-
-      <section class="exec-section">
-        <h2>Small-Job Drag and Forecast</h2>
-        <p>Small jobs matter because they consume setup, travel, and crew time without producing enough pounds to offset mobilization. ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} hours while producing only ${fmtNumber(smallJobDrag.pounds, 0)} lbs, averaging ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr.` : 'No small-job drag was detected in this period.'}</p>
-        ${renderExecutiveMetricGrid([
-          { label: 'Small Jobs', value: fmtNumber(smallJobDrag.count, 0), sub: `Under ${fmtNumber(smallJobDrag.threshold, 0)} lbs` },
-          { label: 'Small-Job Pounds', value: `${fmtNumber(smallJobDrag.pounds, 0)} lbs`, sub: `${fmtNumber(smallJobDrag.hours, 2)} hours` },
-          { label: 'Small-Job Efficiency', value: `${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr`, sub: 'Mobilization drag signal' },
-          { label: 'Next-Week Forecast', value: `${fmtNumber(forecast.expected, 0)} lbs`, sub: `Likely range ${fmtNumber(forecast.low, 0)}-${fmtNumber(forecast.high, 0)} lbs | ${fmtNumber(forecast.confidence, 0)}% confidence` }
-        ])}
-      </section>
-
-      <section class="exec-section">
-        <h2>Capacity and Production Opportunity</h2>
-        <p>At the current labor level, the simplest opportunity is raising average production rate toward the 125 lbs/hr operating target.</p>
-        ${renderExecutiveMetricGrid([
-          { label: 'Current Capacity', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.hours, 1)} labor hours` },
-          { label: 'Current Average', value: `${fmtNumber(summary.lbsPerHour, 0)} lbs/hr`, sub: 'Actual period rate' },
-          { label: 'At 125 Lbs/Hr', value: `${fmtNumber(capacity.potential, 0)} lbs`, sub: 'Potential production' },
-          { label: 'Opportunity Gap', value: `${fmtNumber(capacity.gap, 0)} lbs`, sub: 'Production left on table' }
-        ])}
-        <h3>Estimated Recoverable Production</h3>
-        ${renderExecutiveMetricGrid([
-          { label: 'Small Job Drag', value: `${fmtNumber(recoverable.smallJobLost, 0)} lbs`, sub: 'Against 125 lbs/hr target' },
-          { label: 'Dispatch Delays', value: `${fmtNumber(recoverable.transitionLost, 0)} lbs`, sub: 'Above 25-minute transition target' },
-          { label: 'Data Issues', value: `${fmtNumber(recoverable.dataLost, 0)} lbs`, sub: 'Zero-click or missing-hour records' },
-          { label: 'Recoverable Total', value: `${fmtNumber(recoverable.total, 0)} lbs`, sub: 'Estimated opportunity' }
-        ])}
-      </section>
+      </details>
 
     `;
   }
@@ -6342,6 +6347,12 @@ const differencePercent =
           .exec-narrative { background:#f8fbff; border:1px solid #bfdbfe; border-radius:12px; padding:14px; }
           .exec-goal { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px; }
           .exec-goal h2 { border-left-color:#16a34a; }
+          .exec-operator-details { border:1px solid #bfdbfe; background:#f8fbff; border-radius:14px; padding:12px; margin:24px 0; }
+          .exec-operator-details summary { cursor:pointer; display:inline-flex; align-items:center; background:#0057a8; color:#fff; border-radius:999px; padding:10px 16px; font-weight:900; list-style:none; }
+          .exec-operator-details summary::-webkit-details-marker { display:none; }
+          .exec-operator-details summary::after { content:'+'; display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:10px; border-radius:50%; background:rgba(255,255,255,.22); }
+          .exec-operator-details[open] summary::after { content:'-'; }
+          .exec-operator-body { margin-top:16px; }
           .exec-warning { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:10px 12px; margin:10px 0; font-weight:700; }
           .exec-metric-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:12px 0; }
           .exec-metric { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:11px; min-height:76px; }
@@ -6388,6 +6399,8 @@ const differencePercent =
           @media print {
             body { padding:0; }
             .exec-section { break-inside: avoid; }
+            .exec-operator-details { display:block; }
+            .exec-operator-details summary { background:#eff6ff; color:#003f7d; border:1px solid #bfdbfe; }
           }
           @media (max-width: 800px) {
             .exec-cover, .exec-two-col { grid-template-columns:1fr; }
