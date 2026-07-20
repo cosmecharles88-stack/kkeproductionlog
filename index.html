@@ -5161,10 +5161,11 @@ const differencePercent =
     }).join('')}</div>`;
   }
 
-  function renderExecutiveTable(headers, rows) {
+  function renderExecutiveTable(headers, rows, tone = '') {
     if (!rows.length) return '<p>No data available.</p>';
+    const toneClass = tone ? ` exec-table-${tone}` : '';
     return `
-      <table class="exec-table">
+      <table class="exec-table${toneClass}">
         <thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
         <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
       </table>
@@ -5824,13 +5825,6 @@ const differencePercent =
         item.hasGps ? `${fmtNumber(item.miles, 1)} mi` : 'No GPS'
       ]);
 
-    const outlierRows = outliers.map(flag => [
-      flag,
-      getOutlierReason(flag),
-      '________________',
-      flag.includes('Truck') ? 'Logan' : 'Manager team'
-    ]);
-
     const scorecardRows = [
       {
         metric: 'Lbs / Hr',
@@ -6045,9 +6039,6 @@ const differencePercent =
           { label: 'Zero Clicks', value: fmtNumber(dataQuality.zeroClicks, 0), sub: 'Production entry issue' },
           { label: 'Missing Truck Boss', value: fmtNumber(dataQuality.missingTruckBoss, 0), sub: 'Crew lead missing' }
         ])}
-        <h3>Outlier Reason Field</h3>
-        <p>Use the reason column as the manual review field. Suggested reasons include traffic control, rain, equipment, small punch-list, DI setup, travel, and customer delay.</p>
-        ${renderExecutiveTable(['Outlier', 'Suggested Reason', 'Manual Reason', 'Owner'], outlierRows)}
       </section>
 
       <section class="exec-section">
@@ -6108,14 +6099,16 @@ const differencePercent =
             <h3>Top 5 Jobs by Profit</h3>
             ${renderExecutiveTable(
               ['Job', 'Profit', 'Margin', 'Revenue/Lb'],
-              profitSignals.topProfitJobs.map(row => [row.name, formatMoney(row.pnl.profit), `${fmtNumber(row.pnl.margin, 1)}%`, formatMoney(row.revenuePerLb)])
+              profitSignals.topProfitJobs.map(row => [row.name, formatMoney(row.pnl.profit), `${fmtNumber(row.pnl.margin, 1)}%`, formatMoney(row.revenuePerLb)]),
+              'good'
             )}
           </div>
           <div>
             <h3>Bottom 5 Margin Jobs</h3>
             ${renderExecutiveTable(
               ['Job', 'Profit', 'Margin', 'Flags'],
-              profitSignals.bottomMarginJobs.map(row => [row.name, formatMoney(row.pnl.profit), `${fmtNumber(row.pnl.margin, 1)}%`, row.flags.map(flag => flag.label).join(', ') || 'Review'])
+              profitSignals.bottomMarginJobs.map(row => [row.name, formatMoney(row.pnl.profit), `${fmtNumber(row.pnl.margin, 1)}%`, row.flags.map(flag => flag.label).join(', ') || 'Review']),
+              'risk'
             )}
           </div>
         </div>
@@ -6124,14 +6117,16 @@ const differencePercent =
             <h3>Top Cities by Profit</h3>
             ${renderExecutiveTable(
               ['City', 'Profit', 'Margin', 'Revenue/Lb'],
-              profitSignals.cityProfit.slice(0, 5).map(item => [item.name, formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`, formatMoney(item.revenuePerLb)])
+              profitSignals.cityProfit.slice(0, 5).map(item => [item.name, formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`, formatMoney(item.revenuePerLb)]),
+              'good'
             )}
           </div>
           <div>
             <h3>Truck Profit Ranking</h3>
             ${renderExecutiveTable(
               ['Truck', 'Profit/Hr', 'Profit', 'Reports'],
-              profitSignals.truckProfit.slice(0, 5).map(item => [item.name, formatMoney(item.profitPerLaborHour), formatMoney(item.profit), fmtNumber(item.reports, 0)])
+              profitSignals.truckProfit.slice(0, 5).map(item => [item.name, formatMoney(item.profitPerLaborHour), formatMoney(item.profit), fmtNumber(item.reports, 0)]),
+              'good'
             )}
           </div>
         </div>
@@ -6140,14 +6135,16 @@ const differencePercent =
             <h3>Work Type by Revenue / Lb</h3>
             ${renderExecutiveTable(
               ['Work Area', 'Revenue/Lb', 'Profit', 'Margin'],
-              profitSignals.workAreaProfit.slice(0, 5).map(item => [item.name, formatMoney(item.revenuePerLb), formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`])
+              profitSignals.workAreaProfit.slice(0, 5).map(item => [item.name, formatMoney(item.revenuePerLb), formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`]),
+              'good'
             )}
           </div>
           <div>
-            <h3>Best Grouped Jobs</h3>
+            <h3>Best Multi-Day / Grouped Jobs</h3>
             ${renderExecutiveTable(
               ['Job Group', 'Profit', 'Margin', 'Reports'],
-              profitSignals.groupedJobs.slice(0, 5).map(item => [item.name, formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`, fmtNumber(item.reports, 0)])
+              profitSignals.groupedJobs.slice(0, 5).map(item => [item.name, formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`, fmtNumber(item.reports, 0)]),
+              'good'
             )}
           </div>
         </div>
@@ -6159,7 +6156,8 @@ const differencePercent =
             row.revenueReady ? formatMoney(row.pnl.profit) : 'Revenue Incomplete',
             row.revenueReady ? `${fmtNumber(row.pnl.margin, 1)}%` : '-',
             row.flags.map(flag => flag.label).join(', ') || 'Review'
-          ])
+          ]),
+          'risk'
         )}
       </section>
 
@@ -6223,6 +6221,17 @@ const differencePercent =
           .exec-table { width:100%; border-collapse:collapse; font-size:11px; margin-top:6px; }
           .exec-table th { background:#eff6ff; color:#003f7d; text-align:left; padding:7px; border:1px solid #dbeafe; }
           .exec-table td { padding:7px; border:1px solid #e5e7eb; }
+          .exec-table-good { border-left:5px solid #16a34a; }
+          .exec-table-good th { background:#dcfce7; color:#14532d; border-color:#bbf7d0; }
+          .exec-table-good td:nth-child(2),
+          .exec-table-good td:nth-child(3),
+          .exec-table-good td:nth-child(4) { color:#15803d; font-weight:800; }
+          .exec-table-risk { border-left:5px solid #dc2626; }
+          .exec-table-risk th { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
+          .exec-table-risk tr:nth-child(even) td { background:#fff7ed; }
+          .exec-table-risk td:nth-child(2),
+          .exec-table-risk td:nth-child(3) { color:#b91c1c; font-weight:800; }
+          .exec-table-risk td:last-child { color:#b45309; font-weight:700; }
           .exec-outliers { columns:2; column-gap:24px; }
           @page { size: letter; margin: 0.45in; }
           @media print {
