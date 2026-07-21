@@ -5778,13 +5778,6 @@ const differencePercent =
         status: getExecutiveStatus(transitionStats.avgMinutes, 25, 'lower')
       },
       {
-        metric: 'Flux',
-        goal: '<50%',
-        actual: `${fmtNumber(Math.abs(summary.differencePercent), 1)}%`,
-        trend: previousSummary ? trendText(Math.abs(summary.differencePercent), Math.abs(previousSummary.differencePercent), '', true) : '-',
-        status: getExecutiveStatus(Math.abs(summary.differencePercent), 50, 'lower')
-      },
-      {
         metric: 'Data Quality',
         goal: '>98%',
         actual: `${fmtNumber(dataQuality.score, 0)}%`,
@@ -6191,12 +6184,21 @@ const differencePercent =
           .exec-scorecard-table tr.exec-scorecard-yellow td { background:#fef3c7; color:#92400e; border-color:#fde68a; font-weight:800; }
           .exec-scorecard-table tr.exec-scorecard-red td { background:#fee2e2; color:#991b1b; border-color:#fecaca; font-weight:800; }
           .exec-comparison-wrap { overflow-x:auto; margin-top:8px; }
-          .exec-comparison-table { font-size:10px; min-width:980px; }
-          .exec-comparison-table th { background:#e0f2fe; color:#0c4a6e; }
+          .exec-comparison-table { font-size:11.5px; min-width:0; table-layout:fixed; line-height:1.3; }
+          .exec-comparison-table th { background:#e0f2fe; color:#0c4a6e; padding:6px 5px; }
+          .exec-comparison-table td { padding:6px 5px; vertical-align:top; }
           .exec-comparison-table td:first-child { font-weight:900; color:#003f7d; }
           .exec-comparison-table td:nth-child(3),
           .exec-comparison-table td:nth-child(6) { font-weight:800; }
-          .exec-change { display:inline-block; font-weight:900; border-radius:999px; padding:2px 6px; white-space:nowrap; }
+          .exec-comparison-table th:first-child,
+          .exec-comparison-table td:first-child { width:14%; }
+          .exec-comparison-table th:last-child,
+          .exec-comparison-table td:last-child { width:18%; font-size:10.5px; line-height:1.25; }
+          .exec-comparison-table th:nth-child(4),
+          .exec-comparison-table td:nth-child(4),
+          .exec-comparison-table th:nth-child(7),
+          .exec-comparison-table td:nth-child(7) { width:13%; }
+          .exec-change { display:inline-block; font-weight:900; border-radius:999px; padding:2px 5px; }
           .exec-change-good { background:#dcfce7; color:#166534; }
           .exec-change-risk { background:#fee2e2; color:#991b1b; }
           .exec-change-neutral { background:#f1f5f9; color:#475569; }
