@@ -5196,14 +5196,47 @@ const differencePercent =
       ['Revenue / Labor Hr', money(lastWeek.summary.revenuePerLaborHour), money(thisWeek.summary.revenuePerLaborHour), formatExecChange(thisWeek.summary.revenuePerLaborHour, lastWeek.summary.revenuePerLaborHour, money), money(lastMonth.summary.revenuePerLaborHour), money(thisMonth.summary.revenuePerLaborHour), formatExecChange(thisMonth.summary.revenuePerLaborHour, lastMonth.summary.revenuePerLaborHour, money), 'Useful for labor productivity review.'],
       ['Revenue / Lb', money(lastWeek.summary.revenuePerLb), money(thisWeek.summary.revenuePerLb), formatExecChange(thisWeek.summary.revenuePerLb, lastWeek.summary.revenuePerLb, money), money(lastMonth.summary.revenuePerLb), money(thisMonth.summary.revenuePerLb), formatExecChange(thisMonth.summary.revenuePerLb, lastMonth.summary.revenuePerLb, money), 'Shows pricing / work-mix strength.'],
       ['Pumped Lbs', pounds(lastWeek.summary.pounds), pounds(thisWeek.summary.pounds), formatExecChange(thisWeek.summary.pounds, lastWeek.summary.pounds, pounds), pounds(lastMonth.summary.pounds), pounds(thisMonth.summary.pounds), formatExecChange(thisMonth.summary.pounds, lastMonth.summary.pounds, pounds), 'Production volume.'],
-      ['Reports', number(lastWeek.summary.reports), number(thisWeek.summary.reports), formatExecChange(thisWeek.summary.reports, lastWeek.summary.reports, number), number(lastMonth.summary.reports), number(thisMonth.summary.reports), formatExecChange(thisMonth.summary.reports, lastMonth.summary.reports, number), 'Report count can move with small-job mix.'],
-      ['Labor Hours', hours(lastWeek.summary.hours), hours(thisWeek.summary.hours), formatExecChange(thisWeek.summary.hours, lastWeek.summary.hours, hours, true), hours(lastMonth.summary.hours), hours(thisMonth.summary.hours), formatExecChange(thisMonth.summary.hours, lastMonth.summary.hours, hours, true), 'Review alongside revenue and pounds.'],
       ['Lbs / Hour', `${fmtNumber(lastWeek.summary.lbsPerHour, 0)}`, `${fmtNumber(thisWeek.summary.lbsPerHour, 0)}`, formatExecChange(thisWeek.summary.lbsPerHour, lastWeek.summary.lbsPerHour, number), `${fmtNumber(lastMonth.summary.lbsPerHour, 0)}`, `${fmtNumber(thisMonth.summary.lbsPerHour, 0)}`, formatExecChange(thisMonth.summary.lbsPerHour, lastMonth.summary.lbsPerHour, number), 'Production efficiency.'],
-      ['Direct Fuel', money(lastWeek.summary.fuelCost), money(thisWeek.summary.fuelCost), formatExecChange(thisWeek.summary.fuelCost, lastWeek.summary.fuelCost, money, true), money(lastMonth.summary.fuelCost), money(thisMonth.summary.fuelCost), formatExecChange(thisMonth.summary.fuelCost, lastMonth.summary.fuelCost, money, true), 'Job-direct route/runtime fuel only.'],
-      ['Chemical Cost', money(lastWeek.summary.chemicalCost), money(thisWeek.summary.chemicalCost), formatExecChange(thisWeek.summary.chemicalCost, lastWeek.summary.chemicalCost, money, true), money(lastMonth.summary.chemicalCost), money(thisMonth.summary.chemicalCost), formatExecChange(thisMonth.summary.chemicalCost, lastMonth.summary.chemicalCost, money, true), 'Uses click-based chemical pounds unless marked free.'],
       ['Small Jobs <150 Lbs', number(lastWeek.smallJobDrag.count), number(thisWeek.smallJobDrag.count), formatExecChange(thisWeek.smallJobDrag.count, lastWeek.smallJobDrag.count, number, true), number(lastMonth.smallJobDrag.count), number(thisMonth.smallJobDrag.count), formatExecChange(thisMonth.smallJobDrag.count, lastMonth.smallJobDrag.count, number, true), 'Mobilization drag signal.'],
       ['Jobs Missing Revenue', number(lastWeek.profitSignals.missingRevenueJobs.length), number(thisWeek.profitSignals.missingRevenueJobs.length), formatExecChange(thisWeek.profitSignals.missingRevenueJobs.length, lastWeek.profitSignals.missingRevenueJobs.length, number, true), number(lastMonth.profitSignals.missingRevenueJobs.length), number(thisMonth.profitSignals.missingRevenueJobs.length), formatExecChange(thisMonth.profitSignals.missingRevenueJobs.length, lastMonth.profitSignals.missingRevenueJobs.length, number, true), 'Incomplete revenue is not treated as a loss.'],
-      ['Revenue Goal Progress', '-', '-', '-', `${fmtNumber(lastMonthGoal.percent, 1)}%`, `${fmtNumber(thisMonthGoal.percent, 1)}%`, formatExecChange(thisMonthGoal.percent, lastMonthGoal.percent, percent), `${formatMoney(thisMonthGoal.goal)} monthly goal. This month is projected at ${formatMoney(thisMonthGoal.projected)}.`],
+      ['Revenue Goal Progress', '-', '-', '-', `${fmtNumber(lastMonthGoal.percent, 1)}%`, `${fmtNumber(thisMonthGoal.percent, 1)}%`, formatExecChange(thisMonthGoal.percent, lastMonthGoal.percent, percent), `${formatMoney(thisMonthGoal.goal)} monthly goal. This month is projected at ${formatMoney(thisMonthGoal.projected)}.`]
+    ];
+
+    return `
+      <div class="exec-comparison-wrap">
+        <table class="exec-table exec-comparison-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Last Week</th>
+              <th>This Week</th>
+              <th>WoW Change</th>
+              <th>Last Month</th>
+              <th>This Month</th>
+              <th>MoM Change</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="exec-footnote">This Month is month-to-date when the current month is still open. Last Month is the full prior calendar month.</p>
+    `;
+  }
+
+  function renderExecutiveOperatorComparisonTable(activeDocs) {
+    const ranges = getExecutiveFixedPeriodRanges();
+    const lastWeek = summarizeExecutivePeriod(activeDocs, ranges.lastWeek);
+    const thisWeek = summarizeExecutivePeriod(activeDocs, ranges.thisWeek);
+    const thisMonth = summarizeExecutivePeriod(activeDocs, ranges.thisMonth);
+    const lastMonth = summarizeExecutivePeriod(activeDocs, ranges.lastMonth);
+    const money = value => formatMoney(value);
+
+    const rows = [
+      ['Direct Fuel', money(lastWeek.summary.fuelCost), money(thisWeek.summary.fuelCost), formatExecChange(thisWeek.summary.fuelCost, lastWeek.summary.fuelCost, money, true), money(lastMonth.summary.fuelCost), money(thisMonth.summary.fuelCost), formatExecChange(thisMonth.summary.fuelCost, lastMonth.summary.fuelCost, money, true), 'Job-direct route/runtime fuel only.'],
+      ['Chemical Cost', money(lastWeek.summary.chemicalCost), money(thisWeek.summary.chemicalCost), formatExecChange(thisWeek.summary.chemicalCost, lastWeek.summary.chemicalCost, money, true), money(lastMonth.summary.chemicalCost), money(thisMonth.summary.chemicalCost), formatExecChange(thisMonth.summary.chemicalCost, lastMonth.summary.chemicalCost, money, true), 'Uses click-based chemical pounds unless marked free.'],
       ['Top City', escapeHtml(lastWeek.topCity?.name || '-'), escapeHtml(thisWeek.topCity?.name || '-'), '-', escapeHtml(lastMonth.topCity?.name || '-'), escapeHtml(thisMonth.topCity?.name || '-'), '-', 'Shows concentration by period.'],
       ['Top Truck', escapeHtml(lastWeek.topTruck?.name || '-'), escapeHtml(thisWeek.topTruck?.name || '-'), '-', escapeHtml(lastMonth.topTruck?.name || '-'), escapeHtml(thisMonth.topTruck?.name || '-'), '-', 'Ranked by lbs/hr.'],
       ['Top Superintendent', escapeHtml(lastWeek.topCrew?.name || '-'), escapeHtml(thisWeek.topCrew?.name || '-'), '-', escapeHtml(lastMonth.topCrew?.name || '-'), escapeHtml(thisMonth.topCrew?.name || '-'), '-', 'Ranked by lbs/hr.']
@@ -5229,7 +5262,6 @@ const differencePercent =
           </tbody>
         </table>
       </div>
-      <p class="exec-footnote">This Month is month-to-date when the current month is still open. Last Month is the full prior calendar month.</p>
     `;
   }
 
@@ -5663,6 +5695,23 @@ const differencePercent =
       : 'No monthly revenue goal is currently set.';
     const revenueGoalOnPace = revenueGoal.goal > 0 && revenueGoal.projected >= revenueGoal.goal;
     const revenueGoalTone = revenueGoal.goal ? (revenueGoalOnPace ? 'on-pace' : 'behind-pace') : 'neutral';
+    const executiveAttentionItems = [];
+    if (revenueGoal.goal) {
+      executiveAttentionItems.push(revenueGoal.pacingVariance >= 0
+        ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of month-to-date pace for the ${formatMoney(revenueGoal.goal)} monthly goal.`
+        : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind month-to-date pace for the ${formatMoney(revenueGoal.goal)} monthly goal.`);
+    }
+    if (profitSignals.lossJobs.length || profitSignals.bottomMarginJobs.length) {
+      const lossText = `${fmtNumber(profitSignals.lossJobs.length, 0)} loss job${profitSignals.lossJobs.length === 1 ? '' : 's'}`;
+      const marginText = `${fmtNumber(profitSignals.bottomMarginJobs.length, 0)} low-margin job${profitSignals.bottomMarginJobs.length === 1 ? '' : 's'}`;
+      executiveAttentionItems.push(`Margin risk is concentrated in ${lossText} and ${marginText} that need management review.`);
+    }
+    if (smallJobDrag.count) {
+      executiveAttentionItems.push(`${fmtNumber(smallJobDrag.count, 0)} small jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs are pressuring production efficiency.`);
+    }
+    if (!executiveAttentionItems.length) {
+      executiveAttentionItems.push('No executive attention item is currently triggered by this report period.');
+    }
     const previousTransitionStats = previousDocs ? buildTransitionStats(calculateTransitions(previousDocs)) : null;
     const previousOutliers = previousDocs ? getDashboardOutliers(previousDocs) : [];
     const previousDataQuality = previousDocs ? getDataQualityMetrics(previousDocs, getPreviousComparableRange(dashboardRangeObj)) : null;
@@ -5813,6 +5862,13 @@ const differencePercent =
         ])}
       </section>
 
+      <section class="exec-section exec-attention">
+        <h2>Executive Attention</h2>
+        <ul>
+          ${executiveAttentionItems.slice(0, 3).map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+        </ul>
+      </section>
+
       <section class="exec-section">
         <h2>Profit Drivers and Margin Risks</h2>
         <p>${escapeHtml(`${profitDriverText} ${marginRiskText} ${truckRiskText}`)}</p>
@@ -5890,8 +5946,8 @@ const differencePercent =
       </section>
 
       <section class="exec-section">
-        <h2>Production Scorecard</h2>
-        <p>The scorecard separates results that are on target from items needing management attention.</p>
+        <h2>Operating Scorecard</h2>
+        <p>The scorecard separates operating results that are on target from items needing management attention.</p>
         ${renderScorecard(scorecardRows)}
       </section>
 
@@ -5909,6 +5965,12 @@ const differencePercent =
       <details class="exec-operator-details">
         <summary>Show Operator Details</summary>
         <div class="exec-operator-body">
+          <section class="exec-section">
+            <h2>Operator Comparison Detail</h2>
+            <p>Fuel, chemical, and top performer comparisons are kept here for follow-up review.</p>
+            ${renderExecutiveOperatorComparisonTable(activeDocs)}
+          </section>
+
           <section class="exec-section">
             <h2>Root Cause Analysis</h2>
             <p><strong>Small-job drag:</strong> ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} labor hours while producing ${fmtNumber(smallJobDrag.pounds, 0)} lbs. That work averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr, which points to mobilization, travel, warranty, punch-list, or isolated service-call friction rather than crew production capacity alone.` : 'Small-job drag did not appear materially in this period.'}</p>
@@ -6088,6 +6150,10 @@ const differencePercent =
           .exec-goal-behind-pace .exec-metric strong { color:#991b1b; }
           .exec-goal-neutral { background:#f8fafc; border:1px solid #cbd5e1; }
           .exec-goal-neutral h2 { border-left-color:#64748b; }
+          .exec-attention { background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:14px; }
+          .exec-attention h2 { border-left-color:#f97316; color:#9a3412; }
+          .exec-attention ul { margin:0; padding-left:20px; }
+          .exec-attention li { margin:6px 0; font-weight:800; color:#7c2d12; }
           .exec-operator-details { border:1px solid #bfdbfe; background:#f8fbff; border-radius:14px; padding:12px; margin:24px 0; }
           .exec-operator-details summary { cursor:pointer; display:inline-flex; align-items:center; background:#0057a8; color:#fff; border-radius:999px; padding:10px 16px; font-weight:900; list-style:none; }
           .exec-operator-details summary::-webkit-details-marker { display:none; }
