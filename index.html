@@ -5661,6 +5661,8 @@ const differencePercent =
         ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
         : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
       : 'No monthly revenue goal is currently set.';
+    const revenueGoalOnPace = revenueGoal.goal > 0 && revenueGoal.projected >= revenueGoal.goal;
+    const revenueGoalTone = revenueGoal.goal ? (revenueGoalOnPace ? 'on-pace' : 'behind-pace') : 'neutral';
     const previousTransitionStats = previousDocs ? buildTransitionStats(calculateTransitions(previousDocs)) : null;
     const previousOutliers = previousDocs ? getDashboardOutliers(previousDocs) : [];
     const previousDataQuality = previousDocs ? getDataQualityMetrics(previousDocs, getPreviousComparableRange(dashboardRangeObj)) : null;
@@ -5796,18 +5798,18 @@ const differencePercent =
         ])}
       </section>
 
-      <section class="exec-section exec-goal">
+      <section class="exec-section exec-goal exec-goal-${revenueGoalTone}">
         <h2>Revenue Goal Progress</h2>
         <p><strong>${escapeHtml(goalPaceText)}</strong></p>
         ${renderExecutiveMetricGrid([
           { label: 'Monthly Goal', value: formatMoney(revenueGoal.goal), sub: 'Executive target' },
           { label: 'Revenue To Date', value: formatMoney(revenueGoal.revenue), sub: `${fmtNumber(revenueGoal.percent, 1)}% of monthly goal` },
           { label: 'Expected To Date', value: formatMoney(revenueGoal.expectedToDate), sub: `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays elapsed` },
-          { label: 'Projected Month', value: formatMoney(revenueGoal.projected), sub: revenueGoal.projected >= revenueGoal.goal ? 'Pacing above goal' : 'Pacing below goal' },
+          { label: 'Projected Month', value: formatMoney(revenueGoal.projected), sub: revenueGoalOnPace ? 'Pacing above goal' : 'Pacing below goal' },
           { label: 'Remaining Revenue', value: formatMoney(revenueGoal.remaining), sub: 'Needed to hit goal' },
           { label: 'Needed / Workday', value: formatMoney(revenueGoal.requiredPerWorkday), sub: `${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining` },
           { label: 'Pace Variance', value: `${revenueGoal.pacingVariance >= 0 ? '+' : '-'}${formatMoney(Math.abs(revenueGoal.pacingVariance))}`, sub: 'Against expected month-to-date pace' },
-          { label: 'Goal Status', value: revenueGoal.projected >= revenueGoal.goal ? 'On Pace' : 'Behind Pace', sub: 'Based on revenue-ready reports' }
+          { label: 'Goal Status', value: revenueGoalOnPace ? 'On Pace' : 'Behind Pace', sub: 'Based on revenue-ready reports' }
         ])}
       </section>
 
@@ -6077,8 +6079,15 @@ const differencePercent =
           .exec-section h3 { color:#003f7d; margin:14px 0 8px; font-size:15px; }
           .exec-section p { margin:0 0 10px; }
           .exec-narrative { background:#f8fbff; border:1px solid #bfdbfe; border-radius:12px; padding:14px; }
-          .exec-goal { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px; }
-          .exec-goal h2 { border-left-color:#16a34a; }
+          .exec-goal { border-radius:12px; padding:14px; }
+          .exec-goal-on-pace { background:#f0fdf4; border:1px solid #bbf7d0; }
+          .exec-goal-on-pace h2 { border-left-color:#16a34a; }
+          .exec-goal-behind-pace { background:#fee2e2; border:1px solid #fecaca; }
+          .exec-goal-behind-pace h2 { border-left-color:#dc2626; color:#991b1b; }
+          .exec-goal-behind-pace .exec-metric { background:#fff7ed; border-color:#fed7aa; }
+          .exec-goal-behind-pace .exec-metric strong { color:#991b1b; }
+          .exec-goal-neutral { background:#f8fafc; border:1px solid #cbd5e1; }
+          .exec-goal-neutral h2 { border-left-color:#64748b; }
           .exec-operator-details { border:1px solid #bfdbfe; background:#f8fbff; border-radius:14px; padding:12px; margin:24px 0; }
           .exec-operator-details summary { cursor:pointer; display:inline-flex; align-items:center; background:#0057a8; color:#fff; border-radius:999px; padding:10px 16px; font-weight:900; list-style:none; }
           .exec-operator-details summary::-webkit-details-marker { display:none; }
