@@ -2399,6 +2399,8 @@
           <label>Diesel Generator Gal / Hour<input id="costDieselGeneratorGalPerHour" type="number" step="0.01"></label>
           <label>Fuel Price / Gallon<input id="costFuelPricePerGallon" type="number" step="0.01"></label>
           <label>Shop Start / End Address<input id="costShopAddress"></label>
+          <label>Shop GPS Latitude<input id="costShopLatitude" type="number" step="0.000001"></label>
+          <label>Shop GPS Longitude<input id="costShopLongitude" type="number" step="0.000001"></label>
           <label>Apply Rules Starting<input id="costEffectiveDate" type="date"></label>
           <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
         </div>
@@ -3228,6 +3230,8 @@
     monthlyRevenueGoal: 250000,
     jointGrindingRatePerLinearFoot: 9,
     shopAddress: '1900 S Main St, Grapevine, TX 76051',
+    shopLatitude: 32.919092,
+    shopLongitude: -97.0799059,
     defaultMpg: 12,
     bigRigMpg: 8,
     smallTruckMpg: 12,
@@ -3754,7 +3758,9 @@ const differencePercent =
       'smallTruckMpg',
       'smallEngineGalPerHour',
       'dieselGeneratorGalPerHour',
-      'fuelPricePerGallon'
+      'fuelPricePerGallon',
+      'shopLatitude',
+      'shopLongitude'
     ].forEach(key => {
       if (key === 'dieselGeneratorGalPerHour' && typeof merged[key] === 'undefined' && typeof value.dieselGeneratorGalPerMinute !== 'undefined') {
         merged[key] = value.dieselGeneratorGalPerMinute;
@@ -3859,6 +3865,8 @@ const differencePercent =
       costDieselGeneratorGalPerHour: costSettings.dieselGeneratorGalPerHour,
       costFuelPricePerGallon: costSettings.fuelPricePerGallon,
       costShopAddress: costSettings.shopAddress,
+      costShopLatitude: costSettings.shopLatitude,
+      costShopLongitude: costSettings.shopLongitude,
       costEffectiveDate: costSettings.effectiveDate || getTodayKey()
     };
     Object.entries(fields).forEach(([id, value]) => {
@@ -3887,6 +3895,8 @@ const differencePercent =
       dieselGeneratorGalPerHour: document.getElementById('costDieselGeneratorGalPerHour')?.value,
       fuelPricePerGallon: document.getElementById('costFuelPricePerGallon')?.value,
       shopAddress: document.getElementById('costShopAddress')?.value?.trim() || DEFAULT_COST_SETTINGS.shopAddress,
+      shopLatitude: document.getElementById('costShopLatitude')?.value,
+      shopLongitude: document.getElementById('costShopLongitude')?.value,
       effectiveDate: document.getElementById('costEffectiveDate')?.value || getTodayKey(),
       ruleHistory: costSettings.ruleHistory || [],
       changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
@@ -4037,11 +4047,36 @@ const differencePercent =
     });
   }
 
-  async function calculateRoundTripRouteMilesDetails(jobAddress, settings = costSettings) {
+  function estimateRoundTripFromStraightLine(fromLocation, toLocation) {
+    const straightLineMiles = calculateStraightLineMiles(fromLocation, toLocation);
+    if (straightLineMiles <= 0) return 0;
+    return Number((straightLineMiles * 2 * 1.25).toFixed(1));
+  }
+
+  function getShopCoordinates(settings = costSettings) {
+    return {
+      lat: Number(settings.shopLatitude || DEFAULT_COST_SETTINGS.shopLatitude || 0),
+      lng: Number(settings.shopLongitude || DEFAULT_COST_SETTINGS.shopLongitude || 0)
+    };
+  }
+
+  async function calculateRoundTripRouteMilesDetails(jobAddress, settings = costSettings, jobCoordinates = null) {
     const destination = String(jobAddress || '').trim();
     const shopAddress = String(settings.shopAddress || DEFAULT_COST_SETTINGS.shopAddress || '').trim();
     if (!destination || !shopAddress) return { miles: null, source: 'Not calculated', status: 'Missing destination or shop address' };
-    if (!window.google?.maps) return { miles: null, source: 'Not calculated', status: 'Google Maps not loaded' };
+
+    const gpsEstimatedMiles = estimateRoundTripFromStraightLine(getShopCoordinates(settings), jobCoordinates);
+
+    if (!window.google?.maps) {
+      if (gpsEstimatedMiles > 0) {
+        return {
+          miles: gpsEstimatedMiles,
+          source: 'Estimated route: saved GPS straight-line x1.25',
+          status: 'Google Maps not loaded; used saved job GPS'
+        };
+      }
+      return { miles: null, source: 'Not calculated', status: 'Google Maps not loaded and no job GPS available' };
+    }
 
     if (window.google?.maps?.DirectionsService) {
       const directionsService = new google.maps.DirectionsService();
@@ -4075,21 +4110,28 @@ const differencePercent =
 
     const shopGeo = await geocodeAddress(shopAddress);
     const destinationGeo = await geocodeAddress(destination);
-    const straightLineMiles = calculateStraightLineMiles(shopGeo?.location, destinationGeo?.location);
-    if (straightLineMiles > 0) {
-      const estimatedRoundTripMiles = straightLineMiles * 2 * 1.25;
+    const estimatedRoundTripMiles = estimateRoundTripFromStraightLine(shopGeo?.location, destinationGeo?.location);
+    if (estimatedRoundTripMiles > 0) {
       return {
-        miles: Number(estimatedRoundTripMiles.toFixed(1)),
+        miles: estimatedRoundTripMiles,
         source: 'Estimated route: geocoded straight-line x1.25',
         status: `Directions unavailable; geocode ${shopGeo?.status || '-'} / ${destinationGeo?.status || '-'}`
+      };
+    }
+
+    if (gpsEstimatedMiles > 0) {
+      return {
+        miles: gpsEstimatedMiles,
+        source: 'Estimated route: saved GPS straight-line x1.25',
+        status: `Google route/geocode unavailable (${destinationGeo?.status || shopGeo?.status || 'no result'}); used saved job GPS`
       };
     }
 
     return { miles: null, source: 'Not calculated', status: destinationGeo?.status || shopGeo?.status || 'No route/geocode result' };
   }
 
-  async function calculateRoundTripRouteMiles(jobAddress, settings = costSettings) {
-    lastRouteMilesResult = await calculateRoundTripRouteMilesDetails(jobAddress, settings);
+  async function calculateRoundTripRouteMiles(jobAddress, settings = costSettings, jobCoordinates = null) {
+    lastRouteMilesResult = await calculateRoundTripRouteMilesDetails(jobAddress, settings, jobCoordinates);
     return lastRouteMilesResult.miles;
   }
 
@@ -7194,7 +7236,10 @@ const differencePercent =
         data.addressLatitude = data.addressLatitude || "";
         data.addressLongitude = data.addressLongitude || "";
         data.googlePlaceId = data.googlePlaceId || "";
-        data.routeMilesGenerated = await calculateRoundTripRouteMiles(data.address, costSettings) || 0;
+        data.routeMilesGenerated = await calculateRoundTripRouteMiles(data.address, costSettings, {
+          lat: data.addressLatitude || data.gpsLatitude,
+          lng: data.addressLongitude || data.gpsLongitude
+        }) || 0;
         data.routeMilesSource = data.routeMilesGenerated > 0 ? (lastRouteMilesResult.source || 'Google route: shop-job-shop') : 'Not calculated';
         data.routeMiles = data.routeMiles || "";
 
@@ -8900,7 +8945,10 @@ function loadFleetGPS() {
     }
     updateEditRouteMilesStatus('Calculating shop-job-shop route miles...');
     try {
-      const generatedRouteMiles = await calculateRoundTripRouteMiles(address, costSettings);
+      const generatedRouteMiles = await calculateRoundTripRouteMiles(address, costSettings, {
+        lat: document.getElementById('editGpsLatitude')?.value || currentEditReport.gpsLatitude || currentEditReport.addressLatitude,
+        lng: document.getElementById('editGpsLongitude')?.value || currentEditReport.gpsLongitude || currentEditReport.addressLongitude
+      });
       if (!generatedRouteMiles) {
         currentEditGeneratedRouteMiles = 0;
         currentEditGeneratedRouteSource = lastRouteMilesResult.source || 'Not calculated';
@@ -8969,7 +9017,10 @@ function loadFleetGPS() {
     };
 
     if (!Number(editPatchInput.routeMiles || 0)) {
-      const generatedRouteMiles = await calculateRoundTripRouteMiles(editPatchInput.address, costSettings);
+      const generatedRouteMiles = await calculateRoundTripRouteMiles(editPatchInput.address, costSettings, {
+        lat: editPatchInput.gpsLatitude || currentEditReport.gpsLatitude || currentEditReport.addressLatitude,
+        lng: editPatchInput.gpsLongitude || currentEditReport.gpsLongitude || currentEditReport.addressLongitude
+      });
       editPatchInput.routeMilesGenerated = generatedRouteMiles || currentEditGeneratedRouteMiles || currentEditReport.routeMilesGenerated || 0;
       editPatchInput.routeMilesSource = generatedRouteMiles ? (lastRouteMilesResult.source || 'Google route: shop-job-shop') : (currentEditGeneratedRouteSource || currentEditReport.routeMilesSource || 'Not calculated');
     } else {
