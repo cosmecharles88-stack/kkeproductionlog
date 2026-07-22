@@ -443,6 +443,88 @@
       font-weight: 900;
     }
 
+    .dashboard-goal-card {
+      border-radius: 14px;
+      padding: 14px;
+      margin: 0 0 16px;
+      border: 1px solid var(--border);
+    }
+
+    .dashboard-goal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .dashboard-goal-header h2 {
+      margin-bottom: 4px;
+    }
+
+    .dashboard-goal-header p {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .dashboard-goal-status {
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .dashboard-goal-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .goal-sub {
+      color: var(--gray);
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .dashboard-goal-on-pace {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .dashboard-goal-on-pace h2,
+    .dashboard-goal-on-pace .calc-value {
+      color: #166534;
+    }
+
+    .dashboard-goal-on-pace .dashboard-goal-status {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .dashboard-goal-behind-pace {
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .dashboard-goal-behind-pace h2,
+    .dashboard-goal-behind-pace .calc-value {
+      color: #991b1b;
+    }
+
+    .dashboard-goal-behind-pace .dashboard-goal-status {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .dashboard-goal-neutral {
+      background: #f8fafc;
+    }
+
     .chart-wrap {
       display: grid;
       gap: 12px;
@@ -1697,6 +1779,43 @@
     .trend-label { font-size: 11px; color: var(--gray); font-weight: 800; text-align:center; }
     .trend-value { font-size: 11px; color: var(--kke-dark-blue); font-weight: 900; text-align:center; }
 
+    .trend-dual-grid {
+      align-items: stretch;
+      min-height: 230px;
+      padding-top: 6px;
+    }
+
+    .trend-dual-card {
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      background: #f8fbff;
+      padding: 9px 8px;
+      display: grid;
+      gap: 7px;
+      align-content: end;
+      min-height: 210px;
+    }
+
+    .trend-dual-bars {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: end;
+      gap: 6px;
+      height: 118px;
+    }
+
+    .trend-mini-bar {
+      border-radius: 9px 9px 3px 3px;
+      min-height: 4px;
+      width: 100%;
+    }
+
+    .trend-lbs-bar { background: linear-gradient(180deg, var(--kke-blue), var(--kke-dark-blue)); }
+    .trend-revenue-bar { background: linear-gradient(180deg, #22c55e, #15803d); }
+    .trend-revenue-value { color: #15803d; }
+    .trend-rate-value { color: #9a3412; font-weight: 900; }
+    .trend-missing-revenue { color: #b91c1c; font-size: 10px; font-weight: 900; text-align: center; }
+
 
     .transition-summary {
       display: grid;
@@ -1953,6 +2072,8 @@
       .new-city-grid { grid-template-columns: 1fr; }
       .dashboard-filter-row { grid-template-columns: 1fr; }
       .dashboard-range-pill { border-radius: 12px; }
+      .dashboard-goal-grid { grid-template-columns: 1fr 1fr; }
+      .dashboard-goal-header { flex-direction: column; }
       .mom-grid { grid-template-columns: 1fr 1fr; }
       .fleet-summary-grid { grid-template-columns: 1fr 1fr; }
       #fleetGPS .fleet-command-topbar { grid-template-columns: 1fr; }
@@ -2377,6 +2498,26 @@
         <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
       </div>
 
+      <section id="dashboardRevenueGoalCard" class="dashboard-goal-card dashboard-goal-neutral" aria-label="Revenue goal progress">
+        <div class="dashboard-goal-header">
+          <div>
+            <h2>Revenue Goal Progress</h2>
+            <p id="dashboardRevenueGoalMessage">Revenue goal progress will appear when dashboard data loads.</p>
+          </div>
+          <div id="dashboardRevenueGoalStatus" class="dashboard-goal-status">Waiting</div>
+        </div>
+        <div class="dashboard-goal-grid">
+          <div class="calc-box"><div class="calc-label">Monthly Goal</div><div class="calc-value" id="dashGoalMonthly">$0</div><div class="goal-sub">Executive target</div></div>
+          <div class="calc-box"><div class="calc-label">Revenue To Date</div><div class="calc-value" id="dashGoalRevenue">$0</div><div class="goal-sub" id="dashGoalRevenueSub">0.0% of monthly goal</div></div>
+          <div class="calc-box"><div class="calc-label">Expected To Date</div><div class="calc-value" id="dashGoalExpected">$0</div><div class="goal-sub" id="dashGoalExpectedSub">0 of 0 workdays elapsed</div></div>
+          <div class="calc-box"><div class="calc-label">Projected Month</div><div class="calc-value" id="dashGoalProjected">$0</div><div class="goal-sub" id="dashGoalProjectedSub">Waiting for revenue-ready reports</div></div>
+          <div class="calc-box"><div class="calc-label">Remaining Revenue</div><div class="calc-value" id="dashGoalRemaining">$0</div><div class="goal-sub">Needed to hit goal</div></div>
+          <div class="calc-box"><div class="calc-label">Needed / Workday</div><div class="calc-value" id="dashGoalNeededPerDay">$0</div><div class="goal-sub" id="dashGoalNeededPerDaySub">0 workdays remaining</div></div>
+          <div class="calc-box"><div class="calc-label">Pace Variance</div><div class="calc-value" id="dashGoalVariance">$0</div><div class="goal-sub">Against expected month-to-date pace</div></div>
+          <div class="calc-box"><div class="calc-label">Goal Status</div><div class="calc-value" id="dashGoalStatusValue">Waiting</div><div class="goal-sub">Based on revenue-ready reports</div></div>
+        </div>
+      </section>
+
       <details class="dashboard-note" style="background:#f8fafc; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;">
         <summary style="cursor:pointer; font-weight:900; color:var(--kke-blue);">Cost Settings and P&amp;L Rules</summary>
         <p style="margin-top:10px;">Editable defaults for estimated job P&amp;L. Report-level values override these when better data is available.</p>
@@ -2785,12 +2926,13 @@
 
     <div class="card">
       <h2>Production Trend — Last 7 Report Days</h2>
+      <p class="dashboard-note">Blue bars show pumped lbs. Green bars show revenue from revenue-ready job data. The bottom label shows revenue per lb.</p>
       <div id="trendMetrics" class="empty-state">No trend data yet.</div>
     </div>
 
     <div class="card">
-      <h2>Week-over-Week Production Trend</h2>
-      <p class="dashboard-note">Sunday-to-Saturday production totals for the last 6 weeks, including the current week-to-date.</p>
+      <h2>Week-over-Week Production / Revenue Trend</h2>
+      <p class="dashboard-note">Sunday-to-Saturday totals for the last 6 weeks, including the current week-to-date. Blue is lbs and green is revenue.</p>
       <div id="weekOverWeekTrendMetrics" class="empty-state">No weekly trend data yet.</div>
     </div>
 
@@ -6386,6 +6528,38 @@ const differencePercent =
     popup.document.close();
   }
 
+  function renderDashboardRevenueGoal(docs, range) {
+    const summary = summarizeExecutiveReports(docs || []);
+    const revenueGoal = getRevenueGoalProgress(summary, range, costSettings);
+    const hasGoal = revenueGoal.goal > 0 && range?.key !== 'all';
+    const onPace = hasGoal && revenueGoal.projected >= revenueGoal.goal;
+    const card = document.getElementById('dashboardRevenueGoalCard');
+    if (card) {
+      card.classList.remove('dashboard-goal-on-pace', 'dashboard-goal-behind-pace', 'dashboard-goal-neutral');
+      card.classList.add(hasGoal ? (onPace ? 'dashboard-goal-on-pace' : 'dashboard-goal-behind-pace') : 'dashboard-goal-neutral');
+    }
+
+    const message = !hasGoal
+      ? 'Select a monthly dashboard period and set a monthly revenue goal to track pacing.'
+      : revenueGoal.pacingVariance >= 0
+        ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
+        : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`;
+
+    setText('dashboardRevenueGoalMessage', message);
+    setText('dashboardRevenueGoalStatus', hasGoal ? (onPace ? 'On Pace' : 'Behind Pace') : 'No Goal');
+    setText('dashGoalMonthly', formatMoney(revenueGoal.goal));
+    setText('dashGoalRevenue', formatMoney(revenueGoal.revenue));
+    setText('dashGoalRevenueSub', `${fmtNumber(revenueGoal.percent, 1)}% of monthly goal`);
+    setText('dashGoalExpected', formatMoney(revenueGoal.expectedToDate));
+    setText('dashGoalExpectedSub', `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays elapsed`);
+    setText('dashGoalProjected', formatMoney(revenueGoal.projected));
+    setText('dashGoalProjectedSub', hasGoal ? (onPace ? 'Pacing above goal' : 'Pacing below goal') : 'Waiting for goal');
+    setText('dashGoalRemaining', formatMoney(revenueGoal.remaining));
+    setText('dashGoalNeededPerDay', formatMoney(revenueGoal.requiredPerWorkday));
+    setText('dashGoalNeededPerDaySub', `${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining`);
+    setText('dashGoalVariance', `${revenueGoal.pacingVariance >= 0 ? '+' : '-'}${formatMoney(Math.abs(revenueGoal.pacingVariance))}`);
+    setText('dashGoalStatusValue', hasGoal ? (onPace ? 'On Pace' : 'Behind Pace') : 'No Goal');
+  }
 
   function renderDashboardAnalytics(rawDocs) {
     toggleDashboardDateRangePicker();
@@ -6395,6 +6569,7 @@ const differencePercent =
     const activeDocs = activeReportsOnly(rawDocs || []);
     const docs = filterReportsForDashboardPeriod(activeDocs);
     const tableDocs = filterReportsForDashboardTables(activeDocs);
+    renderDashboardRevenueGoal(docs, getDashboardPeriodRange());
     const tableStats = buildDashboardTableStats(tableDocs);
     const transitions = calculateTransitions(docs);
     const transitionStats = buildTransitionStats(transitions);
@@ -7917,25 +8092,48 @@ const differencePercent =
     const byDate = {};
     activeReportsOnly(docs).forEach(report => {
       if (!report.date) return;
-      byDate[report.date] = (byDate[report.date] || 0) + getReportPounds(report);
+      if (!byDate[report.date]) {
+        byDate[report.date] = { date: report.date, pounds: 0, revenue: 0, reports: 0, missingRevenue: 0 };
+      }
+      const item = byDate[report.date];
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      item.pounds += getReportPounds(report);
+      item.revenue += pnl.revenue;
+      item.reports += 1;
+      if (pnl.revenue <= 0) item.missingRevenue += 1;
     });
 
-    const entries = Object.entries(byDate)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-7)
-      .map(([date, pounds]) => ({ date, pounds }));
+    const entries = Object.values(byDate)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-7);
 
     if (!entries.length) return `<div class="empty-state">No trend data yet.</div>`;
 
-    const max = Math.max(...entries.map(item => item.pounds), 1);
-    return `<div class="trend-grid">${entries.map(item => {
-      const height = Math.max(4, (item.pounds / max) * 140);
+    const maxPounds = Math.max(...entries.map(item => item.pounds), 1);
+    const maxRevenue = Math.max(...entries.map(item => item.revenue), 1);
+    return `<div class="trend-grid trend-dual-grid">${entries.map(item => {
+      const lbsHeight = Math.max(4, (item.pounds / maxPounds) * 112);
+      const revenueHeight = item.revenue > 0 ? Math.max(4, (item.revenue / maxRevenue) * 112) : 0;
+      const revenuePerLb = item.pounds > 0 && item.revenue > 0 ? item.revenue / item.pounds : 0;
       const label = item.date.slice(5);
+      const missingText = item.missingRevenue ? `<div class="trend-missing-revenue">${fmtNumber(item.missingRevenue, 0)} missing revenue</div>` : '';
       return `
-        <div class="trend-bar-wrap">
-          <div class="trend-value">${fmtNumber(item.pounds, 0)}</div>
-          <div class="trend-bar" style="height:${height}px"></div>
+        <div class="trend-dual-card" title="${escapeAttr(item.date)}: ${fmtNumber(item.pounds, 0)} lbs, ${formatMoney(item.revenue)}, ${formatMoney(revenuePerLb)}/lb">
           <div class="trend-label">${escapeHtml(label)}</div>
+          <div class="trend-dual-bars">
+            <div>
+              <div class="trend-value">${fmtNumber(item.pounds, 0)}</div>
+              <div class="trend-mini-bar trend-lbs-bar" style="height:${lbsHeight}px"></div>
+              <div class="trend-label">lbs</div>
+            </div>
+            <div>
+              <div class="trend-value trend-revenue-value">${formatMoney(item.revenue)}</div>
+              <div class="trend-mini-bar trend-revenue-bar" style="height:${revenueHeight}px"></div>
+              <div class="trend-label">rev</div>
+            </div>
+          </div>
+          <div class="trend-rate-value">${revenuePerLb > 0 ? `${formatMoney(revenuePerLb)}/lb` : 'No rev/lb'}</div>
+          ${missingText}
         </div>
       `;
     }).join('')}</div>`;
@@ -7961,8 +8159,10 @@ const differencePercent =
         start,
         end,
         pounds: 0,
+        revenue: 0,
         reports: 0,
-        hours: 0
+        hours: 0,
+        missingRevenue: 0
       });
     }
 
@@ -7971,29 +8171,48 @@ const differencePercent =
       if (!date) return;
       const week = weeks.find(item => date >= item.start && date < item.end);
       if (!week) return;
+      const pnl = calculateReportPnl(report, allReports, costSettings);
       week.pounds += getReportPounds(report);
+      week.revenue += pnl.revenue;
       week.reports += 1;
       week.hours += getReportHours(report);
+      if (pnl.revenue <= 0) week.missingRevenue += 1;
     });
 
     const hasData = weeks.some(week => week.pounds > 0 || week.reports > 0);
     if (!hasData) return `<div class="empty-state">No weekly trend data yet.</div>`;
 
-    const max = Math.max(...weeks.map(week => week.pounds), 1);
-    return `<div class="trend-grid six-month-trend-grid">${weeks.map((week, index) => {
+    const maxPounds = Math.max(...weeks.map(week => week.pounds), 1);
+    const maxRevenue = Math.max(...weeks.map(week => week.revenue), 1);
+    return `<div class="trend-grid six-month-trend-grid trend-dual-grid">${weeks.map((week, index) => {
       const previous = index > 0 ? weeks[index - 1] : null;
       const change = previous && previous.pounds > 0
         ? ((week.pounds - previous.pounds) / previous.pounds) * 100
         : null;
       const changeText = change === null ? 'new baseline' : `${change >= 0 ? '+' : ''}${fmtNumber(change, 1)}% WoW`;
-      const height = Math.max(4, (week.pounds / max) * 140);
+      const lbsHeight = Math.max(4, (week.pounds / maxPounds) * 112);
+      const revenueHeight = week.revenue > 0 ? Math.max(4, (week.revenue / maxRevenue) * 112) : 0;
+      const revenuePerLb = week.pounds > 0 && week.revenue > 0 ? week.revenue / week.pounds : 0;
+      const missingText = week.missingRevenue ? `<div class="trend-missing-revenue">${fmtNumber(week.missingRevenue, 0)} missing revenue</div>` : '';
       return `
-        <div class="trend-bar-wrap" title="${escapeHtml(week.label)}: ${fmtNumber(week.pounds, 0)} lbs, ${fmtNumber(week.reports, 0)} reports">
-          <div class="trend-value">${fmtNumber(week.pounds, 0)}</div>
-          <div class="trend-bar" style="height:${height}px"></div>
+        <div class="trend-dual-card" title="${escapeAttr(week.label)}: ${fmtNumber(week.pounds, 0)} lbs, ${formatMoney(week.revenue)}, ${fmtNumber(week.reports, 0)} reports">
           <div class="trend-label">${escapeHtml(week.label)}</div>
-          <div class="trend-label">${fmtNumber(week.reports, 0)} reports</div>
+          <div class="trend-dual-bars">
+            <div>
+              <div class="trend-value">${fmtNumber(week.pounds, 0)}</div>
+              <div class="trend-mini-bar trend-lbs-bar" style="height:${lbsHeight}px"></div>
+              <div class="trend-label">lbs</div>
+            </div>
+            <div>
+              <div class="trend-value trend-revenue-value">${formatMoney(week.revenue)}</div>
+              <div class="trend-mini-bar trend-revenue-bar" style="height:${revenueHeight}px"></div>
+              <div class="trend-label">rev</div>
+            </div>
+          </div>
+          <div class="trend-rate-value">${revenuePerLb > 0 ? `${formatMoney(revenuePerLb)}/lb` : 'No rev/lb'}</div>
           <div class="trend-label">${escapeHtml(changeText)}</div>
+          <div class="trend-label">${fmtNumber(week.reports, 0)} reports</div>
+          ${missingText}
         </div>
       `;
     }).join('')}</div>`;
