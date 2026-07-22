@@ -106,6 +106,25 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
+    .report-cache-status {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin: -8px 0 14px;
+      padding: 8px 12px;
+      border: 1px solid #dbeafe;
+      background: #f8fbff;
+      border-radius: 10px;
+      color: var(--gray);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .report-cache-status strong {
+      color: var(--kke-blue);
+    }
+
     /* Branded Header */
     .header {
       position: relative;
@@ -1986,6 +2005,10 @@
     <button id="tabFleetGPS" class="tab-btn" style="display:none;">Fleet Operations</button>
     <button id="btnLogout" class="tab-btn" style="color: var(--danger); flex: 0.4;">Logout</button>
   </div>
+  <div id="reportCacheStatus" class="report-cache-status" style="display:none;">
+    <span id="reportCacheStatusText">Reports not loaded yet.</span>
+    <span id="reportCacheRefreshText"></span>
+  </div>
 
   <!-- Main Form Tab -->
   <div id="new-form" class="tab-content active">
@@ -3168,8 +3191,14 @@
   const FALLBACK_COLORS = ["#0057a8", "#16a34a", "#f97316", "#7c3aed", "#dc2626", "#0891b2", "#ca8a04", "#be123c"];
 
   let isCurrentUserManager = false;
-  let historyUnsubscribe = null;
-  let dashboardUnsubscribe = null;
+  let reportCacheUnsubscribe = null;
+  let reportCacheLoaded = false;
+  let reportCacheLastSync = null;
+  let historyUsesReportCache = false;
+  let dashboardUsesReportCache = false;
+  let activeTabId = 'new-form';
+  let historyNeedsRender = false;
+  let dashboardNeedsRender = false;
   let fleetLocationsUnsubscribe = null;
   let fleetEventsUnsubscribe = null;
   let fleetMaintenanceUnsubscribe = null;
@@ -3255,14 +3284,18 @@
   document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
 
   onAuthStateChanged(auth, (user) => {
-    if (historyUnsubscribe) {
-      historyUnsubscribe();
-      historyUnsubscribe = null;
+    if (reportCacheUnsubscribe) {
+      reportCacheUnsubscribe();
+      reportCacheUnsubscribe = null;
     }
-    if (dashboardUnsubscribe) {
-      dashboardUnsubscribe();
-      dashboardUnsubscribe = null;
-    }
+    reportCacheLoaded = false;
+    reportCacheLastSync = null;
+    historyUsesReportCache = false;
+    dashboardUsesReportCache = false;
+    historyNeedsRender = false;
+    dashboardNeedsRender = false;
+    allReports = [];
+    dashboardReports = [];
     if (fleetLocationsUnsubscribe) {
       fleetLocationsUnsubscribe();
       fleetLocationsUnsubscribe = null;
@@ -3377,6 +3410,7 @@ document.addEventListener("change", (e) => {
   if (dateInput) dateInput.valueAsDate = new Date();
 
   const switchTab = (tabId) => {
+    activeTabId = tabId;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     const btnId =
@@ -3390,6 +3424,7 @@ document.addEventListener("change", (e) => {
     const content = document.getElementById(tabId);
     if (content) content.classList.add('active');
     mainContent?.classList.toggle('fleet-page-active', tabId === 'fleetGPS');
+    refreshActiveReportTab(tabId);
   };
 
   document.getElementById('tabNew').addEventListener('click', () => switchTab('new-form'));
@@ -7567,20 +7602,106 @@ const differencePercent =
     }).join('');
   }
 
-  function loadHistory() {
-    if (!auth.currentUser) return;
-    const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+  function formatSyncTime(date) {
+    if (!date) return 'Not synced';
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
 
-    historyUnsubscribe = onSnapshot(collRef, (snapshot) => {
-      allReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      allReports.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+  function updateReportCacheStatus() {
+    const status = document.getElementById('reportCacheStatus');
+    const text = document.getElementById('reportCacheStatusText');
+    const refreshText = document.getElementById('reportCacheRefreshText');
+    if (!status || !text || !refreshText) return;
+    status.style.display = auth.currentUser ? 'flex' : 'none';
+    text.innerHTML = `Reports loaded: <strong>${fmtNumber(allReports.length, 0)}</strong> | Last sync: <strong>${escapeHtml(formatSyncTime(reportCacheLastSync))}</strong>`;
+    const waiting = [];
+    if (historyNeedsRender) waiting.push('History');
+    if (dashboardNeedsRender) waiting.push('Dashboard');
+    refreshText.textContent = waiting.length ? `${waiting.join(' and ')} will refresh when opened.` : 'Using shared report cache.';
+  }
+
+  function renderHistoryFromCache() {
+    populateHistoryFilters(allReports);
+    renderHistory();
+    historyNeedsRender = false;
+  }
+
+  function renderDashboardFromCache() {
+    dashboardReports = activeReportsOnly(allReports);
+    renderDashboardAnalytics(dashboardReports);
+    dashboardNeedsRender = false;
+  }
+
+  function refreshReportCacheConsumers() {
+    if (historyUsesReportCache) {
+      if (activeTabId === 'history') {
+        renderHistoryFromCache();
+      } else {
+        historyNeedsRender = true;
+      }
+    }
+    if (dashboardUsesReportCache && isCurrentUserManager) {
+      if (activeTabId === 'dashboard') {
+        renderDashboardFromCache();
+      } else {
+        dashboardReports = activeReportsOnly(allReports);
+        dashboardNeedsRender = true;
+      }
+    }
+    updateReportCacheStatus();
+  }
+
+  function refreshActiveReportTab(tabId = activeTabId) {
+    if (tabId === 'history' && historyUsesReportCache && reportCacheLoaded) {
+      renderHistoryFromCache();
+    }
+    if (tabId === 'dashboard' && dashboardUsesReportCache && reportCacheLoaded && isCurrentUserManager) {
+      renderDashboardFromCache();
+    }
+    updateReportCacheStatus();
+  }
+
+  function refreshAllReportCacheConsumers() {
+    if (historyUsesReportCache) {
       populateHistoryFilters(allReports);
       renderHistory();
+      historyNeedsRender = false;
+    }
+    if (dashboardUsesReportCache && isCurrentUserManager) {
+      dashboardReports = activeReportsOnly(allReports);
+      renderDashboardAnalytics(dashboardReports);
+      dashboardNeedsRender = false;
+    }
+    updateReportCacheStatus();
+  }
+
+  function ensureReportCache() {
+    if (!auth.currentUser || reportCacheUnsubscribe) {
+      if (reportCacheLoaded) refreshActiveReportTab();
+      return;
+    }
+    const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+
+    reportCacheUnsubscribe = onSnapshot(collRef, (snapshot) => {
+      allReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      allReports.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      dashboardReports = activeReportsOnly(allReports);
+      reportCacheLoaded = true;
+      reportCacheLastSync = new Date();
+      refreshReportCacheConsumers();
     }, (err) => {
       console.error(err);
+      reportCacheLoaded = false;
       const list = document.getElementById('historyList');
-      if (list) list.innerHTML = 'Error loading history.';
+      if (historyUsesReportCache && list) list.innerHTML = 'Error loading history.';
+      if (dashboardUsesReportCache) showMessage('Error loading reports. Check manager access and Firebase rules.', 'error');
     });
+  }
+
+  function loadHistory() {
+    if (!auth.currentUser) return;
+    historyUsesReportCache = true;
+    ensureReportCache();
   }
 
 
@@ -8582,15 +8703,8 @@ function loadFleetGPS() {
 
   function loadDashboard() {
     if (!auth.currentUser || !isCurrentUserManager) return;
-    const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
-
-    dashboardUnsubscribe = onSnapshot(collRef, (snapshot) => {
-      dashboardReports = activeReportsOnly(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      renderDashboardAnalytics(dashboardReports);
-    }, (err) => {
-      console.error(err);
-      showMessage('Error loading dashboard. Check manager access and Firebase rules.', 'error');
-    });
+    dashboardUsesReportCache = true;
+    ensureReportCache();
   }
 
   function makeAuditEntry(action, note = '') {
