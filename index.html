@@ -3185,6 +3185,7 @@
   let currentEditReport = null;
   let currentEditGeneratedRouteMiles = 0;
   let currentEditGeneratedRouteSource = '';
+  let lastRouteMilesResult = { miles: 0, source: '', status: '' };
   let isSubmittingReport = false;
   const COST_SETTINGS_STORAGE_KEY = 'kkeCostSettingsV1';
   const DEFAULT_COST_SETTINGS = {
@@ -3966,32 +3967,95 @@ const differencePercent =
     return Number.isFinite(gpsMiles) && gpsMiles > 0 ? gpsMiles : 0;
   }
 
-  async function calculateRoundTripRouteMiles(jobAddress, settings = costSettings) {
-    const destination = String(jobAddress || '').trim();
-    const shopAddress = String(settings.shopAddress || DEFAULT_COST_SETTINGS.shopAddress || '').trim();
-    if (!destination || !shopAddress || !window.google?.maps?.DirectionsService) return null;
+  function getLatLngParts(location) {
+    if (!location) return null;
+    const lat = typeof location.lat === 'function' ? location.lat() : Number(location.lat);
+    const lng = typeof location.lng === 'function' ? location.lng() : Number(location.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }
 
-    const directionsService = new google.maps.DirectionsService();
-    const request = {
-      origin: shopAddress,
-      destination: shopAddress,
-      waypoints: [{ location: destination, stopover: true }],
-      travelMode: google.maps.TravelMode.DRIVING,
-      optimizeWaypoints: false
-    };
+  function calculateStraightLineMiles(fromLocation, toLocation) {
+    const from = getLatLngParts(fromLocation);
+    const to = getLatLngParts(toLocation);
+    if (!from || !to) return 0;
+    const radians = degrees => degrees * Math.PI / 180;
+    const earthRadiusMiles = 3958.8;
+    const dLat = radians(to.lat - from.lat);
+    const dLng = radians(to.lng - from.lng);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(radians(from.lat)) * Math.cos(radians(to.lat)) * Math.sin(dLng / 2) ** 2;
+    return earthRadiusMiles * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
 
+  function geocodeAddress(address) {
+    const text = String(address || '').trim();
+    if (!text || !window.google?.maps?.Geocoder) return Promise.resolve(null);
+    const geocoder = new google.maps.Geocoder();
     return new Promise(resolve => {
-      directionsService.route(request, (result, status) => {
-        if (status !== 'OK' || !result?.routes?.[0]?.legs?.length) {
-          console.warn('Route mileage calculation failed:', status);
-          resolve(null);
+      geocoder.geocode({ address: text, componentRestrictions: { country: 'US' } }, (results, status) => {
+        if (status !== 'OK' || !results?.[0]?.geometry?.location) {
+          resolve({ status, location: null });
           return;
         }
-        const meters = result.routes[0].legs.reduce((sum, leg) => sum + Number(leg.distance?.value || 0), 0);
-        const miles = meters / 1609.344;
-        resolve(Number.isFinite(miles) && miles > 0 ? Number(miles.toFixed(1)) : null);
+        resolve({ status, location: results[0].geometry.location, formattedAddress: results[0].formatted_address || text });
       });
     });
+  }
+
+  async function calculateRoundTripRouteMilesDetails(jobAddress, settings = costSettings) {
+    const destination = String(jobAddress || '').trim();
+    const shopAddress = String(settings.shopAddress || DEFAULT_COST_SETTINGS.shopAddress || '').trim();
+    if (!destination || !shopAddress) return { miles: null, source: 'Not calculated', status: 'Missing destination or shop address' };
+    if (!window.google?.maps) return { miles: null, source: 'Not calculated', status: 'Google Maps not loaded' };
+
+    if (window.google?.maps?.DirectionsService) {
+      const directionsService = new google.maps.DirectionsService();
+      const request = {
+        origin: shopAddress,
+        destination: shopAddress,
+        waypoints: [{ location: destination, stopover: true }],
+        travelMode: google.maps.TravelMode.DRIVING,
+        optimizeWaypoints: false
+      };
+
+      const directionsResult = await new Promise(resolve => {
+        directionsService.route(request, (result, status) => {
+          if (status !== 'OK' || !result?.routes?.[0]?.legs?.length) {
+            console.warn('Route mileage calculation failed:', status);
+            resolve({ miles: null, source: 'Not calculated', status });
+            return;
+          }
+          const meters = result.routes[0].legs.reduce((sum, leg) => sum + Number(leg.distance?.value || 0), 0);
+          const miles = meters / 1609.344;
+          resolve({
+            miles: Number.isFinite(miles) && miles > 0 ? Number(miles.toFixed(1)) : null,
+            source: 'Google route: shop-job-shop',
+            status
+          });
+        });
+      });
+
+      if (directionsResult.miles) return directionsResult;
+    }
+
+    const shopGeo = await geocodeAddress(shopAddress);
+    const destinationGeo = await geocodeAddress(destination);
+    const straightLineMiles = calculateStraightLineMiles(shopGeo?.location, destinationGeo?.location);
+    if (straightLineMiles > 0) {
+      const estimatedRoundTripMiles = straightLineMiles * 2 * 1.25;
+      return {
+        miles: Number(estimatedRoundTripMiles.toFixed(1)),
+        source: 'Estimated route: geocoded straight-line x1.25',
+        status: `Directions unavailable; geocode ${shopGeo?.status || '-'} / ${destinationGeo?.status || '-'}`
+      };
+    }
+
+    return { miles: null, source: 'Not calculated', status: destinationGeo?.status || shopGeo?.status || 'No route/geocode result' };
+  }
+
+  async function calculateRoundTripRouteMiles(jobAddress, settings = costSettings) {
+    lastRouteMilesResult = await calculateRoundTripRouteMilesDetails(jobAddress, settings);
+    return lastRouteMilesResult.miles;
   }
 
   function parseRunTimeHours(value) {
@@ -7096,7 +7160,7 @@ const differencePercent =
         data.addressLongitude = data.addressLongitude || "";
         data.googlePlaceId = data.googlePlaceId || "";
         data.routeMilesGenerated = await calculateRoundTripRouteMiles(data.address, costSettings) || 0;
-        data.routeMilesSource = data.routeMilesGenerated > 0 ? 'Google route: shop-job-shop' : 'Not calculated';
+        data.routeMilesSource = data.routeMilesGenerated > 0 ? (lastRouteMilesResult.source || 'Google route: shop-job-shop') : 'Not calculated';
         data.routeMiles = data.routeMiles || "";
 
         const aStart = Number(data.aMeterStart || 0);
@@ -8725,17 +8789,17 @@ function loadFleetGPS() {
       const generatedRouteMiles = await calculateRoundTripRouteMiles(address, costSettings);
       if (!generatedRouteMiles) {
         currentEditGeneratedRouteMiles = 0;
-        currentEditGeneratedRouteSource = 'Not calculated';
-        updateEditRouteMilesStatus('Route miles could not be calculated. Check the address or Google Maps availability.');
-        showMessage('Route miles could not be calculated. Check the address and try again.', 'error');
+        currentEditGeneratedRouteSource = lastRouteMilesResult.source || 'Not calculated';
+        updateEditRouteMilesStatus(`Route miles could not be calculated. ${lastRouteMilesResult.status || 'Check the address or Google Maps availability.'}`);
+        showMessage(`Route miles could not be calculated. ${lastRouteMilesResult.status || 'Check the address and try again.'}`, 'error');
         return;
       }
       currentEditGeneratedRouteMiles = generatedRouteMiles;
-      currentEditGeneratedRouteSource = 'Google route: shop-job-shop';
+      currentEditGeneratedRouteSource = lastRouteMilesResult.source || 'Google route: shop-job-shop';
       currentEditReport.routeMilesGenerated = generatedRouteMiles;
       currentEditReport.routeMilesSource = currentEditGeneratedRouteSource;
       updateEditRouteMilesStatus();
-      showMessage(`Generated route miles: ${fmtNumber(generatedRouteMiles, 1)} mi.`);
+      showMessage(`Generated route miles: ${fmtNumber(generatedRouteMiles, 1)} mi. Source: ${currentEditGeneratedRouteSource}.`);
     } finally {
       if (button) {
         button.disabled = false;
@@ -8793,7 +8857,7 @@ function loadFleetGPS() {
     if (!Number(editPatchInput.routeMiles || 0)) {
       const generatedRouteMiles = await calculateRoundTripRouteMiles(editPatchInput.address, costSettings);
       editPatchInput.routeMilesGenerated = generatedRouteMiles || currentEditGeneratedRouteMiles || currentEditReport.routeMilesGenerated || 0;
-      editPatchInput.routeMilesSource = generatedRouteMiles ? 'Google route: shop-job-shop' : (currentEditGeneratedRouteSource || currentEditReport.routeMilesSource || 'Not calculated');
+      editPatchInput.routeMilesSource = generatedRouteMiles ? (lastRouteMilesResult.source || 'Google route: shop-job-shop') : (currentEditGeneratedRouteSource || currentEditReport.routeMilesSource || 'Not calculated');
     } else {
       editPatchInput.routeMilesGenerated = currentEditGeneratedRouteMiles || currentEditReport.routeMilesGenerated || 0;
       editPatchInput.routeMilesSource = currentEditGeneratedRouteSource || currentEditReport.routeMilesSource || '';
