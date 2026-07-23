@@ -2579,6 +2579,9 @@
           <label>Shop GPS Latitude<input id="costShopLatitude" type="number" step="0.000001"></label>
           <label>Shop GPS Longitude<input id="costShopLongitude" type="number" step="0.000001"></label>
           <label>Apply Rules Starting<input id="costEffectiveDate" type="date"></label>
+          <label class="span-4">Manual Monthly Revenue Adjustments
+            <textarea id="costMonthlyRevenueAdjustments" rows="3" placeholder="Example: 2026-06 | override | 143859 | June actual revenue from accounting"></textarea>
+          </label>
           <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
         </div>
         <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
@@ -3421,6 +3424,7 @@
     fuelAllocationMethod: 'report-route-miles',
     effectiveDate: '',
     ruleHistory: [],
+    monthlyRevenueAdjustments: [],
     updatedBy: '',
     updatedAt: '',
     changeNote: ''
@@ -3919,6 +3923,52 @@ const differencePercent =
     return Number.isFinite(hours) && hours > 0 ? hours : 0;
   }
 
+  function normalizeRevenueAdjustmentMode(value) {
+    const mode = String(value || '').trim().toLowerCase();
+    return mode === 'add' || mode === 'addition' || mode === 'additional' ? 'add' : 'override';
+  }
+
+  function normalizeMonthlyRevenueAdjustments(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map(item => ({
+        month: String(item?.month || '').trim(),
+        mode: normalizeRevenueAdjustmentMode(item?.mode),
+        amount: Number(item?.amount || item?.revenue || 0),
+        note: String(item?.note || '').trim()
+      }))
+      .filter(item => /^\d{4}-\d{2}$/.test(item.month) && Number.isFinite(item.amount) && item.amount >= 0)
+      .sort((a, b) => a.month.localeCompare(b.month));
+  }
+
+  function parseMonthlyRevenueAdjustmentsText(text) {
+    return String(text || '')
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const parts = line.split('|').map(part => part.trim());
+        const month = parts[0] || '';
+        let mode = 'override';
+        let amountText = parts[1] || '';
+        let note = parts.slice(2).join(' | ');
+        if (/^(override|add|addition|additional)$/i.test(parts[1] || '')) {
+          mode = parts[1];
+          amountText = parts[2] || '';
+          note = parts.slice(3).join(' | ');
+        }
+        const amount = Number(String(amountText).replace(/[$,]/g, ''));
+        return { month, mode: normalizeRevenueAdjustmentMode(mode), amount, note };
+      })
+      .filter(item => /^\d{4}-\d{2}$/.test(item.month) && Number.isFinite(item.amount) && item.amount >= 0);
+  }
+
+  function formatMonthlyRevenueAdjustmentsText(adjustments = []) {
+    return normalizeMonthlyRevenueAdjustments(adjustments)
+      .map(item => `${item.month} | ${item.mode} | ${item.amount}${item.note ? ` | ${item.note}` : ''}`)
+      .join('\n');
+  }
+
   function mergeCostSettings(value = {}) {
     const merged = { ...DEFAULT_COST_SETTINGS, ...(value || {}) };
     [
@@ -3951,6 +4001,7 @@ const differencePercent =
     merged.smallTruckUnits = merged.smallTruckUnits || DEFAULT_COST_SETTINGS.smallTruckUnits;
     merged.effectiveDate = normalizeDateInput(merged.effectiveDate || value.effectiveDate || '');
     merged.ruleHistory = Array.isArray(value.ruleHistory) ? value.ruleHistory : [];
+    merged.monthlyRevenueAdjustments = normalizeMonthlyRevenueAdjustments(value.monthlyRevenueAdjustments);
     return merged;
   }
 
@@ -4045,7 +4096,8 @@ const differencePercent =
       costShopAddress: costSettings.shopAddress,
       costShopLatitude: costSettings.shopLatitude,
       costShopLongitude: costSettings.shopLongitude,
-      costEffectiveDate: costSettings.effectiveDate || getTodayKey()
+      costEffectiveDate: costSettings.effectiveDate || getTodayKey(),
+      costMonthlyRevenueAdjustments: formatMonthlyRevenueAdjustmentsText(costSettings.monthlyRevenueAdjustments)
     };
     Object.entries(fields).forEach(([id, value]) => {
       const input = document.getElementById(id);
@@ -4077,6 +4129,7 @@ const differencePercent =
       shopLongitude: document.getElementById('costShopLongitude')?.value,
       effectiveDate: document.getElementById('costEffectiveDate')?.value || getTodayKey(),
       ruleHistory: costSettings.ruleHistory || [],
+      monthlyRevenueAdjustments: parseMonthlyRevenueAdjustmentsText(document.getElementById('costMonthlyRevenueAdjustments')?.value || ''),
       changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
       updatedBy: auth.currentUser?.email || 'local',
       updatedAt: new Date().toISOString()
@@ -4549,6 +4602,47 @@ const differencePercent =
       missingFuel: 0,
       estimatedLabor: 0
     });
+  }
+
+  function getFullMonthKeyFromRange(range) {
+    if (!range?.start || !range?.end || range.key === 'all') return '';
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    if (start.getDate() !== 1) return '';
+    const expectedEnd = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    if (
+      end.getFullYear() !== expectedEnd.getFullYear() ||
+      end.getMonth() !== expectedEnd.getMonth() ||
+      end.getDate() !== expectedEnd.getDate()
+    ) return '';
+    return `${start.getFullYear()}-${pad2(start.getMonth() + 1)}`;
+  }
+
+  function getMonthlyRevenueAdjustmentForRange(range, settings = costSettings) {
+    const monthKey = getFullMonthKeyFromRange(range);
+    if (!monthKey) return null;
+    const adjustments = normalizeMonthlyRevenueAdjustments(settings.monthlyRevenueAdjustments);
+    return adjustments.find(item => item.month === monthKey) || null;
+  }
+
+  function applyManualMonthlyRevenueAdjustment(summary, range, settings = costSettings) {
+    const adjustment = getMonthlyRevenueAdjustmentForRange(range, settings);
+    if (!adjustment) return summary;
+    const currentRevenue = Number(summary.revenue || 0);
+    const delta = adjustment.mode === 'add' ? adjustment.amount : adjustment.amount - currentRevenue;
+    const overheadDelta = delta * (Number(settings.overheadPercentOfRevenue || 0) / 100);
+    summary.revenue += delta;
+    summary.overheadCost = Number(summary.overheadCost || 0) + overheadDelta;
+    summary.totalCost = Number(summary.totalCost || 0) + overheadDelta;
+    summary.profit = Number(summary.profit || 0) + delta - overheadDelta;
+    summary.margin = summary.revenue > 0 ? (summary.profit / summary.revenue) * 100 : 0;
+    summary.revenuePerLaborHour = summary.hours > 0 ? summary.revenue / summary.hours : 0;
+    summary.revenuePerLb = summary.pounds > 0 ? summary.revenue / summary.pounds : 0;
+    summary.manualRevenueAdjustment = delta;
+    summary.manualRevenueAdjustmentMode = adjustment.mode;
+    summary.manualRevenueAdjustmentAmount = adjustment.amount;
+    summary.manualRevenueAdjustmentNote = adjustment.note || '';
+    return summary;
   }
 
   function formatMoney(value) {
@@ -5447,7 +5541,7 @@ const differencePercent =
 
   function summarizeExecutivePeriod(docs, range) {
     const periodDocs = (docs || []).filter(report => isDateInRange(report.date, range));
-    const summary = summarizeExecutiveReports(periodDocs);
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(periodDocs), range, costSettings);
     const dataQuality = getDataQualityMetrics(periodDocs, range);
     const smallJobDrag = getSmallJobDrag(periodDocs, 150);
     const profitSignals = buildProfitSignals(periodDocs);
@@ -5500,6 +5594,18 @@ const differencePercent =
     return `<span class="exec-change exec-change-${tone}">${diff >= 0 ? '+' : ''}${escapeHtml(formatter(diff))} (${signedPercent(pct)})</span>`;
   }
 
+  function getManualRevenueAdjustmentNote(...periods) {
+    const notes = periods
+      .filter(period => Number(period?.summary?.manualRevenueAdjustment || 0) !== 0)
+      .map(period => {
+        const summary = period.summary;
+        const label = period.range?.label || 'Period';
+        const mode = summary.manualRevenueAdjustmentMode === 'add' ? 'added' : 'overrode';
+        return `${label} ${mode} to ${formatMoney(summary.manualRevenueAdjustmentAmount)}${summary.manualRevenueAdjustmentNote ? ` (${escapeHtml(summary.manualRevenueAdjustmentNote)})` : ''}`;
+      });
+    return notes.length ? ` Manual monthly adjustment applied: ${notes.join('; ')}.` : '';
+  }
+
   function renderExecutiveComparisonTable(activeDocs) {
     const ranges = getExecutiveFixedPeriodRanges();
     const lastWeek = summarizeExecutivePeriod(activeDocs, ranges.lastWeek);
@@ -5514,8 +5620,9 @@ const differencePercent =
     const hours = value => fmtNumber(value, 1);
     const percent = value => `${fmtNumber(value, 1)} pts`;
 
+    const revenueNote = `Revenue-ready jobs only; incomplete revenue excluded from averages.${getManualRevenueAdjustmentNote(lastWeek, thisWeek, lastMonth, thisMonth)}`;
     const rows = [
-      ['Revenue', money(lastWeek.summary.revenue), money(thisWeek.summary.revenue), formatExecChange(thisWeek.summary.revenue, lastWeek.summary.revenue, money), money(lastMonth.summary.revenue), money(thisMonth.summary.revenue), formatExecChange(thisMonth.summary.revenue, lastMonth.summary.revenue, money), 'Revenue-ready jobs only; incomplete revenue excluded from averages.'],
+      ['Revenue', money(lastWeek.summary.revenue), money(thisWeek.summary.revenue), formatExecChange(thisWeek.summary.revenue, lastWeek.summary.revenue, money), money(lastMonth.summary.revenue), money(thisMonth.summary.revenue), formatExecChange(thisMonth.summary.revenue, lastMonth.summary.revenue, money), revenueNote],
       ['Estimated Profit', money(lastWeek.summary.profit), money(thisWeek.summary.profit), formatExecChange(thisWeek.summary.profit, lastWeek.summary.profit, money), money(lastMonth.summary.profit), money(thisMonth.summary.profit), formatExecChange(thisMonth.summary.profit, lastMonth.summary.profit, money), 'Management P&L estimate.'],
       ['Margin', `${fmtNumber(lastWeek.summary.margin, 1)}%`, `${fmtNumber(thisWeek.summary.margin, 1)}%`, formatExecChange(thisWeek.summary.margin, lastWeek.summary.margin, percent), `${fmtNumber(lastMonth.summary.margin, 1)}%`, `${fmtNumber(thisMonth.summary.margin, 1)}%`, formatExecChange(thisMonth.summary.margin, lastMonth.summary.margin, percent), 'Profit divided by revenue.'],
       ['Revenue / Labor Hr', money(lastWeek.summary.revenuePerLaborHour), money(thisWeek.summary.revenuePerLaborHour), formatExecChange(thisWeek.summary.revenuePerLaborHour, lastWeek.summary.revenuePerLaborHour, money), money(lastMonth.summary.revenuePerLaborHour), money(thisMonth.summary.revenuePerLaborHour), formatExecChange(thisMonth.summary.revenuePerLaborHour, lastMonth.summary.revenuePerLaborHour, money), 'Useful for labor productivity review.'],
@@ -5986,9 +6093,9 @@ const differencePercent =
   }
 
   function buildActualExecutiveReport({ activeDocs, dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, dashboardRangeObj, tableRangeObj, previousDocs, reportDate }) {
-    const summary = summarizeExecutiveReports(dashboardDocs);
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(dashboardDocs), dashboardRangeObj, costSettings);
     const previousSummary = previousDocs ? summarizeExecutiveReports(previousDocs) : null;
-    const tableSummary = summarizeExecutiveReports(tableDocs);
+    const tableSummary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(tableDocs), tableRangeObj, costSettings);
     const transitionStats = buildTransitionStats(transitions);
     const cityEntries = executiveEntries(tableSummary.byCity, 'pounds');
     const truckEntries = executiveEntries(tableSummary.byTruck, 'poundsPerHour');
@@ -6565,7 +6672,7 @@ const differencePercent =
   }
 
   function renderDashboardRevenueGoal(docs, range) {
-    const summary = summarizeExecutiveReports(docs || []);
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(docs || []), range, costSettings);
     const revenueGoal = getRevenueGoalProgress(summary, range, costSettings);
     const hasGoal = revenueGoal.goal > 0 && range?.key !== 'all';
     const onPace = hasGoal && revenueGoal.projected >= revenueGoal.goal;
@@ -6580,8 +6687,11 @@ const differencePercent =
       : revenueGoal.pacingVariance >= 0
         ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
         : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`;
+    const manualNote = Number(summary.manualRevenueAdjustment || 0) !== 0
+      ? ` Manual monthly ${summary.manualRevenueAdjustmentMode === 'add' ? 'addition' : 'override'} applied.`
+      : '';
 
-    setText('dashboardRevenueGoalMessage', message);
+    setText('dashboardRevenueGoalMessage', `${message}${manualNote}`);
     setText('dashboardRevenueGoalStatus', hasGoal ? (onPace ? 'On Pace' : 'Behind Pace') : 'No Goal');
     setText('dashGoalMonthly', formatMoney(revenueGoal.goal));
     setText('dashGoalRevenue', formatMoney(revenueGoal.revenue));
@@ -6609,7 +6719,7 @@ const differencePercent =
     const tableStats = buildDashboardTableStats(tableDocs);
     const transitions = calculateTransitions(docs);
     const transitionStats = buildTransitionStats(transitions);
-    const pnlSummary = summarizePnl(docs, costSettings);
+    const pnlSummary = applyManualMonthlyRevenueAdjustment(summarizePnl(docs, costSettings), getDashboardPeriodRange(), costSettings);
 
     let totalClicks = 0;
     let totalPounds = 0;
@@ -6702,7 +6812,7 @@ const differencePercent =
     setText('dashMargin', `${fmtNumber(pnlSummary.revenue > 0 ? (pnlSummary.profit / pnlSummary.revenue) * 100 : 0, 1)}%`);
     setText(
       'dashCostQualityRead',
-      `Estimated Job P&L uses ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue for overhead. Missing revenue: ${fmtNumber(pnlSummary.missingRevenue, 0)} report(s). Fuel needs miles/MPG: ${fmtNumber(pnlSummary.missingFuel, 0)} report(s). Labor estimated/partial: ${fmtNumber(pnlSummary.estimatedLabor, 0)} report(s).`
+      `Estimated Job P&L uses ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue for overhead. Missing revenue: ${fmtNumber(pnlSummary.missingRevenue, 0)} report(s). Fuel needs miles/MPG: ${fmtNumber(pnlSummary.missingFuel, 0)} report(s). Labor estimated/partial: ${fmtNumber(pnlSummary.estimatedLabor, 0)} report(s).${Number(pnlSummary.manualRevenueAdjustment || 0) !== 0 ? ' Manual monthly revenue adjustment is included in totals only, not job cards.' : ''}`
     );
     setText('dashMethodJobs', fmtNumber(injectionStats.method.reports, 0));
     setText('dashMethodLbs', fmtNumber(injectionStats.method.pounds, 0));
