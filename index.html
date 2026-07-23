@@ -3010,10 +3010,11 @@
         <div class="fleet-command-title">
           <div class="fleet-command-title-main">Live Fleet Map</div>
           <div class="fleet-command-title-sub">Approved KKE units only. Click a unit or marker to inspect it.</div>
+          <div class="fleet-command-title-sub" id="fleetDataStatus">Fleet data connects after manager sign-in.</div>
         </div>
         <div class="fleet-summary-strip">
           <div class="fleet-summary-tile">
-            <div class="calc-label">Tracked</div>
+            <div class="calc-label">Approved Units</div>
             <div class="calc-value" id="fleetTrackedCount">0</div>
           </div>
           <div class="fleet-summary-tile">
@@ -3297,7 +3298,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion, getDoc, setDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
   // --- FIREBASE CONFIG ---
@@ -3495,6 +3496,10 @@
       fleetMaintenanceUnsubscribe();
       fleetMaintenanceUnsubscribe = null;
     }
+    fleetLocations = [];
+    fleetEvents = [];
+    fleetMaintenance = [];
+    selectedFleetTruckId = null;
 
     if (user) {
       const email = String(user.email || '').toLowerCase();
@@ -3631,8 +3636,8 @@ document.addEventListener("change", (e) => {
     }
     switchTab('fleetGPS');
     setTimeout(() => {
-      renderFleetMap();
       if (fleetMap && window.google?.maps) google.maps.event.trigger(fleetMap, 'resize');
+      renderFleetMap();
     }, 150);
   });
 
@@ -8946,6 +8951,21 @@ const differencePercent =
     return String(getFleetStatus(item).label || '').toLowerCase().replace(/\s+/g, '-');
   }
 
+  function setFleetDataStatus(message, tone = 'neutral') {
+    const el = document.getElementById('fleetDataStatus');
+    if (!el) return;
+    el.textContent = message;
+    el.style.color = tone === 'error' ? '#b91c1c' : tone === 'ok' ? '#166534' : tone === 'warning' ? '#92400e' : '';
+  }
+
+  function getFleetErrorMessage(err, collectionName) {
+    const code = err?.code || '';
+    if (code.includes('permission-denied')) {
+      return `Cannot read ${collectionName}. Firestore rules need manager read access for ${collectionName}.`;
+    }
+    return `Error loading ${collectionName}: ${err?.message || 'unknown error'}`;
+  }
+
   function getFleetItemKey(item) {
     const truckNo = getFleetTruckNumber(item);
     return truckNo ? `unit-${truckNo}` : String(item.id || getFleetName(item));
@@ -9175,9 +9195,9 @@ function fmtDuration(seconds) {
   function renderFleetMaintenancePanel() {
     const box = document.getElementById('fleetMaintenancePanel');
     if (!box) return;
-    const approved = getValidFleetLocations();
+    const approved = getFleetRailItems();
     if (!approved.length) {
-      box.innerHTML = '<div class="empty-state">Waiting for approved KKE truck odometer data.</div>';
+      box.innerHTML = '<div class="empty-state">Waiting for approved KKE fleet roster.</div>';
       return;
     }
 
@@ -9280,18 +9300,28 @@ function renderFleetTruckCards() {
   
 function loadFleetGPS() {
     if (!auth.currentUser || !isCurrentUserManager) return;
+    if (fleetLocationsUnsubscribe || fleetEventsUnsubscribe || fleetMaintenanceUnsubscribe) return;
+
+    setFleetDataStatus('Connecting to fleetUnits, gpsEvents, and fleetMaintenance...', 'neutral');
 
     const locationsRef = collection(db, 'fleetUnits');
     fleetLocationsUnsubscribe = onSnapshot(locationsRef, (snapshot) => {
       fleetLocations = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       renderFleetTruckCards();
+      const validCount = getValidFleetLocations().length;
+      setFleetDataStatus(validCount
+        ? `Live fleet data loaded: ${validCount} unit${validCount === 1 ? '' : 's'} with valid Texas GPS.`
+        : 'Fleet roster loaded, but no approved units currently have valid Texas GPS. Check OneStep polling/webhook data.',
+        validCount ? 'ok' : 'warning'
+      );
     }, (err) => {
       console.error(err);
+      setFleetDataStatus(getFleetErrorMessage(err, 'fleetUnits'), 'error');
       const box = document.getElementById('fleetTruckList');
-      if (box) box.innerHTML = '<div class="empty-state">Error loading fleet unit data. Check Firestore rules for fleetUnits.</div>';
+      if (box) box.innerHTML = `<div class="empty-state">${escapeHtml(getFleetErrorMessage(err, 'fleetUnits'))}</div>`;
     });
 
-    const eventsRef = collection(db, 'gpsEvents');
+    const eventsRef = query(collection(db, 'gpsEvents'), orderBy('lastSeen', 'desc'), limit(40));
     fleetEventsUnsubscribe = onSnapshot(eventsRef, (snapshot) => {
       fleetEvents = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       renderFleetRecentEvents();
@@ -9300,7 +9330,7 @@ function loadFleetGPS() {
       const box = document.getElementById('fleetRecentEvents');
       if (box) {
         box.className = 'empty-state';
-        box.innerHTML = 'Error loading GPS events. Check Firestore rules for gpsEvents.';
+        box.innerHTML = escapeHtml(getFleetErrorMessage(err, 'gpsEvents'));
       }
     });
 
@@ -9311,7 +9341,7 @@ function loadFleetGPS() {
     }, (err) => {
       console.error(err);
       const box = document.getElementById('fleetMaintenancePanel');
-      if (box) box.innerHTML = '<div class="empty-state">Error loading fleetMaintenance. Check Firestore rules.</div>';
+      if (box) box.innerHTML = `<div class="empty-state">${escapeHtml(getFleetErrorMessage(err, 'fleetMaintenance'))}</div>`;
     });
   }
 
