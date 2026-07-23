@@ -2531,6 +2531,7 @@
       </div>
       <div style="display:flex; justify-content:flex-end; margin:-4px 0 16px;">
         <button class="btn btn-outline" type="button" id="btnDownloadPnlCsv" style="margin-right:8px;">Download P&amp;L CSV</button>
+        <button class="btn btn-outline" type="button" id="btnGenerateMeetingAgenda" style="margin-right:8px;">Generate Meeting Agenda</button>
         <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
       </div>
 
@@ -3653,6 +3654,7 @@ document.addEventListener("change", (e) => {
   });
 
   document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
+  document.getElementById('btnGenerateMeetingAgenda')?.addEventListener('click', generateMeetingAgendaPacket);
   document.getElementById('btnDownloadPnlCsv')?.addEventListener('click', downloadPnlCsv);
   document.getElementById('btnSaveCostSettings')?.addEventListener('click', saveCostSettings);
   document.getElementById('btnResetCostSettings')?.addEventListener('click', resetCostSettings);
@@ -6668,6 +6670,165 @@ const differencePercent =
       </body>
       </html>
     `);
+    popup.document.close();
+  }
+
+  function buildMeetingSignals(summary, dashboardRangeLabel, revenueGoal, profitSignals) {
+    const truckProfit = profitSignals.truckProfit || [];
+    const topTruck = truckProfit[0];
+    const lowestTruck = truckProfit.slice().reverse().find(item => item.revenue > 0);
+    const cityProfit = profitSignals.cityProfit || [];
+    const topCity = cityProfit[0];
+    const highRevenuePerLbCities = cityProfit
+      .filter(item => item.pounds > 0 && item.revenue > 0)
+      .sort((a, b) => b.revenuePerLb - a.revenuePerLb)
+      .slice(0, 4)
+      .map(item => item.name)
+      .filter(Boolean);
+    const label = String(dashboardRangeLabel || 'selected period').toLowerCase();
+    const signals = [];
+    signals.push(`We are revenue-ready on ${fmtNumber(summary.reports - summary.missingRevenueReports, 0)} of ${fmtNumber(summary.reports, 0)} ${label} reports; ${fmtNumber(summary.missingRevenueReports, 0)} reports need revenue cleanup.`);
+    if (topTruck) {
+      signals.push(`Truck ${topTruck.name} is the profit leader at ${formatMoney(topTruck.profit)} profit${lowestTruck && lowestTruck.name !== topTruck.name ? `; Truck ${lowestTruck.name} needs margin review before we compare it directly to higher-volume work` : ''}.`);
+    }
+    if (topCity) {
+      signals.push(`${topCity.name} is the largest profit driver${highRevenuePerLbCities.length ? `; ${highRevenuePerLbCities.join(', ')} show stronger revenue per lb` : ''}.`);
+    }
+    signals.push(`Chemical is the largest direct-cost pressure in revenue-ready work; fuel is ${summary.revenue > 0 && summary.fuelCost / summary.revenue > 0.08 ? 'high enough to review' : 'not currently the main cost driver'}.`);
+    if (revenueGoal.goal) {
+      signals.push(revenueGoal.pacingVariance >= 0
+        ? `We are ${formatMoney(revenueGoal.pacingVariance)} ahead of expected pace for the ${formatMoney(revenueGoal.goal)} monthly revenue goal.`
+        : `We are ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind expected pace for the ${formatMoney(revenueGoal.goal)} monthly revenue goal.`);
+    }
+    signals.push('Revenue tracking started in July 2026, so May and June should be treated mainly as production periods unless accounting overrides are applied.');
+    return signals;
+  }
+
+  function buildMeetingAgendaPacketHtml({ summary, dashboardRangeLabel, generatedAt, revenueGoal, signals }) {
+    const forecast = revenueGoal.projected || summary.revenue;
+    const goalGap = revenueGoal.goal ? Math.abs(revenueGoal.pacingVariance || 0) : 0;
+    const scoreCards = [
+      ['Revenue', formatMoney(summary.revenue)],
+      ['Forecast', formatMoney(forecast)],
+      ['Margin', `${fmtNumber(summary.margin, 1)}%`],
+      ['Goal Gap', revenueGoal.goal ? formatMoney(goalGap) : '-'],
+      ['Pumped Lbs', fmtNumber(summary.pounds, 0)],
+      ['Rev/Lb', formatMoney(summary.revenuePerLb)],
+      ['Reports', fmtNumber(summary.reports, 0)],
+      ['Need Rev.', fmtNumber(summary.missingRevenueReports, 0)]
+    ];
+    const agendaRows = [
+      ['9:00-9:10', 'Executive Dashboard', 'Financial, operations, sales, safety/quality scorecard.'],
+      ['9:10-9:25', 'Review Last Week', 'COO, CFO, GM, and President updates.'],
+      ['9:25-9:40', 'Executive Intelligence Discussion', 'Surprises, causes, trends, signal vs. noise, missed opportunities.'],
+      ['9:40-10:00', 'Plan Next Week', 'Jobs, staffing, trucks, materials, locates, traffic control, weather, risks.'],
+      ['10:00-10:10', 'Executive Decisions', 'Equipment, hiring, pricing, customers, technology, policy, capital.'],
+      ['10:10-10:15', 'Commitments & Action Items', 'Top three priorities, owner, due date, expected outcome.']
+    ];
+    const standingQuestions = [
+      'Did we make money last week?',
+      'Did we execute safely?',
+      'What is our biggest operational risk next week?',
+      'What is our biggest growth opportunity next week?',
+      'What decision cannot wait until next Monday?',
+      'Is everyone clear on responsibilities before leaving?'
+    ];
+    const actionRows = Array.from({ length: 7 }, () => ['&nbsp;', '&nbsp;', '&nbsp;', '&nbsp;', '&nbsp;']);
+    const executiveRead = revenueGoal.goal
+      ? revenueGoal.pacingVariance >= 0
+        ? `Executive read: ${dashboardRangeLabel} shows ${formatMoney(summary.revenue)} in revenue-ready work at a ${fmtNumber(summary.margin, 1)}% margin. We are ${formatMoney(revenueGoal.pacingVariance)} ahead of expected pace for the ${formatMoney(revenueGoal.goal)} monthly goal, with a projected month of ${formatMoney(revenueGoal.projected)}.`
+        : `Executive read: ${dashboardRangeLabel} shows ${formatMoney(summary.revenue)} in revenue-ready work at a ${fmtNumber(summary.margin, 1)}% margin. We are ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind expected pace for the ${formatMoney(revenueGoal.goal)} monthly goal, with a projected month of ${formatMoney(revenueGoal.projected)}.`
+      : `Executive read: ${dashboardRangeLabel} shows ${formatMoney(summary.revenue)} in revenue-ready work at a ${fmtNumber(summary.margin, 1)}% margin.`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>KKE Executive Leadership Meeting Packet</title>
+        <style>
+          * { box-sizing:border-box; }
+          body { font-family: Arial, sans-serif; color:#111827; background:#fff; margin:0; padding:26px 32px; }
+          .packet { max-width:980px; margin:0 auto; }
+          h1 { color:#003f7d; text-align:center; font-size:28px; margin:0 0 2px; line-height:1.1; }
+          .subtitle { text-align:center; color:#475569; font-size:14px; margin:0 0 10px; }
+          .score { width:100%; border-collapse:collapse; table-layout:fixed; margin:0 0 10px; }
+          .score th { background:#e8f1fb; color:#003f7d; font-weight:900; font-size:12px; padding:9px 6px; border:1px solid #cbd5e1; }
+          .score td { text-align:center; font-weight:900; font-size:13px; padding:10px 6px; border:1px solid #cbd5e1; }
+          .read { background:#eaf6ee; border:1px solid #bbf7d0; color:#065f46; font-weight:900; font-size:15px; line-height:1.35; padding:12px 14px; margin:0 0 10px; }
+          h2 { color:#003f7d; font-size:19px; margin:9px 0 5px; line-height:1.1; }
+          table { width:100%; border-collapse:collapse; }
+          .agenda th, .agenda td, .questions td, .actions th, .actions td { border:1px solid #cbd5e1; padding:8px; font-size:13px; vertical-align:middle; }
+          .agenda th, .actions th { background:#e8f1fb; color:#003f7d; text-align:left; font-weight:900; }
+          .agenda td:nth-child(2) { font-weight:900; }
+          .signals { margin:0 0 6px 0; padding:0; list-style:none; }
+          .signals li { font-size:14px; line-height:1.32; margin:3px 0; }
+          .signals li::before { content:'- '; font-weight:900; }
+          .questions td { font-size:13px; padding:7px 10px; }
+          .actions td { height:34px; }
+          .footer { font-size:11px; margin-top:4px; color:#111827; }
+          .toolbar { display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; }
+          .toolbar button { border:1px solid #0057a8; background:#0057a8; color:#fff; border-radius:7px; padding:8px 12px; font-weight:900; cursor:pointer; }
+          @page { size: letter; margin:0.35in; }
+          @media print {
+            body { padding:0; }
+            .packet { max-width:none; }
+            .toolbar { display:none; }
+            h1 { font-size:27px; }
+            .agenda th, .agenda td, .questions td, .actions th, .actions td { font-size:12px; padding:6px 8px; }
+            .signals li { font-size:13px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="packet">
+          <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
+          <h1>KKE Weekly Executive Leadership Meeting</h1>
+          <p class="subtitle">President - COO - CFO - GM | Weekly Meeting Packet | ${escapeHtml(generatedAt)} | 9:00 AM - 10:15 AM</p>
+          <table class="score">
+            <thead><tr>${scoreCards.map(card => `<th>${escapeHtml(card[0])}</th>`).join('')}</tr></thead>
+            <tbody><tr>${scoreCards.map(card => `<td>${escapeHtml(card[1])}</td>`).join('')}</tr></tbody>
+          </table>
+          <div class="read">${escapeHtml(executiveRead)}</div>
+
+          <h2>Timed Agenda</h2>
+          <table class="agenda">
+            <thead><tr><th style="width:12%;">Time</th><th style="width:31%;">Section</th><th>Focus</th></tr></thead>
+            <tbody>${agendaRows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+
+          <h2>Meeting Signals To Discuss</h2>
+          <ul class="signals">${signals.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+
+          <h2>Standing Questions</h2>
+          <table class="questions"><tbody>${standingQuestions.map(question => `<tr><td>${escapeHtml(question)}</td></tr>`).join('')}</tbody></table>
+
+          <h2>Decision &amp; Action Capture</h2>
+          <table class="actions">
+            <thead><tr><th>Topic</th><th>Decision</th><th>Owner</th><th>Due Date</th><th>Expected Outcome</th></tr></thead>
+            <tbody>${actionRows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+          <div class="footer">Prepared from KKE Production App data. P&amp;L is a management estimate, not final accounting.</div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  function generateMeetingAgendaPacket() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for meeting packets.', 'error');
+    renderDashboardAnalytics(dashboardReports);
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const dashboardRangeObj = getDashboardPeriodRange();
+    const dashboardDocs = filterReportsForDashboardPeriod(activeDocs);
+    const dashboardRangeLabel = document.getElementById('dashboardPeriodRangeLabel')?.textContent || dashboardRangeObj?.label || 'Current dashboard period';
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(dashboardDocs), dashboardRangeObj, costSettings);
+    const revenueGoal = getRevenueGoalProgress(summary, dashboardRangeObj, costSettings);
+    const profitSignals = buildProfitSignals(dashboardDocs);
+    const signals = buildMeetingSignals(summary, dashboardRangeLabel, revenueGoal, profitSignals);
+    const generatedAt = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const popup = window.open('', '_blank');
+    if (!popup) return showMessage('Popup blocked. Allow popups to generate the meeting agenda.', 'error');
+    popup.document.write(buildMeetingAgendaPacketHtml({ summary, dashboardRangeLabel, generatedAt, revenueGoal, signals }));
     popup.document.close();
   }
 
