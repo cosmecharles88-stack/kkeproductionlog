@@ -3385,9 +3385,11 @@
   let historyNeedsRender = false;
   let dashboardNeedsRender = false;
   let fleetLocationsUnsubscribe = null;
+  let fleetFallbackLocationsUnsubscribe = null;
   let fleetEventsUnsubscribe = null;
   let fleetMaintenanceUnsubscribe = null;
   let fleetLocations = [];
+  let fleetLocationSource = '';
   let fleetEvents = [];
   let fleetMaintenance = [];
   let selectedFleetTruckId = null;
@@ -3488,6 +3490,10 @@
       fleetLocationsUnsubscribe();
       fleetLocationsUnsubscribe = null;
     }
+    if (fleetFallbackLocationsUnsubscribe) {
+      fleetFallbackLocationsUnsubscribe();
+      fleetFallbackLocationsUnsubscribe = null;
+    }
     if (fleetEventsUnsubscribe) {
       fleetEventsUnsubscribe();
       fleetEventsUnsubscribe = null;
@@ -3497,6 +3503,7 @@
       fleetMaintenanceUnsubscribe = null;
     }
     fleetLocations = [];
+    fleetLocationSource = '';
     fleetEvents = [];
     fleetMaintenance = [];
     selectedFleetTruckId = null;
@@ -5199,34 +5206,57 @@ const differencePercent =
     (docs || []).forEach(report => {
       const pounds = getReportPounds(report);
       const hours = getReportHours(report);
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      const revenue = Number(pnl.revenue || 0);
+      const missingRevenue = revenue <= 0 ? 1 : 0;
       const city = getDashboardCity(report);
       const truck = getNormalizedTruck(report);
       const crew = getNormalizedCrew(report);
       const workArea = getWorkAreaDisplay(report);
 
-      byCity[city] = (byCity[city] || 0) + pounds;
-      byTruck[truck] = (byTruck[truck] || 0) + pounds;
-      byArea[workArea] = (byArea[workArea] || 0) + pounds;
+      const addFinancialStats = (group, name) => {
+        if (!group[name]) group[name] = { name, pounds: 0, revenue: 0, missingRevenue: 0, reports: 0 };
+        group[name].pounds += pounds;
+        group[name].revenue += revenue;
+        group[name].missingRevenue += missingRevenue;
+        group[name].reports += 1;
+      };
 
-      if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      addFinancialStats(byCity, city);
+      addFinancialStats(byTruck, truck);
+      addFinancialStats(byArea, workArea);
+
+      if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0, revenue: 0, missingRevenue: 0 };
       truckStats[truck].pounds += pounds;
       truckStats[truck].hours += hours;
       truckStats[truck].reports += 1;
+      truckStats[truck].revenue += revenue;
+      truckStats[truck].missingRevenue += missingRevenue;
 
       if (isActiveTruckBoss(crew)) {
-        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0, revenue: 0, missingRevenue: 0 };
         crewStats[crew].pounds += pounds;
         crewStats[crew].hours += hours;
         crewStats[crew].reports += 1;
+        crewStats[crew].revenue += revenue;
+        crewStats[crew].missingRevenue += missingRevenue;
       }
     });
 
     const truckEntries = Object.values(truckStats)
-      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .map(item => ({
+        ...item,
+        poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0,
+        revenuePerLb: item.pounds > 0 ? item.revenue / item.pounds : 0
+      }))
       .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
 
     const crewEntries = Object.values(crewStats)
-      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .map(item => ({
+        ...item,
+        poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0,
+        revenuePerLb: item.pounds > 0 ? item.revenue / item.pounds : 0
+      }))
       .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
 
     return { byCity, byTruck, byArea, truckEntries, crewEntries };
@@ -7045,21 +7075,21 @@ const differencePercent =
     document.getElementById('transitionRecentRoutes').innerHTML = renderRecentTransitionRoutes(transitions);
     document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
 
-    document.getElementById('cityMetrics').innerHTML = renderBarChart(tableStats.byCity, 'lbs', CITY_COLORS);
-    document.getElementById('truckMetrics').innerHTML = renderBarChart(tableStats.byTruck, 'lbs', TRUCK_COLORS);
+    document.getElementById('cityMetrics').innerHTML = renderPoundsRevenueChart(tableStats.byCity, CITY_COLORS);
+    document.getElementById('truckMetrics').innerHTML = renderPoundsRevenueChart(tableStats.byTruck, TRUCK_COLORS);
 
     const workAreaBox = document.getElementById('workAreaMetrics');
-    if (workAreaBox) workAreaBox.innerHTML = renderBarChart(tableStats.byArea, 'lbs', {}, 'value');
+    if (workAreaBox) workAreaBox.innerHTML = renderPoundsRevenueChart(tableStats.byArea, {});
 
     const truckEfficiencyObject = {};
-    tableStats.truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item.poundsPerHour; });
-    document.getElementById('truckEfficiencyMetrics').innerHTML = renderBarChart(truckEfficiencyObject, 'lbs/hr', TRUCK_COLORS);
+    tableStats.truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item; });
+    document.getElementById('truckEfficiencyMetrics').innerHTML = renderPoundsRevenueChart(truckEfficiencyObject, TRUCK_COLORS, 'poundsPerHour', 'lbs/hr');
 
     document.getElementById('crewMetrics').innerHTML = buildLeaderboard(
       tableStats.crewEntries,
       'poundsPerHour',
       'lbs/hr',
-      crew => `${fmtNumber(crew.pounds, 0)} lbs | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports`
+      crew => `${fmtNumber(crew.pounds, 0)} lbs | ${formatMoney(crew.revenue)} revenue | ${crew.revenuePerLb > 0 ? `${formatMoney(crew.revenuePerLb)}/lb` : 'No rev/lb'} | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports${crew.missingRevenue ? ` | ${fmtNumber(crew.missingRevenue, 0)} missing revenue` : ''}`
     );
 
     const trendBox = document.getElementById('trendMetrics');
@@ -7175,6 +7205,48 @@ const differencePercent =
     return String(name || 'photo')
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .slice(0, 80);
+  }
+
+  function renderPoundsRevenueChart(dataObject, colorMap, valueKey = 'pounds', unitLabel = 'lbs') {
+    const entries = Object.entries(dataObject)
+      .map(([name, raw]) => {
+        const item = raw && typeof raw === 'object' ? raw : { pounds: Number(raw) || 0 };
+        return {
+          ...item,
+          name: item.name || name,
+          pounds: Number(item.pounds) || 0,
+          revenue: Number(item.revenue) || 0,
+          missingRevenue: Number(item.missingRevenue) || 0,
+          value: Number(item[valueKey]) || 0
+        };
+      })
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
+
+    const max = Math.max(...entries.map(item => item.value), 1);
+    return `<div class="chart-wrap">${entries.map(item => {
+      const width = Math.max(3, (item.value / max) * 100);
+      const color = getColor(item.name, colorMap);
+      const revenuePerLb = item.pounds > 0 && item.revenue > 0 ? item.revenue / item.pounds : 0;
+      const revenueText = item.revenue > 0
+        ? `${formatMoney(item.revenue)} | ${formatMoney(revenuePerLb)}/lb`
+        : 'No revenue entered';
+      const missingText = item.missingRevenue
+        ? ` | ${fmtNumber(item.missingRevenue, 0)} report${item.missingRevenue === 1 ? '' : 's'} missing revenue`
+        : '';
+      return `
+        <div class="chart-row" style="--row-color:${color}; --bar-width:${width}%">
+          <div class="chart-label"><span class="color-dot"></span>${escapeHtml(item.name)}</div>
+          <div class="bar-bg"><div class="bar-fill"></div></div>
+          <div class="chart-value">
+            <div>${fmtNumber(item.value, 0)} ${unitLabel}</div>
+            <div style="font-size:11px; color:var(--gray); font-weight:800;">${escapeHtml(revenueText + missingText)}</div>
+          </div>
+        </div>
+      `;
+    }).join('')}</div>`;
   }
 
   function loadImageForCompression(file) {
@@ -9302,23 +9374,49 @@ function loadFleetGPS() {
     if (!auth.currentUser || !isCurrentUserManager) return;
     if (fleetLocationsUnsubscribe || fleetEventsUnsubscribe || fleetMaintenanceUnsubscribe) return;
 
-    setFleetDataStatus('Connecting to fleetUnits, gpsEvents, and fleetMaintenance...', 'neutral');
+    setFleetDataStatus('Connecting to fleetUnits. Existing truckLocations will be used as a fallback if needed.', 'neutral');
 
-    const locationsRef = collection(db, 'fleetUnits');
-    fleetLocationsUnsubscribe = onSnapshot(locationsRef, (snapshot) => {
-      fleetLocations = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const useFleetLocations = (items, sourceLabel) => {
+      fleetLocations = items;
+      fleetLocationSource = sourceLabel;
       renderFleetTruckCards();
       const validCount = getValidFleetLocations().length;
       setFleetDataStatus(validCount
-        ? `Live fleet data loaded: ${validCount} unit${validCount === 1 ? '' : 's'} with valid Texas GPS.`
-        : 'Fleet roster loaded, but no approved units currently have valid Texas GPS. Check OneStep polling/webhook data.',
+        ? `Fleet GPS loaded from ${sourceLabel}: ${validCount} unit${validCount === 1 ? '' : 's'} with valid Texas GPS.`
+        : `${sourceLabel} loaded, but no approved units currently have valid Texas GPS.`,
         validCount ? 'ok' : 'warning'
       );
+    };
+
+    const startTruckLocationsFallback = (reason = '') => {
+      if (fleetFallbackLocationsUnsubscribe) return;
+      setFleetDataStatus(`${reason ? `${reason} ` : ''}Using truckLocations fallback while fleetUnits is waiting for OneStep polling.`, 'warning');
+      const fallbackRef = collection(db, 'truckLocations');
+      fleetFallbackLocationsUnsubscribe = onSnapshot(fallbackRef, (snapshot) => {
+        if (fleetLocationSource === 'fleetUnits' && fleetLocations.length) return;
+        useFleetLocations(snapshot.docs.map(d => ({ id: d.id, ...d.data(), fallbackSource: 'truckLocations' })), 'truckLocations fallback');
+      }, (err) => {
+        console.error(err);
+        setFleetDataStatus(getFleetErrorMessage(err, 'truckLocations'), 'error');
+        const box = document.getElementById('fleetTruckList');
+        if (box) box.innerHTML = `<div class="empty-state">${escapeHtml(getFleetErrorMessage(err, 'truckLocations'))}</div>`;
+      });
+    };
+
+    const locationsRef = collection(db, 'fleetUnits');
+    fleetLocationsUnsubscribe = onSnapshot(locationsRef, (snapshot) => {
+      if (snapshot.empty) {
+        startTruckLocationsFallback('fleetUnits is empty.');
+        return;
+      }
+      if (fleetFallbackLocationsUnsubscribe) {
+        fleetFallbackLocationsUnsubscribe();
+        fleetFallbackLocationsUnsubscribe = null;
+      }
+      useFleetLocations(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'fleetUnits');
     }, (err) => {
       console.error(err);
-      setFleetDataStatus(getFleetErrorMessage(err, 'fleetUnits'), 'error');
-      const box = document.getElementById('fleetTruckList');
-      if (box) box.innerHTML = `<div class="empty-state">${escapeHtml(getFleetErrorMessage(err, 'fleetUnits'))}</div>`;
+      startTruckLocationsFallback(getFleetErrorMessage(err, 'fleetUnits'));
     });
 
     const eventsRef = query(collection(db, 'gpsEvents'), orderBy('lastSeen', 'desc'), limit(40));
