@@ -4402,9 +4402,24 @@ const differencePercent =
     return Number.isFinite(feet) && feet > 0 ? feet : 0;
   }
 
+  const UPC_PRICE_PER_LB = 2.11;
+  const UPC_PRICE_EFFECTIVE_DATE = '2026-08-03';
+
+  function usesUpcPricing(report) {
+    const reportDate = String(report?.date || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(reportDate) && reportDate >= UPC_PRICE_EFFECTIVE_DATE;
+  }
+
+  function getUpcBillableLbs(report) {
+    const savedBillableLbs = Number(report?.billableLbs);
+    if (Number.isFinite(savedBillableLbs) && savedBillableLbs > 0) return savedBillableLbs;
+    return getReportFlowMeterPounds(report) || getReportPounds(report);
+  }
+
   function calculateReportRevenue(report, settings = costSettings) {
-    const billableLbs = Number(report.billableLbs);
-    const billingRate = Number(report.billingRate);
+    const hasUpcPricing = usesUpcPricing(report);
+    const billableLbs = hasUpcPricing ? getUpcBillableLbs(report) : Number(report.billableLbs);
+    const billingRate = hasUpcPricing ? UPC_PRICE_PER_LB : Number(report.billingRate);
     const hasBillableLbRevenue = Number.isFinite(billableLbs) && billableLbs > 0 && Number.isFinite(billingRate) && billingRate > 0;
     const billableLbRevenue = hasBillableLbRevenue ? billableLbs * billingRate : 0;
     const jointGrindingLinearFeet = getJointGrindingLinearFeet(report);
@@ -4417,6 +4432,8 @@ const differencePercent =
       billingRate: Number.isFinite(billingRate) ? billingRate : 0,
       billableLbRevenue,
       hasBillableLbRevenue,
+      hasUpcPricing,
+      pricingSource: hasUpcPricing ? `UPC pricing effective ${UPC_PRICE_EFFECTIVE_DATE}` : 'Manager-entered pricing',
       jointGrindingLinearFeet,
       jointGrindingRate: Number.isFinite(jointGrindingRate) ? jointGrindingRate : 0,
       jointGrindingRevenue,
@@ -4536,7 +4553,7 @@ const differencePercent =
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const quality = {
-      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
+      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasUpcPricing ? 'Revenue: UPC $2.11/lb' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed'))) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
       material: freeChemicalUsed ? 'Materials: Free chemical used' : 'Materials: Chemical from clicks',
@@ -4559,6 +4576,8 @@ const differencePercent =
       billableLbs: revenueParts.billableLbs,
       billingRate: revenueParts.billingRate,
       billableLbRevenue: revenueParts.billableLbRevenue,
+      hasUpcPricing: revenueParts.hasUpcPricing,
+      pricingSource: revenueParts.pricingSource,
       jointGrindingLinearFeet: revenueParts.jointGrindingLinearFeet,
       jointGrindingRate: revenueParts.jointGrindingRate,
       jointGrindingRevenue: revenueParts.jointGrindingRevenue,
