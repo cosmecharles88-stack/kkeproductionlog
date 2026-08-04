@@ -2563,7 +2563,7 @@
           <label>Technician Day Rate<input id="costTechnicianDayRate" type="number" step="0.01"></label>
           <label>Default Superintendent Count<input id="costDefaultSuperintendentCount" type="number" step="1"></label>
           <label>Default Technician Count<input id="costDefaultTechnicianCount" type="number" step="1"></label>
-          <label>Chemical Cost / Pumped Lb<input id="costChemicalPerLb" type="number" step="0.01"></label>
+          <label>Current Foam Cost / Lb (tax included)<input id="costChemicalPerLb" type="number" step="0.000001"></label>
           <label>Disposables / Pumped Lb<input id="costDisposablesPerLb" type="number" step="0.01"></label>
           <label>Overhead % of Revenue<input id="costOverheadPercent" type="number" step="0.01"></label>
           <label>Monthly Revenue Goal<input id="costMonthlyRevenueGoal" type="number" step="1000"></label>
@@ -3409,7 +3409,7 @@
     technicianDayRate: 212,
     defaultSuperintendentCount: 1,
     defaultTechnicianCount: 2,
-    chemicalCostPerLb: 2.31,
+    chemicalCostPerLb: 2.110875,
     disposablesCostPerLb: 0.47,
     overheadPercentOfRevenue: 20,
     monthlyRevenueGoal: 225000,
@@ -3433,6 +3433,22 @@
     updatedAt: '',
     changeNote: ''
   };
+  const FOAM_COST_RULES = [
+    {
+      effectiveDate: '0001-01-01',
+      baseCostPerLb: 2.31,
+      taxRate: 0,
+      costPerLb: 2.31,
+      label: 'Legacy foam'
+    },
+    {
+      effectiveDate: '2026-08-03',
+      baseCostPerLb: 1.95,
+      taxRate: 8.25,
+      costPerLb: 1.95 * 1.0825,
+      label: 'UPC foam'
+    }
+  ];
   let costSettings = { ...DEFAULT_COST_SETTINGS };
 
 
@@ -4035,6 +4051,14 @@ const differencePercent =
     return normalizeDateInput(report?.date || report?.createdAt || '') || getTodayKey();
   }
 
+  function getFoamCostRuleForReport(report) {
+    const reportDate = getReportDateKey(report);
+    return FOAM_COST_RULES
+      .filter(rule => rule.effectiveDate <= reportDate)
+      .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))
+      .at(-1) || FOAM_COST_RULES[0];
+  }
+
   function makeCostRuleVersion(settings = costSettings) {
     const merged = mergeCostSettings(settings);
     const version = { ...merged };
@@ -4402,24 +4426,9 @@ const differencePercent =
     return Number.isFinite(feet) && feet > 0 ? feet : 0;
   }
 
-  const UPC_PRICE_PER_LB = 2.11;
-  const UPC_PRICE_EFFECTIVE_DATE = '2026-08-03';
-
-  function usesUpcPricing(report) {
-    const reportDate = String(report?.date || '').trim();
-    return /^\d{4}-\d{2}-\d{2}$/.test(reportDate) && reportDate >= UPC_PRICE_EFFECTIVE_DATE;
-  }
-
-  function getUpcBillableLbs(report) {
-    const savedBillableLbs = Number(report?.billableLbs);
-    if (Number.isFinite(savedBillableLbs) && savedBillableLbs > 0) return savedBillableLbs;
-    return getReportFlowMeterPounds(report) || getReportPounds(report);
-  }
-
   function calculateReportRevenue(report, settings = costSettings) {
-    const hasUpcPricing = usesUpcPricing(report);
-    const billableLbs = hasUpcPricing ? getUpcBillableLbs(report) : Number(report.billableLbs);
-    const billingRate = hasUpcPricing ? UPC_PRICE_PER_LB : Number(report.billingRate);
+    const billableLbs = Number(report.billableLbs);
+    const billingRate = Number(report.billingRate);
     const hasBillableLbRevenue = Number.isFinite(billableLbs) && billableLbs > 0 && Number.isFinite(billingRate) && billingRate > 0;
     const billableLbRevenue = hasBillableLbRevenue ? billableLbs * billingRate : 0;
     const jointGrindingLinearFeet = getJointGrindingLinearFeet(report);
@@ -4427,13 +4436,13 @@ const differencePercent =
     const hasJointGrindingRevenue = jointGrindingLinearFeet > 0 && Number.isFinite(jointGrindingRate) && jointGrindingRate > 0;
     const jointGrindingRevenue = hasJointGrindingRevenue ? jointGrindingLinearFeet * jointGrindingRate : 0;
     return {
-      revenue: billableLbRevenue + jointGrindingRevenue,
+      // Revenue stays manager-controlled: it exists only after both billable
+      // pounds and the billing rate have been entered on the report.
+      revenue: billableLbRevenue,
       billableLbs: Number.isFinite(billableLbs) ? billableLbs : 0,
       billingRate: Number.isFinite(billingRate) ? billingRate : 0,
       billableLbRevenue,
       hasBillableLbRevenue,
-      hasUpcPricing,
-      pricingSource: hasUpcPricing ? `UPC pricing effective ${UPC_PRICE_EFFECTIVE_DATE}` : 'Manager-entered pricing',
       jointGrindingLinearFeet,
       jointGrindingRate: Number.isFinite(jointGrindingRate) ? jointGrindingRate : 0,
       jointGrindingRevenue,
@@ -4501,9 +4510,9 @@ const differencePercent =
     const share = method === 'allOnThisReport'
       ? (direct.revenue > 0 ? 1 : 0)
       : (totalBasis > 0 ? basis / totalBasis : 1 / Math.max(1, group.length));
-    const allocatedRevenue = groupId && group.length > 1 && method !== 'allOnThisReport'
-      ? groupRevenue * share
-      : direct.revenue;
+    // Do not auto-populate revenue onto other reports in a job group. Each
+    // report must have manager-entered billable pounds and billing rate.
+    const allocatedRevenue = direct.revenue;
 
     return {
       ...direct,
@@ -4516,7 +4525,7 @@ const differencePercent =
       groupIndex: group.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).findIndex(item => item.id === report.id) + 1,
       allocationMethod: method,
       allocationShare: share,
-      isGroupedRevenue: Boolean(groupId && group.length > 1),
+      isGroupedRevenue: false,
       revenueSourceCount: group.filter(item => calculateReportRevenue(item, settings).revenue > 0).length
     };
   }
@@ -4535,7 +4544,9 @@ const differencePercent =
     const revenue = revenueParts.revenue;
     const hasRevenue = revenue > 0;
     const freeChemicalUsed = Boolean(report.freeChemicalUsed);
-    const chemicalCost = freeChemicalUsed ? 0 : chemicalLbs * Number(activeSettings.chemicalCostPerLb || 0);
+    const foamCostRule = getFoamCostRuleForReport(report);
+    const chemicalRate = Number(foamCostRule.costPerLb || 0);
+    const chemicalCost = freeChemicalUsed ? 0 : chemicalLbs * chemicalRate;
     const disposablesCost = pumpedLbs * Number(activeSettings.disposablesCostPerLb || 0);
     const routeMiles = getReportRouteMiles(report);
     const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, activeSettings) || 0);
@@ -4553,7 +4564,7 @@ const differencePercent =
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const quality = {
-      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasUpcPricing ? 'Revenue: UPC $2.11/lb' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed'))) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
+      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
       material: freeChemicalUsed ? 'Materials: Free chemical used' : 'Materials: Chemical from clicks',
@@ -4576,13 +4587,14 @@ const differencePercent =
       billableLbs: revenueParts.billableLbs,
       billingRate: revenueParts.billingRate,
       billableLbRevenue: revenueParts.billableLbRevenue,
-      hasUpcPricing: revenueParts.hasUpcPricing,
-      pricingSource: revenueParts.pricingSource,
       jointGrindingLinearFeet: revenueParts.jointGrindingLinearFeet,
       jointGrindingRate: revenueParts.jointGrindingRate,
       jointGrindingRevenue: revenueParts.jointGrindingRevenue,
       freeChemicalUsed,
-      chemicalRate: freeChemicalUsed ? 0 : Number(activeSettings.chemicalCostPerLb || 0),
+      chemicalRate: freeChemicalUsed ? 0 : chemicalRate,
+      foamCostBasePerLb: foamCostRule.baseCostPerLb,
+      foamTaxRate: foamCostRule.taxRate,
+      foamCostLabel: foamCostRule.label,
       laborCost,
       chemicalCost,
       chemicalLbs,
