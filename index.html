@@ -4525,7 +4525,9 @@ const differencePercent =
       groupIndex: group.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).findIndex(item => item.id === report.id) + 1,
       allocationMethod: method,
       allocationShare: share,
-      isGroupedRevenue: false,
+      // Keep the reports visibly linked without reallocating or changing
+      // any manager-entered revenue.
+      isGroupedRevenue: Boolean(groupId && group.length > 1),
       revenueSourceCount: group.filter(item => calculateReportRevenue(item, settings).revenue > 0).length
     };
   }
@@ -4564,7 +4566,7 @@ const differencePercent =
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const quality = {
-      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Allocated from job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
+      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Manager reviewed | Linked job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
       material: freeChemicalUsed ? 'Materials: Free chemical used' : 'Materials: Chemical from clicks',
