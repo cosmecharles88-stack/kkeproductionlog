@@ -2457,6 +2457,7 @@
             <option value="all">All Including Deleted</option>
           </select>
         </label>
+        <button class="btn btn-warning small-btn" type="button" id="btnMissingRevenue" style="display:none;">Missing Revenue (0)</button>
         <button class="btn btn-outline small-btn" type="button" id="btnClearFilters">Clear</button>
       </div>
       <div class="history-pagination" id="historyPaginationTop">
@@ -3397,6 +3398,7 @@
   let fleetMarkers = {};
   let allReports = [];
   let historyPage = 1;
+  let historyMissingRevenueOnly = false;
   let dashboardReports = [];
   let currentEditReport = null;
   let currentEditGeneratedRouteMiles = 0;
@@ -3541,6 +3543,8 @@
       if (dashboardTab) dashboardTab.style.display = isCurrentUserManager ? 'block' : 'none';
       const fleetTab = document.getElementById('tabFleetGPS');
       if (fleetTab) fleetTab.style.display = isCurrentUserManager ? 'block' : 'none';
+      const missingRevenueButton = document.getElementById('btnMissingRevenue');
+      if (missingRevenueButton) missingRevenueButton.style.display = isCurrentUserManager ? 'inline-flex' : 'none';
 
       loadCostSettings();
       loadHistory();
@@ -4510,9 +4514,11 @@ const differencePercent =
     const share = method === 'allOnThisReport'
       ? (direct.revenue > 0 ? 1 : 0)
       : (totalBasis > 0 ? basis / totalBasis : 1 / Math.max(1, group.length));
-    // Do not auto-populate revenue onto other reports in a job group. Each
-    // report must have manager-entered billable pounds and billing rate.
-    const allocatedRevenue = direct.revenue;
+    // Preserve the manager-entered group total and allocate it across linked
+    // reports using labor hours by default.
+    const allocatedRevenue = groupId && group.length > 1 && method !== 'allOnThisReport'
+      ? groupRevenue * share
+      : direct.revenue;
 
     return {
       ...direct,
@@ -4525,8 +4531,6 @@ const differencePercent =
       groupIndex: group.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).findIndex(item => item.id === report.id) + 1,
       allocationMethod: method,
       allocationShare: share,
-      // Keep the reports visibly linked without reallocating or changing
-      // any manager-entered revenue.
       isGroupedRevenue: Boolean(groupId && group.length > 1),
       revenueSourceCount: group.filter(item => calculateReportRevenue(item, settings).revenue > 0).length
     };
@@ -4566,7 +4570,7 @@ const differencePercent =
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const quality = {
-      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Manager reviewed | Linked job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
+      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Manager reviewed | Allocated from linked job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
       labor: `Labor: ${crewCounts.quality}`,
       fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
       material: freeChemicalUsed ? 'Materials: Free chemical used' : 'Materials: Chemical from clicks',
@@ -8037,6 +8041,20 @@ const differencePercent =
     return docs.filter(report => report.deleted !== true);
   }
 
+  function isReportMissingManagerRevenue(report) {
+    return report.deleted !== true && calculateReportRevenue(report, costSettings).revenue <= 0;
+  }
+
+  function updateMissingRevenueButton() {
+    const button = document.getElementById('btnMissingRevenue');
+    if (!button) return;
+    const count = allReports.filter(isReportMissingManagerRevenue).length;
+    button.textContent = historyMissingRevenueOnly ? `Show All Reports (${count} missing)` : `Missing Revenue (${count})`;
+    button.classList.toggle('btn-warning', !historyMissingRevenueOnly);
+    button.classList.toggle('btn-primary', historyMissingRevenueOnly);
+    button.setAttribute('aria-pressed', historyMissingRevenueOnly ? 'true' : 'false');
+  }
+
   function populateHistoryFilters(docs) {
     const activeDocs = activeReportsOnly(docs);
     const citySelect = document.getElementById('historyCityFilter');
@@ -8066,6 +8084,8 @@ const differencePercent =
     return allReports.filter(report => {
       const isDeleted = report.deleted === true;
       const approvalStatus = report.approvalStatus || 'Needs Review';
+
+      if (historyMissingRevenueOnly && !isReportMissingManagerRevenue(report)) return false;
 
       if (status === 'Deleted') {
         if (!isDeleted) return false;
@@ -8148,6 +8168,8 @@ const differencePercent =
   function renderHistory() {
     const list = document.getElementById('historyList');
     if (!list) return;
+
+    updateMissingRevenueButton();
 
     const docs = getFilteredReports();
     const pageSize = getHistoryPageSize();
@@ -10051,7 +10073,12 @@ function loadFleetGPS() {
   document.getElementById('historyPrevPageBottom')?.addEventListener('click', () => changeHistoryPage(-1));
   document.getElementById('historyNextPage')?.addEventListener('click', () => changeHistoryPage(1));
   document.getElementById('historyNextPageBottom')?.addEventListener('click', () => changeHistoryPage(1));
+  document.getElementById('btnMissingRevenue')?.addEventListener('click', () => {
+    historyMissingRevenueOnly = !historyMissingRevenueOnly;
+    resetHistoryPage();
+  });
   document.getElementById('btnClearFilters')?.addEventListener('click', () => {
+    historyMissingRevenueOnly = false;
     document.getElementById('historySearch').value = '';
     document.getElementById('historyCityFilter').value = '';
     document.getElementById('historyTruckFilter').value = '';
