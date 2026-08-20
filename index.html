@@ -2396,6 +2396,30 @@
       <div class="card">
         <h2>Job Notes</h2>
         <textarea name="notes" rows="4" placeholder="Mention any utilities, traffic control, or site issues..."></textarea>
+        <div class="grid" style="margin-top:14px;">
+          <label>Return Trip Required
+            <select name="returnTripRequired">
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </label>
+          <label>Preventable Delay
+            <select name="preventableDelay">
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </label>
+          <label>Completion Status
+            <select name="completionStatus">
+              <option value="Complete" selected>Complete</option>
+              <option value="Partial">Partial</option>
+              <option value="Return Required">Return Required</option>
+            </select>
+          </label>
+          <label class="span-4">Return Trip Reason
+            <textarea name="returnTripReason" rows="2" placeholder="If a return trip is required, explain why..."></textarea>
+          </label>
+        </div>
       </div>
 
       <div class="submit-bar">
@@ -3190,6 +3214,16 @@
           </label>
           <label>Manager Initials<input id="editManagerInitials" placeholder="Optional"></label>
           <label class="span-4">Crew Notes<textarea id="editNotes" rows="3"></textarea></label>
+          <label>Return Trip Required
+            <select id="editReturnTripRequired"><option value="">Not recorded</option><option value="No">No</option><option value="Yes">Yes</option></select>
+          </label>
+          <label>Preventable Delay
+            <select id="editPreventableDelay"><option value="">Not recorded</option><option value="No">No</option><option value="Yes">Yes</option></select>
+          </label>
+          <label>Completion Status
+            <select id="editCompletionStatus"><option value="">Not recorded</option><option value="Complete">Complete</option><option value="Partial">Partial</option><option value="Return Required">Return Required</option></select>
+          </label>
+          <label class="span-4">Return Trip Reason<textarea id="editReturnTripReason" rows="2"></textarea></label>
           <label class="span-4">Manager Notes<textarea id="editManagerNotes" rows="3" placeholder="Internal manager notes, corrections, or approval comments..."></textarea></label>
         </div>
       </form>
@@ -6083,7 +6117,8 @@ const differencePercent =
       'Billable Lb Revenue', 'Joint Grinding LF', 'Grind Depth', 'Joint Grinding Rate', 'Joint Grinding Revenue',
       'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Free Chemical Used', 'Chemical Rate', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
       'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles Used', 'Generated Route Miles', 'Route Miles Source', 'Small Engine Hours', 'Generator Runtime',
-      'Cost Rule Effective Date', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule'
+      'Cost Rule Effective Date', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule',
+      'Job Notes', 'Return Trip Required', 'Return Trip Reason', 'Preventable Delay', 'Completion Status'
     ];
     const rows = docs.map(report => {
       const pnl = calculateReportPnl(report, docs, costSettings);
@@ -6137,7 +6172,12 @@ const differencePercent =
         pnl.quality.labor,
         pnl.quality.fuel,
         pnl.quality.material,
-        pnl.quality.overhead
+        pnl.quality.overhead,
+        report.notes || '',
+        report.returnTripRequired || '',
+        report.returnTripReason || '',
+        report.preventableDelay || '',
+        report.completionStatus || ''
       ];
     });
     const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
@@ -7821,6 +7861,11 @@ const differencePercent =
         data.helper4 = normalizePersonName(data.helper4);
         data.workAreaType = normalizeWorkAreaType(data.workAreaType);
         data.injectionType = normalizeInjectionType(data.injectionType);
+        data.notes = String(data.notes || '').trim();
+        data.returnTripRequired = data.returnTripRequired === 'Yes' ? 'Yes' : 'No';
+        data.returnTripReason = String(data.returnTripReason || '').trim();
+        data.preventableDelay = data.preventableDelay === 'Yes' ? 'Yes' : 'No';
+        data.completionStatus = ['Complete', 'Partial', 'Return Required'].includes(data.completionStatus) ? data.completionStatus : 'Complete';
 
         delete data.jobPhotos;
 
@@ -8110,6 +8155,10 @@ const differencePercent =
           report.date,
           report.submittedBy,
           report.notes,
+          report.returnTripRequired,
+          report.returnTripReason,
+          report.preventableDelay,
+          report.completionStatus,
           report.managerNotes,
           report.approvalStatus,
           report.workAreaType,
@@ -8260,6 +8309,8 @@ const differencePercent =
               ${report.photoCount ? ` | <strong>Photos:</strong> ${fmtNumber(report.photoCount, 0)}` : ''}
             </div>
             ${report.liftAreaNotes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Area Notes:</strong> ${escapeHtml(report.liftAreaNotes)}</div>` : ''}
+            ${report.notes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Job Notes:</strong> ${escapeHtml(report.notes)}</div>` : ''}
+            ${(report.returnTripRequired || report.preventableDelay || report.completionStatus || report.returnTripReason) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Completion:</strong> ${escapeHtml(report.completionStatus || 'Not recorded')} | <strong>Return Trip:</strong> ${escapeHtml(report.returnTripRequired || 'Not recorded')} | <strong>Preventable Delay:</strong> ${escapeHtml(report.preventableDelay || 'Not recorded')}${report.returnTripReason ? ` | <strong>Reason:</strong> ${escapeHtml(report.returnTripReason)}` : ''}</div>` : ''}
             ${renderPhotoLinks(report)}
             ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
             <div style="margin-top:8px;">${renderQualityPills(pnl)}</div>
@@ -9661,6 +9712,10 @@ function loadFleetGPS() {
     document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
     document.getElementById('editManagerInitials').value = '';
     document.getElementById('editNotes').value = report.notes || '';
+    document.getElementById('editReturnTripRequired').value = report.returnTripRequired || '';
+    document.getElementById('editReturnTripReason').value = report.returnTripReason || '';
+    document.getElementById('editPreventableDelay').value = report.preventableDelay || '';
+    document.getElementById('editCompletionStatus').value = report.completionStatus || '';
     document.getElementById('editManagerNotes').value = report.managerNotes || '';
     renderAuditTrail(report);
     document.getElementById('editModal').style.display = 'flex';
@@ -9765,6 +9820,10 @@ function loadFleetGPS() {
       approvalStatus: document.getElementById('editApprovalStatus').value,
       managerNotes: document.getElementById('editManagerNotes').value.trim(),
       notes: document.getElementById('editNotes').value.trim(),
+      returnTripRequired: document.getElementById('editReturnTripRequired').value,
+      returnTripReason: document.getElementById('editReturnTripReason').value.trim(),
+      preventableDelay: document.getElementById('editPreventableDelay').value,
+      completionStatus: document.getElementById('editCompletionStatus').value,
       lastModifiedAt: serverTimestamp(),
       lastModifiedBy: auth.currentUser.email
     };
@@ -10040,6 +10099,12 @@ function loadFleetGPS() {
 
         <h2>Notes</h2>
         <div class="box"><div class="label">Crew Notes</div><div class="value">${safe(report.notes || '')}</div></div>
+        <div class="metric-grid" style="margin-top:10px;">
+          ${metricBox('Return Trip Required', report.returnTripRequired || '')}
+          ${metricBox('Preventable Delay', report.preventableDelay || '')}
+          ${metricBox('Completion Status', report.completionStatus || '')}
+        </div>
+        <div class="box" style="margin-top:10px;"><div class="label">Return Trip Reason</div><div class="value">${safe(report.returnTripReason || '')}</div></div>
         <div class="box" style="margin-top:10px;"><div class="label">Manager Notes</div><div class="value">${safe(report.managerNotes || '')}</div></div>
 
         <h2>Road Profile</h2>
