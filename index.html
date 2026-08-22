@@ -1618,6 +1618,43 @@
     .status-rejected { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
     .status-revision { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
 
+    .return-trip-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 10px;
+      padding: 8px 12px;
+      border: 2px solid #dc2626;
+      border-radius: 10px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: .03em;
+    }
+
+    .completion-checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 12px 0 16px;
+    }
+
+    .completion-check-item {
+      padding: 9px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #f9fafb;
+      color: #4b5563;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .completion-check-item.done { background:#dcfce7; border-color:#86efac; color:#166534; }
+    .condition-checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; margin-top:8px; }
+    .condition-checks label { display:flex; align-items:center; gap:8px; font-weight:750; }
+    .condition-checks input { width:18px; height:18px; margin:0; }
+
     /* Injection Type Visibility */
     .injection-badge {
       display: inline-flex;
@@ -2385,17 +2422,61 @@
       <div class="card">
         <h2>Job Photos</h2>
         <div class="photo-upload-box">
-          <label>Upload Pictures
+          <label>Before / Site Condition Photos
             <input id="jobPhotos" name="jobPhotos" type="file" accept="image/*" multiple>
           </label>
-          <div class="helper-text">Optional. Add before, after, site condition, traffic control, or issue photos. Photos are uploaded to Firebase Storage and linked to the report.</div>
+          <div class="helper-text">Add before-work, site-condition, traffic-control, or issue photos.</div>
           <div id="photoFileList" class="photo-file-list"></div>
+          <label style="margin-top:14px;">After Photos
+            <input id="afterPhotos" name="afterPhotos" type="file" accept="image/*" multiple>
+          </label>
+          <div class="helper-text">Use the same viewpoints as the before photos whenever possible.</div>
+          <div id="afterPhotoFileList" class="photo-file-list"></div>
         </div>
       </div>
 
-      <div class="card">
-        <h2>Job Notes</h2>
-        <textarea name="notes" rows="4" placeholder="Mention any utilities, traffic control, or site issues..."></textarea>
+      <div class="card" id="completionRecordCard">
+        <h2>After Pumping — Completion Record</h2>
+        <p class="dashboard-note">Complete the record so managers can distinguish job conditions, estimating, technique, and material performance.</p>
+        <div class="completion-checklist" id="completionChecklist">
+          <div class="completion-check-item" data-check="finalSettlement">Final settlement recorded</div>
+          <div class="completion-check-item" data-check="targetLift">Target lift result selected</div>
+          <div class="completion-check-item" data-check="notes">Complete Job Notes entered</div>
+          <div class="completion-check-item" data-check="completion">Completion Status selected</div>
+          <div class="completion-check-item" data-check="returnInfo">Return-trip information complete</div>
+          <div class="completion-check-item" data-check="afterPhotos">After photos attached</div>
+        </div>
+        <div class="grid">
+          <label>Original Settlement (in)<input name="originalSettlement" type="number" min="0" step="0.01" placeholder="Example: 1.50"></label>
+          <label>Final Settlement (in)<input name="finalSettlement" type="number" min="0" step="0.01" placeholder="Example: 0.50"></label>
+          <label>Target Lift Achieved
+            <select name="targetLiftAchieved">
+              <option value="">Select result...</option>
+              <option value="Yes">Yes</option>
+              <option value="Partially">Partially</option>
+              <option value="No">No</option>
+            </select>
+          </label>
+          <div class="span-4">
+            <div style="font-weight:850;">Condition Observed</div>
+            <div class="condition-checks">
+              <label><input type="checkbox" name="conditionObservedOption" value="Normal void">Normal void</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Large/deep void">Large/deep void</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Water or saturated soil">Water or saturated soil</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Washout">Washout</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Broken subgrade">Broken subgrade</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Material escaping">Material escaping</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Nearby high point lifting">Nearby high point lifting</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Unknown">Unknown</label>
+            </div>
+          </div>
+          <label class="span-4">Other Condition<input name="conditionObservedOther" placeholder="Describe another condition..."></label>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:14px 0 6px; flex-wrap:wrap;">
+          <strong>A useful Job Note records the original dip and area, pounds used and where, lift achieved, conditions observed, and whether the work is complete or returning.</strong>
+          <button class="btn btn-outline small-btn" type="button" id="btnInsertNoteTemplate">Insert Note Template</button>
+        </div>
+        <textarea id="jobNotes" name="notes" rows="5" placeholder="Original dip ___. Work area ___. Used ___ lbs at ___. Achieved ___ lift. Observed ___. Job is Complete/Partial/Returning because ___."></textarea>
         <div class="grid" style="margin-top:14px;">
           <label>Return Trip Required
             <select name="returnTripRequired">
@@ -2482,6 +2563,7 @@
           </select>
         </label>
         <button class="btn btn-warning small-btn" type="button" id="btnMissingRevenue" style="display:none;">Missing Revenue (0)</button>
+        <button class="btn btn-danger small-btn" type="button" id="btnReturnTrips">Return Trips (0)</button>
         <button class="btn btn-outline small-btn" type="button" id="btnClearFilters">Clear</button>
       </div>
       <div class="history-pagination" id="historyPaginationTop">
@@ -3214,6 +3296,13 @@
           </label>
           <label>Manager Initials<input id="editManagerInitials" placeholder="Optional"></label>
           <label class="span-4">Crew Notes<textarea id="editNotes" rows="3"></textarea></label>
+          <label>Original Settlement (in)<input id="editOriginalSettlement" type="number" min="0" step="0.01"></label>
+          <label>Final Settlement (in)<input id="editFinalSettlement" type="number" min="0" step="0.01"></label>
+          <label>Target Lift Achieved
+            <select id="editTargetLiftAchieved"><option value="">Not recorded</option><option value="Yes">Yes</option><option value="Partially">Partially</option><option value="No">No</option></select>
+          </label>
+          <label class="span-4">Condition Observed<input id="editConditionObserved" placeholder="Separate multiple conditions with semicolons"></label>
+          <label class="span-4">Other Condition<input id="editConditionObservedOther"></label>
           <label>Return Trip Required
             <select id="editReturnTripRequired"><option value="">Not recorded</option><option value="No">No</option><option value="Yes">Yes</option></select>
           </label>
@@ -3433,6 +3522,7 @@
   let allReports = [];
   let historyPage = 1;
   let historyMissingRevenueOnly = false;
+  let historyReturnTripsOnly = false;
   let dashboardReports = [];
   let currentEditReport = null;
   let currentEditGeneratedRouteMiles = 0;
@@ -6118,7 +6208,9 @@ const differencePercent =
       'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Free Chemical Used', 'Chemical Rate', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
       'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles Used', 'Generated Route Miles', 'Route Miles Source', 'Small Engine Hours', 'Generator Runtime',
       'Cost Rule Effective Date', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule',
-      'Job Notes', 'Return Trip Required', 'Return Trip Reason', 'Preventable Delay', 'Completion Status'
+      'Job Notes', 'Return Trip Required', 'Return Trip Reason', 'Preventable Delay', 'Completion Status',
+      'Original Settlement', 'Final Settlement', 'Target Lift Achieved', 'Condition Observed', 'Other Condition',
+      'Before/Site Photo Count', 'After Photo Count', 'Completion Record Status'
     ];
     const rows = docs.map(report => {
       const pnl = calculateReportPnl(report, docs, costSettings);
@@ -6177,7 +6269,15 @@ const differencePercent =
         report.returnTripRequired || '',
         report.returnTripReason || '',
         report.preventableDelay || '',
-        report.completionStatus || ''
+        report.completionStatus || '',
+        report.originalSettlement || '',
+        report.finalSettlement || '',
+        report.targetLiftAchieved || '',
+        report.conditionObserved || '',
+        report.conditionObservedOther || '',
+        report.beforePhotoCount ?? '',
+        report.afterPhotoCount ?? '',
+        getCompletionRecordStatus(report)
       ];
     });
     const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
@@ -7263,19 +7363,79 @@ const differencePercent =
   }
 
   function renderSelectedPhotoNames() {
-    const input = document.getElementById('jobPhotos');
-    const list = document.getElementById('photoFileList');
-    if (!input || !list) return;
+    [['jobPhotos', 'photoFileList', 'Before/Site'], ['afterPhotos', 'afterPhotoFileList', 'After']].forEach(([inputId, listId, label]) => {
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+      if (!input || !list) return;
+      const files = Array.from(input.files || []);
+      list.innerHTML = files.map((file, index) => `
+        <div class="photo-file-pill">${label} ${index + 1}: ${escapeHtml(file.name)} (${fmtNumber(file.size / (1024 * 1024), 1)} MB before compression)</div>
+      `).join('');
+    });
+    updateCompletionChecklist();
+  }
 
-    const files = Array.from(input.files || []);
-    if (!files.length) {
-      list.innerHTML = '';
-      return;
-    }
+  function isReturnTripReport(report) {
+    return report?.returnTripRequired === 'Yes' || report?.completionStatus === 'Return Required';
+  }
 
-    list.innerHTML = files.map((file, index) => `
-      <div class="photo-file-pill">Photo ${index + 1}: ${escapeHtml(file.name)} (${fmtNumber(file.size / (1024 * 1024), 1)} MB before compression)</div>
-    `).join('');
+  function getCompletionRecordIssues(report) {
+    const issues = [];
+    if (report?.originalSettlement === '' || report?.originalSettlement === null || report?.originalSettlement === undefined) issues.push('Missing original settlement');
+    if (report?.finalSettlement === '' || report?.finalSettlement === null || report?.finalSettlement === undefined) issues.push('Missing final settlement');
+    if (!report?.targetLiftAchieved) issues.push('Missing target lift result');
+    if (String(report?.notes || '').trim().length < 30) issues.push('Missing complete Job Notes');
+    if (!report?.completionStatus) issues.push('Missing completion status');
+    if (isReturnTripReport(report) && !String(report?.returnTripReason || '').trim()) issues.push('Missing return-trip reason');
+    if (Number(report?.afterPhotoCount || 0) < 1) issues.push('Missing after photos');
+    return issues;
+  }
+
+  function hasCompletionRecordData(report) {
+    return [
+      'originalSettlement',
+      'finalSettlement',
+      'targetLiftAchieved',
+      'conditionObserved',
+      'conditionObservedOther',
+      'beforePhotoCount',
+      'afterPhotoCount',
+      'completionRecordStatus'
+    ].some(field => report?.[field] !== undefined);
+  }
+
+  function getCompletionRecordStatus(report) {
+    if (!hasCompletionRecordData(report)) return '';
+    const issues = getCompletionRecordIssues(report);
+    return issues.length ? issues.join('; ') : 'Complete';
+  }
+
+  function updateCompletionChecklist() {
+    const form = document.getElementById('crewForm');
+    if (!form) return;
+    const returnRequired = form.elements.returnTripRequired?.value === 'Yes' || form.elements.completionStatus?.value === 'Return Required';
+    const values = {
+      finalSettlement: String(form.elements.finalSettlement?.value || '').trim() !== '',
+      targetLift: Boolean(form.elements.targetLiftAchieved?.value),
+      notes: String(form.elements.notes?.value || '').trim().length >= 30,
+      completion: Boolean(form.elements.completionStatus?.value),
+      returnInfo: !returnRequired || String(form.elements.returnTripReason?.value || '').trim().length > 0,
+      afterPhotos: Number(document.getElementById('afterPhotos')?.files?.length || 0) > 0
+    };
+    document.querySelectorAll('#completionChecklist [data-check]').forEach(item => {
+      const done = Boolean(values[item.dataset.check]);
+      item.classList.toggle('done', done);
+      item.textContent = `${done ? '✓' : '○'} ${item.textContent.replace(/^[✓○]\s*/, '')}`;
+    });
+  }
+
+  function insertJobNoteTemplate() {
+    const notes = document.getElementById('jobNotes');
+    if (!notes) return;
+    const template = 'Original dip ___. Work area ___. Used ___ lbs at ___. Achieved ___ lift. Observed ___. Job is Complete/Partial/Returning because ___.';
+    if (!notes.value.trim() || window.confirm('Replace the current Job Notes with the guided template?')) notes.value = template;
+    notes.focus();
+    updateCompletionChecklist();
   }
 
   function safeFileName(name) {
@@ -7365,7 +7525,7 @@ const differencePercent =
     return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
   }
 
-  async function uploadReportPhotos(files, reportKey) {
+  async function uploadReportPhotos(files, reportKey, category = '') {
     const uploaded = [];
     for (const [index, file] of files.entries()) {
       const uploadFile = await compressImageFile(file, { maxDimension: 1800, quality: 0.78 });
@@ -7388,6 +7548,7 @@ const differencePercent =
         size: uploadFile.size || 0,
         originalSize: file.size || 0,
         compressed: uploadFile.size < file.size,
+        category,
         path,
         url,
         uploadedAt: new Date().toISOString()
@@ -7442,7 +7603,7 @@ const differencePercent =
             target="_blank"
             rel="noopener"
             title="Open photo gallery"
-          >Photo ${displayIndex + 1}</a>
+          >${escapeHtml(item.photo?.category ? `${item.photo.category} Photo ${displayIndex + 1}` : `Photo ${displayIndex + 1}`)}</a>
         `).join('')}
       </div>
     `;
@@ -7764,6 +7925,13 @@ const differencePercent =
   document.getElementById('liftAreaLength')?.addEventListener('input', updateLiftAreaSqFtDisplay);
   document.getElementById('liftAreaWidth')?.addEventListener('input', updateLiftAreaSqFtDisplay);
   document.getElementById('jobPhotos')?.addEventListener('change', renderSelectedPhotoNames);
+  document.getElementById('afterPhotos')?.addEventListener('change', renderSelectedPhotoNames);
+  document.getElementById('btnInsertNoteTemplate')?.addEventListener('click', insertJobNoteTemplate);
+  ['originalSettlement', 'finalSettlement', 'targetLiftAchieved', 'notes', 'completionStatus', 'returnTripRequired', 'returnTripReason'].forEach(name => {
+    document.getElementById('crewForm')?.elements?.[name]?.addEventListener('input', updateCompletionChecklist);
+    document.getElementById('crewForm')?.elements?.[name]?.addEventListener('change', updateCompletionChecklist);
+  });
+  updateCompletionChecklist();
   toggleWorkAreaFields();
   updateLiftAreaSqFtDisplay();
 
@@ -7851,6 +8019,8 @@ const differencePercent =
 
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
+        const beforePhotoFiles = Array.from(document.getElementById('jobPhotos')?.files || []);
+        const afterPhotoFiles = Array.from(document.getElementById('afterPhotos')?.files || []);
 
         // Normalize typed/select values before saving to Firestore so dashboard totals do not split by capitalization.
         data.city = normalizeCityName(data.city);
@@ -7862,12 +8032,36 @@ const differencePercent =
         data.workAreaType = normalizeWorkAreaType(data.workAreaType);
         data.injectionType = normalizeInjectionType(data.injectionType);
         data.notes = String(data.notes || '').trim();
+        data.originalSettlement = String(data.originalSettlement || '').trim();
+        data.finalSettlement = String(data.finalSettlement || '').trim();
+        data.targetLiftAchieved = ['Yes', 'Partially', 'No'].includes(data.targetLiftAchieved) ? data.targetLiftAchieved : '';
+        const selectedConditions = Array.from(document.querySelectorAll('input[name="conditionObservedOption"]:checked')).map(input => input.value);
+        data.conditionObserved = selectedConditions.join('; ');
+        data.conditionObservedOther = String(data.conditionObservedOther || '').trim();
         data.returnTripRequired = data.returnTripRequired === 'Yes' ? 'Yes' : 'No';
         data.returnTripReason = String(data.returnTripReason || '').trim();
         data.preventableDelay = data.preventableDelay === 'Yes' ? 'Yes' : 'No';
         data.completionStatus = ['Complete', 'Partial', 'Return Required'].includes(data.completionStatus) ? data.completionStatus : 'Complete';
 
         delete data.jobPhotos;
+        delete data.afterPhotos;
+        delete data.conditionObservedOption;
+
+        if (isReturnTripReport(data) && !data.returnTripReason) {
+          showMessage('Return Trip Reason is required when a return trip is flagged.', 'error');
+          document.querySelector('[name="returnTripReason"]')?.focus();
+          return;
+        }
+
+        data.beforePhotoCount = beforePhotoFiles.length;
+        data.afterPhotoCount = afterPhotoFiles.length;
+        const completionWarnings = getCompletionRecordIssues(data);
+        if (completionWarnings.length && !window.confirm(`Completion record needs attention:\n\n• ${completionWarnings.join('\n• ')}\n\nSubmit this report anyway?`)) {
+          showMessage('Submission paused so the completion record can be finished.', 'error');
+          document.getElementById('completionRecordCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        data.completionRecordStatus = getCompletionRecordStatus(data);
 
         const calculatedHours = calculateHoursFromTimes(data.startTime, data.finishTime);
         if (calculatedHours === null) {
@@ -7933,7 +8127,6 @@ const differencePercent =
         });
         data.profile = profileData;
 
-        const photoFiles = Array.from(document.getElementById('jobPhotos')?.files || []);
         const reportPhotoKey = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         data.photos = [];
         data.photoCount = 0;
@@ -7952,9 +8145,12 @@ const differencePercent =
           note: "Report submitted from field form."
         }];
 
-        if (photoFiles.length) {
-          showMessage(`Uploading ${photoFiles.length} photo${photoFiles.length === 1 ? '' : 's'}...`, "success");
-          data.photos = await uploadReportPhotos(photoFiles, reportPhotoKey);
+        const totalPhotoFiles = beforePhotoFiles.length + afterPhotoFiles.length;
+        if (totalPhotoFiles) {
+          showMessage(`Uploading ${totalPhotoFiles} photo${totalPhotoFiles === 1 ? '' : 's'}...`, "success");
+          const beforePhotos = await uploadReportPhotos(beforePhotoFiles, reportPhotoKey, 'Before/Site');
+          const afterPhotos = await uploadReportPhotos(afterPhotoFiles, reportPhotoKey, 'After');
+          data.photos = [...beforePhotos, ...afterPhotos];
           data.photoCount = data.photos.length;
         }
 
@@ -7995,7 +8191,19 @@ const differencePercent =
               flowMeterLbs: data.flowMeterPounds,
               totalHours: Number(data.totalHours || 0),
 
-              notes: data.notes || ""
+              notes: data.notes || "",
+              originalSettlement: data.originalSettlement || "",
+              finalSettlement: data.finalSettlement || "",
+              targetLiftAchieved: data.targetLiftAchieved || "",
+              conditionObserved: data.conditionObserved || "",
+              conditionObservedOther: data.conditionObservedOther || "",
+              returnTripRequired: data.returnTripRequired || "",
+              returnTripReason: data.returnTripReason || "",
+              preventableDelay: data.preventableDelay || "",
+              completionStatus: data.completionStatus || "",
+              beforePhotoCount: data.beforePhotoCount || 0,
+              afterPhotoCount: data.afterPhotoCount || 0,
+              completionRecordStatus: data.completionRecordStatus || ""
             })
           });
 
@@ -8023,6 +8231,7 @@ const differencePercent =
         toggleWorkAreaFields();
         updateLiftAreaSqFtDisplay();
         renderSelectedPhotoNames();
+        updateCompletionChecklist();
         switchTab('history');
 
       } catch (err) {
@@ -8100,6 +8309,16 @@ const differencePercent =
     button.setAttribute('aria-pressed', historyMissingRevenueOnly ? 'true' : 'false');
   }
 
+  function updateReturnTripsButton() {
+    const button = document.getElementById('btnReturnTrips');
+    if (!button) return;
+    const count = allReports.filter(report => report.deleted !== true && isReturnTripReport(report)).length;
+    button.textContent = historyReturnTripsOnly ? `Show All Reports (${count} return trips)` : `Return Trips (${count})`;
+    button.classList.toggle('btn-danger', !historyReturnTripsOnly);
+    button.classList.toggle('btn-primary', historyReturnTripsOnly);
+    button.setAttribute('aria-pressed', historyReturnTripsOnly ? 'true' : 'false');
+  }
+
   function populateHistoryFilters(docs) {
     const activeDocs = activeReportsOnly(docs);
     const citySelect = document.getElementById('historyCityFilter');
@@ -8131,6 +8350,7 @@ const differencePercent =
       const approvalStatus = report.approvalStatus || 'Needs Review';
 
       if (historyMissingRevenueOnly && !isReportMissingManagerRevenue(report)) return false;
+      if (historyReturnTripsOnly && !isReturnTripReport(report)) return false;
 
       if (status === 'Deleted') {
         if (!isDeleted) return false;
@@ -8159,6 +8379,12 @@ const differencePercent =
           report.returnTripReason,
           report.preventableDelay,
           report.completionStatus,
+          report.originalSettlement,
+          report.finalSettlement,
+          report.targetLiftAchieved,
+          report.conditionObserved,
+          report.conditionObservedOther,
+          report.completionRecordStatus,
           report.managerNotes,
           report.approvalStatus,
           report.workAreaType,
@@ -8219,6 +8445,7 @@ const differencePercent =
     if (!list) return;
 
     updateMissingRevenueButton();
+    updateReturnTripsButton();
 
     const docs = getFilteredReports();
     const pageSize = getHistoryPageSize();
@@ -8246,6 +8473,9 @@ const differencePercent =
       const pnlToneClass = isProfit ? 'pnl-profit' : 'pnl-loss';
       const pnlValueClass = isProfit ? 'history-pnl-profit' : 'history-pnl-loss';
       const revenuePerLb = pounds > 0 ? pnl.revenue / pounds : 0;
+      const returnTripFlag = isReturnTripReport(report)
+        ? `<div class="return-trip-flag">⚠ RETURN TRIP REQUIRED${report.returnTripReason ? ` — ${escapeHtml(report.returnTripReason)}` : ''}</div>`
+        : '';
       const groupMeta = pnl.isGroupedRevenue ? `
         <div style="font-size:12px; color:#374151; margin-top:6px;">
           <strong>Job Group:</strong> ${escapeHtml(pnl.groupId)} |
@@ -8273,6 +8503,7 @@ const differencePercent =
       return `
         <div class="history-item ${pnlToneClass} ${injectionInfo.key === 'di' ? 'di-report' : injectionInfo.key === 'method' ? 'method-report' : ''}">
           <div style="flex:1;">
+            ${returnTripFlag}
             <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">
               ${escapeHtml(getNormalizedCity(report))} - ${escapeHtml(report.address || 'No Address')}
               ${injectionBadge}${statusPill}${deletedLabel}
@@ -8310,7 +8541,9 @@ const differencePercent =
             </div>
             ${report.liftAreaNotes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Area Notes:</strong> ${escapeHtml(report.liftAreaNotes)}</div>` : ''}
             ${report.notes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Job Notes:</strong> ${escapeHtml(report.notes)}</div>` : ''}
+            ${(report.originalSettlement || report.finalSettlement || report.targetLiftAchieved || report.conditionObserved || report.conditionObservedOther) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Lift Record:</strong> Original ${escapeHtml(report.originalSettlement || 'Not recorded')} in | Final ${escapeHtml(report.finalSettlement || 'Not recorded')} in | Target ${escapeHtml(report.targetLiftAchieved || 'Not recorded')}${report.conditionObserved ? ` | <strong>Conditions:</strong> ${escapeHtml(report.conditionObserved)}` : ''}${report.conditionObservedOther ? `; ${escapeHtml(report.conditionObservedOther)}` : ''}</div>` : ''}
             ${(report.returnTripRequired || report.preventableDelay || report.completionStatus || report.returnTripReason) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Completion:</strong> ${escapeHtml(report.completionStatus || 'Not recorded')} | <strong>Return Trip:</strong> ${escapeHtml(report.returnTripRequired || 'Not recorded')} | <strong>Preventable Delay:</strong> ${escapeHtml(report.preventableDelay || 'Not recorded')}${report.returnTripReason ? ` | <strong>Reason:</strong> ${escapeHtml(report.returnTripReason)}` : ''}</div>` : ''}
+            ${hasCompletionRecordData(report) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Completion Record:</strong> ${escapeHtml(getCompletionRecordStatus(report))} | <strong>Before/Site Photos:</strong> ${fmtNumber(Number(report.beforePhotoCount || 0), 0)} | <strong>After Photos:</strong> ${fmtNumber(Number(report.afterPhotoCount || 0), 0)}</div>` : ''}
             ${renderPhotoLinks(report)}
             ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
             <div style="margin-top:8px;">${renderQualityPills(pnl)}</div>
@@ -9712,6 +9945,11 @@ function loadFleetGPS() {
     document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
     document.getElementById('editManagerInitials').value = '';
     document.getElementById('editNotes').value = report.notes || '';
+    document.getElementById('editOriginalSettlement').value = report.originalSettlement || '';
+    document.getElementById('editFinalSettlement').value = report.finalSettlement || '';
+    document.getElementById('editTargetLiftAchieved').value = report.targetLiftAchieved || '';
+    document.getElementById('editConditionObserved').value = report.conditionObserved || '';
+    document.getElementById('editConditionObservedOther').value = report.conditionObservedOther || '';
     document.getElementById('editReturnTripRequired').value = report.returnTripRequired || '';
     document.getElementById('editReturnTripReason').value = report.returnTripReason || '';
     document.getElementById('editPreventableDelay').value = report.preventableDelay || '';
@@ -9820,6 +10058,11 @@ function loadFleetGPS() {
       approvalStatus: document.getElementById('editApprovalStatus').value,
       managerNotes: document.getElementById('editManagerNotes').value.trim(),
       notes: document.getElementById('editNotes').value.trim(),
+      originalSettlement: document.getElementById('editOriginalSettlement').value,
+      finalSettlement: document.getElementById('editFinalSettlement').value,
+      targetLiftAchieved: document.getElementById('editTargetLiftAchieved').value,
+      conditionObserved: document.getElementById('editConditionObserved').value.trim(),
+      conditionObservedOther: document.getElementById('editConditionObservedOther').value.trim(),
       returnTripRequired: document.getElementById('editReturnTripRequired').value,
       returnTripReason: document.getElementById('editReturnTripReason').value.trim(),
       preventableDelay: document.getElementById('editPreventableDelay').value,
@@ -9827,6 +10070,14 @@ function loadFleetGPS() {
       lastModifiedAt: serverTimestamp(),
       lastModifiedBy: auth.currentUser.email
     };
+
+    if (isReturnTripReport(editPatchInput) && !editPatchInput.returnTripReason) {
+      showMessage('Return Trip Reason is required when a return trip is flagged.', 'error');
+      document.getElementById('editReturnTripReason')?.focus();
+      return;
+    }
+    const currentReport = allReports.find(report => report.id === docId) || {};
+    editPatchInput.completionRecordStatus = getCompletionRecordStatus({ ...currentReport, ...editPatchInput });
 
     if (!Number(editPatchInput.routeMiles || 0)) {
       const generatedRouteMiles = await calculateRoundTripRouteMiles(editPatchInput.address, costSettings, {
@@ -10097,6 +10348,21 @@ function loadFleetGPS() {
         <h2>Photos</h2>
         ${photoLinks}
 
+        ${isReturnTripReport(report) ? `<div style="border:2px solid #dc2626; background:#fee2e2; color:#991b1b; padding:10px 12px; margin:12px 0; border-radius:8px; font-weight:900;">RETURN TRIP REQUIRED${report.returnTripReason ? ` — ${safe(report.returnTripReason)}` : ''}</div>` : ''}
+
+        ${hasCompletionRecordData(report) ? `
+          <h2>Completion Record</h2>
+          <div class="metric-grid">
+            ${metricBox('Original Settlement', report.originalSettlement === '' || report.originalSettlement == null ? '' : `${report.originalSettlement} in`)}
+            ${metricBox('Final Settlement', report.finalSettlement === '' || report.finalSettlement == null ? '' : `${report.finalSettlement} in`)}
+            ${metricBox('Target Lift Achieved', report.targetLiftAchieved || '')}
+            ${metricBox('Completion Record Status', getCompletionRecordStatus(report))}
+            ${metricBox('Before/Site Photo Count', report.beforePhotoCount ?? '')}
+            ${metricBox('After Photo Count', report.afterPhotoCount ?? '')}
+          </div>
+          <div class="box" style="margin-top:10px;"><div class="label">Condition Observed</div><div class="value">${safe([report.conditionObserved, report.conditionObservedOther].filter(Boolean).join('; '))}</div></div>
+        ` : ''}
+
         <h2>Notes</h2>
         <div class="box"><div class="label">Crew Notes</div><div class="value">${safe(report.notes || '')}</div></div>
         <div class="metric-grid" style="margin-top:10px;">
@@ -10142,8 +10408,13 @@ function loadFleetGPS() {
     historyMissingRevenueOnly = !historyMissingRevenueOnly;
     resetHistoryPage();
   });
+  document.getElementById('btnReturnTrips')?.addEventListener('click', () => {
+    historyReturnTripsOnly = !historyReturnTripsOnly;
+    resetHistoryPage();
+  });
   document.getElementById('btnClearFilters')?.addEventListener('click', () => {
     historyMissingRevenueOnly = false;
+    historyReturnTripsOnly = false;
     document.getElementById('historySearch').value = '';
     document.getElementById('historyCityFilter').value = '';
     document.getElementById('historyTruckFilter').value = '';
