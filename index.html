@@ -6393,13 +6393,46 @@ const differencePercent =
     return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
   }
 
+  function withPhotoExportTimeout(promise, timeoutMs, label) {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`)), timeoutMs);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+  }
+
   async function downloadPhotoBlobForZip(item) {
     const errors = [];
     const storedPath = item.photo && typeof item.photo === 'object' ? item.photo.path : '';
 
+    if (item.photoUrl) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const response = await fetch(item.photoUrl, {
+          cache: 'no-store',
+          credentials: 'omit',
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
+        const blob = await response.blob();
+        if (blob?.size) return blob;
+        errors.push('Direct URL download returned an empty file.');
+      } catch (error) {
+        const detail = error?.name === 'AbortError' ? 'timed out after 12 seconds' : (error?.message || error);
+        errors.push(`Direct URL download: ${detail}`);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
     if (storedPath) {
       try {
-        const blob = await getBlob(storageRef(storage, storedPath));
+        const blob = await withPhotoExportTimeout(
+          getBlob(storageRef(storage, storedPath)),
+          10000,
+          'Firebase SDK path download'
+        );
         if (blob?.size) return blob;
         errors.push('Firebase SDK path download returned an empty file.');
       } catch (error) {
@@ -6407,23 +6440,17 @@ const differencePercent =
       }
     }
 
-    if (item.photoUrl) {
+    if (item.photoUrl && !storedPath) {
       try {
-        const blob = await getBlob(storageRef(storage, item.photoUrl));
+        const blob = await withPhotoExportTimeout(
+          getBlob(storageRef(storage, item.photoUrl)),
+          10000,
+          'Firebase SDK URL download'
+        );
         if (blob?.size) return blob;
         errors.push('Firebase SDK URL download returned an empty file.');
       } catch (error) {
         errors.push(`Firebase SDK URL download: ${error?.code || error?.message || error}`);
-      }
-
-      try {
-        const response = await fetch(item.photoUrl, { cache: 'no-store', credentials: 'omit' });
-        if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
-        const blob = await response.blob();
-        if (blob.size) return blob;
-        errors.push('Direct URL download returned an empty file.');
-      } catch (error) {
-        errors.push(`Direct URL download: ${error?.message || error}`);
       }
     }
 
@@ -6463,6 +6490,10 @@ const differencePercent =
           item.error = String(error?.message || error || 'Unknown download error');
           missing.push(`${item.zipPath} | ${item.photoUrl || 'No URL'} | ${item.error}`);
           console.warn('Photo ZIP export skipped a file:', item.zipPath, error);
+        }
+
+        if (index >= 2 && items.slice(0, index + 1).every(photoItem => photoItem.status === 'Missing')) {
+          throw new Error('The first three photos were all blocked. This indicates a Firebase Storage CORS or access configuration problem, so the export was stopped instead of waiting on every photo.');
         }
 
         if ((index + 1) % 3 === 0 || index === items.length - 1) await yieldPhotoExportToBrowser();
