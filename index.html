@@ -2637,10 +2637,14 @@
         </div>
       </div>
       <div style="display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin:-4px 0 16px;">
-        <button class="btn btn-outline" type="button" id="btnExportWebsitePhotos" style="margin-right:8px;">Export Website Photos</button>
+        <button class="btn btn-outline" type="button" id="btnExportPhotosZip" style="margin-right:8px;">Export Photos (ZIP)</button>
         <button class="btn btn-outline" type="button" id="btnDownloadPnlCsv" style="margin-right:8px;">Download P&amp;L CSV</button>
         <button class="btn btn-outline" type="button" id="btnGenerateMeetingAgenda" style="margin-right:8px;">Generate Meeting Agenda</button>
         <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
+      </div>
+      <div id="photoZipExportStatus" style="display:none; margin:-4px 0 16px; padding:12px; border:1px solid #bfdbfe; border-radius:12px; background:#f8fbff;" aria-live="polite">
+        <div id="photoZipExportText" style="font-size:13px; font-weight:850; color:var(--kke-dark-blue); margin-bottom:7px;">Preparing photo export...</div>
+        <progress id="photoZipExportProgress" value="0" max="100" style="width:100%; height:16px;"></progress>
       </div>
 
       <section id="dashboardRevenueGoalCard" class="dashboard-goal-card dashboard-goal-neutral" aria-label="Revenue goal progress">
@@ -3449,6 +3453,7 @@
   async
   defer>
 </script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -3840,7 +3845,7 @@ document.addEventListener("change", (e) => {
 
   document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
   document.getElementById('btnGenerateMeetingAgenda')?.addEventListener('click', generateMeetingAgendaPacket);
-  document.getElementById('btnExportWebsitePhotos')?.addEventListener('click', downloadWebsitePhotoManifest);
+  document.getElementById('btnExportPhotosZip')?.addEventListener('click', exportPhotosAsZip);
   document.getElementById('btnDownloadPnlCsv')?.addEventListener('click', downloadPnlCsv);
   document.getElementById('btnSaveCostSettings')?.addEventListener('click', saveCostSettings);
   document.getElementById('btnResetCostSettings')?.addEventListener('click', resetCostSettings);
@@ -6268,75 +6273,212 @@ const differencePercent =
     const extension = extensionMatch ? extensionMatch[0].toLowerCase() : '.jpg';
     const category = String(photo?.category || 'Job').replace(/[^a-z0-9]+/gi, '-');
     const job = getWebsitePhotoJobName(report).replace(/[^a-z0-9]+/gi, '-');
-    return safeFileName(`${report.date || 'no-date'}_${job}_${category}_${photoIndex + 1}${extension}`);
+    const reportKey = String(report.id || 'report').slice(0, 8);
+    return safeFileName(`${report.date || 'no-date'}_${job}_${reportKey}_${category}_${photoIndex + 1}${extension}`);
   }
 
-  function downloadWebsitePhotoManifest() {
-    if (!isCurrentUserManager) return showMessage('Manager access is required for website photo export.', 'error');
-
+  function getPhotoExportReports() {
     const activeDocs = activeReportsOnly(dashboardReports || []);
     const docs = filterReportsForDashboardPeriod(activeDocs);
-    const rows = [];
+    const historyFiltersActive = Boolean(
+      String(document.getElementById('historySearch')?.value || '').trim() ||
+      document.getElementById('historyCityFilter')?.value ||
+      document.getElementById('historyTruckFilter')?.value ||
+      document.getElementById('historyDateFilter')?.value ||
+      document.getElementById('historyInjectionFilter')?.value ||
+      document.getElementById('historyStatusFilter')?.value ||
+      historyMissingRevenueOnly ||
+      historyReturnTripsOnly
+    );
+    if (!historyFiltersActive) return docs;
+    const allowedIds = new Set(getFilteredReports().map(report => report.id));
+    return docs.filter(report => allowedIds.has(report.id));
+  }
 
-    docs.forEach(report => {
-      const photos = Array.isArray(report.photos) ? report.photos : [];
-      photos.forEach((photo, photoIndex) => {
-        const photoUrl = getPhotoUrl(photo);
-        if (!photoUrl) return;
+  function getPhotoZipCategory(photo) {
+    const category = String(photo?.category || '').toLowerCase();
+    if (/before|site|pre[- ]?work/.test(category)) return 'Before';
+    if (/during|progress|work|injection|install/.test(category)) return 'During';
+    if (/after|result|complete|finish|post[- ]?work/.test(category)) return 'After';
+    return 'Uncategorized';
+  }
 
-        rows.push([
-          getWebsitePhotoSuggestedName(report, photo, photoIndex),
-          getWebsitePhotoJobName(report),
-          report.date || '',
-          getDashboardCity(report),
-          report.address || '',
-          getWebsitePhotoScope(report),
-          getWorkAreaDisplay(report),
-          getInjectionInfo(report).fullLabel || '',
-          report.liftAreaLength || '',
-          report.liftAreaWidth || '',
-          report.liftAreaSqFt || '',
-          fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
-          fmtNumber(getReportPounds(report), 2),
-          report.originalSettlement || '',
-          report.finalSettlement || '',
-          report.targetLiftAchieved || '',
-          getWebsitePhotoResultSummary(report),
-          report.completionStatus || '',
-          report.conditionObserved || '',
-          report.conditionObservedOther || '',
-          report.notes || '',
-          photo?.category || '',
-          getPhotoName(photo, `Photo ${photoIndex + 1}`),
-          photoUrl,
-          report.id || ''
-        ]);
-      });
-    });
+  function safeZipFolderName(value, fallback = 'Unnamed Job') {
+    const cleaned = String(value || fallback)
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+      .replace(/[. ]+$/g, '')
+      .trim()
+      .slice(0, 100);
+    return cleaned || fallback;
+  }
 
-    if (!rows.length) {
-      return showMessage('No job photos were found in the selected Dashboard date range.', 'error');
-    }
-
-    const headers = [
+  const websitePhotoManifestHeaders = [
       'Suggested Photo Filename', 'Job Name', 'Job Date', 'City', 'Address', 'Scope Summary',
       'Work Area', 'Injection Type', 'Length Ft', 'Width Ft', 'Area Sq Ft',
       'Pumped Lbs', 'Chemical Lbs From Clicks', 'Original Settlement In', 'Final Settlement In',
       'Target Lift Achieved', 'Results Summary', 'Completion Status', 'Condition Observed',
-      'Other Condition Details', 'Job Notes', 'Photo Category', 'Original Photo Name', 'Photo URL', 'Report ID'
+      'Other Condition Details', 'Job Notes', 'Photo Category', 'Original Photo Name', 'Photo URL',
+      'ZIP Path', 'Download Status', 'Download Error', 'Report ID'
+  ];
+
+  function buildPhotoZipExportPlan() {
+    const items = [];
+    getPhotoExportReports().forEach(report => {
+      const projectFolder = safeZipFolderName(getWebsitePhotoJobName(report));
+      const photos = Array.isArray(report.photos) ? report.photos : [];
+      photos.forEach((photo, photoIndex) => {
+        const categoryFolder = getPhotoZipCategory(photo);
+        const fileName = getWebsitePhotoSuggestedName(report, photo, photoIndex);
+        const zipPath = `${projectFolder}/${categoryFolder}/${fileName}`;
+        items.push({
+          report,
+          photo,
+          photoIndex,
+          photoUrl: getPhotoUrl(photo),
+          categoryFolder,
+          fileName,
+          zipPath,
+          status: 'Pending',
+          error: ''
+        });
+      });
+    });
+    return items;
+  }
+
+  function getPhotoManifestRow(item) {
+    const { report, photo, photoIndex } = item;
+    return [
+      item.fileName,
+      getWebsitePhotoJobName(report),
+      report.date || '',
+      getDashboardCity(report),
+      report.address || '',
+      getWebsitePhotoScope(report),
+      getWorkAreaDisplay(report),
+      getInjectionInfo(report).fullLabel || '',
+      report.liftAreaLength || '',
+      report.liftAreaWidth || '',
+      report.liftAreaSqFt || '',
+      fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
+      fmtNumber(getReportPounds(report), 2),
+      report.originalSettlement || '',
+      report.finalSettlement || '',
+      report.targetLiftAchieved || '',
+      getWebsitePhotoResultSummary(report),
+      report.completionStatus || '',
+      report.conditionObserved || '',
+      report.conditionObservedOther || '',
+      report.notes || '',
+      item.categoryFolder,
+      getPhotoName(photo, `Photo ${photoIndex + 1}`),
+      item.photoUrl || '',
+      item.zipPath,
+      item.status,
+      item.error,
+      report.id || ''
     ];
-    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const range = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'dashboard-range';
-    const cleanRange = safeFileName(range.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'dashboard-range';
-    link.href = URL.createObjectURL(blob);
-    link.download = `kke-website-photo-manifest-${cleanRange}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    showMessage(`Website photo manifest downloaded: ${rows.length} photo${rows.length === 1 ? '' : 's'} matched to ${new Set(rows.map(row => row[24])).size} job report${new Set(rows.map(row => row[24])).size === 1 ? '' : 's'}.`);
+  }
+
+  function updatePhotoZipProgress(percent, text) {
+    const box = document.getElementById('photoZipExportStatus');
+    const progress = document.getElementById('photoZipExportProgress');
+    const label = document.getElementById('photoZipExportText');
+    if (box) box.style.display = 'block';
+    if (progress) progress.value = Math.max(0, Math.min(100, Number(percent || 0)));
+    if (label) label.textContent = text;
+  }
+
+  function yieldPhotoExportToBrowser() {
+    return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  }
+
+  async function exportPhotosAsZip() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for photo ZIP export.', 'error');
+    if (!window.JSZip) return showMessage('ZIP support did not load. Check the internet connection and refresh the app.', 'error');
+
+    const button = document.getElementById('btnExportPhotosZip');
+    const items = buildPhotoZipExportPlan();
+    if (!items.length) return showMessage('No job photos were found for the active date, city, project, and report filters.', 'error');
+
+    button.disabled = true;
+    button.textContent = 'Exporting Photos...';
+    const zip = new window.JSZip();
+    const missing = [];
+    let downloadedBytes = 0;
+
+    try {
+      updatePhotoZipProgress(0, `Preparing ${items.length} full-resolution photo${items.length === 1 ? '' : 's'}...`);
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const fetchPercent = Math.round((index / items.length) * 80);
+        updatePhotoZipProgress(fetchPercent, `Downloading photo ${index + 1} of ${items.length} — ${item.fileName}`);
+
+        try {
+          if (!item.photoUrl) throw new Error('Photo URL is missing from the report.');
+          const response = await fetch(item.photoUrl, { cache: 'no-store', credentials: 'omit' });
+          if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
+          const photoBlob = await response.blob();
+          if (!photoBlob.size) throw new Error('Downloaded file was empty.');
+          downloadedBytes += photoBlob.size;
+          zip.file(item.zipPath, photoBlob, { binary: true, compression: 'STORE' });
+          item.status = 'Included';
+        } catch (error) {
+          item.status = 'Missing';
+          item.error = String(error?.message || error || 'Unknown download error');
+          missing.push(`${item.zipPath} | ${item.photoUrl || 'No URL'} | ${item.error}`);
+          console.warn('Photo ZIP export skipped a file:', item.zipPath, error);
+        }
+
+        if ((index + 1) % 3 === 0 || index === items.length - 1) await yieldPhotoExportToBrowser();
+      }
+
+      const manifestRows = items.map(getPhotoManifestRow);
+      const manifestCsv = [websitePhotoManifestHeaders, ...manifestRows]
+        .map(row => row.map(csvCell).join(','))
+        .join('\n');
+      zip.file('photo-manifest.csv', `\uFEFF${manifestCsv}`);
+      if (missing.length) {
+        zip.file('missing-photos.txt', [
+          'KKE Photo ZIP Export — Missing Photos',
+          `Generated: ${new Date().toISOString()}`,
+          `Missing: ${missing.length} of ${items.length}`,
+          '',
+          ...missing
+        ].join('\n'));
+      }
+
+      const includedCount = items.filter(item => item.status === 'Included').length;
+      if (!includedCount) throw new Error('None of the selected photos could be downloaded. Check Firebase Storage access or CORS settings.');
+
+      updatePhotoZipProgress(80, `Building ZIP with ${includedCount} photo${includedCount === 1 ? '' : 's'} (${fmtNumber(downloadedBytes / 1048576, 1)} MB)...`);
+      const zipBlob = await zip.generateAsync(
+        { type: 'blob', compression: 'STORE', streamFiles: true, platform: 'DOS' },
+        metadata => updatePhotoZipProgress(80 + Math.round(metadata.percent * 0.2), `Building ZIP — ${Math.round(metadata.percent)}%`)
+      );
+
+      const range = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'dashboard-range';
+      const cleanRange = safeFileName(range.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'dashboard-range';
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `kke-photos-${cleanRange}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+
+      updatePhotoZipProgress(100, `Complete — ${includedCount} photos exported${missing.length ? `; ${missing.length} missing photo${missing.length === 1 ? '' : 's'} listed inside the ZIP` : ''}.`);
+      showMessage(`Photo ZIP downloaded with ${includedCount} original photo${includedCount === 1 ? '' : 's'} and the CSV manifest.${missing.length ? ` ${missing.length} missing photo${missing.length === 1 ? ' was' : 's were'} skipped and documented.` : ''}`);
+    } catch (error) {
+      console.error('Photo ZIP export failed:', error);
+      updatePhotoZipProgress(0, `Export failed: ${error?.message || error}`);
+      showMessage(`Photo ZIP export failed: ${error?.message || error}`, 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Export Photos (ZIP)';
+    }
   }
 
   function downloadPnlCsv() {
