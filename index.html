@@ -2636,7 +2636,8 @@
           <div id="dashboardPeriodRangeLabel" class="dashboard-range-pill">This Month</div>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; margin:-4px 0 16px;">
+      <div style="display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin:-4px 0 16px;">
+        <button class="btn btn-outline" type="button" id="btnExportWebsitePhotos" style="margin-right:8px;">Export Website Photos</button>
         <button class="btn btn-outline" type="button" id="btnDownloadPnlCsv" style="margin-right:8px;">Download P&amp;L CSV</button>
         <button class="btn btn-outline" type="button" id="btnGenerateMeetingAgenda" style="margin-right:8px;">Generate Meeting Agenda</button>
         <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
@@ -3839,6 +3840,7 @@ document.addEventListener("change", (e) => {
 
   document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
   document.getElementById('btnGenerateMeetingAgenda')?.addEventListener('click', generateMeetingAgendaPacket);
+  document.getElementById('btnExportWebsitePhotos')?.addEventListener('click', downloadWebsitePhotoManifest);
   document.getElementById('btnDownloadPnlCsv')?.addEventListener('click', downloadPnlCsv);
   document.getElementById('btnSaveCostSettings')?.addEventListener('click', saveCostSettings);
   document.getElementById('btnResetCostSettings')?.addEventListener('click', resetCostSettings);
@@ -6219,6 +6221,122 @@ const differencePercent =
   function csvCell(value) {
     const text = String(value ?? '');
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function getWebsitePhotoJobName(report) {
+    return String(
+      report.jobName ||
+      report.projectName ||
+      [getDashboardCity(report), report.address].filter(Boolean).join(' - ') ||
+      'Unnamed Job'
+    ).trim();
+  }
+
+  function getWebsitePhotoScope(report) {
+    const injection = getInjectionInfo(report);
+    const dimensions = Number(report.liftAreaSqFt || 0) > 0
+      ? `${report.liftAreaLength || ''} ft x ${report.liftAreaWidth || ''} ft (${fmtNumber(report.liftAreaSqFt, 2)} sq ft)`
+      : '';
+    return [
+      getWorkAreaDisplay(report),
+      injection.fullLabel ? `${injection.fullLabel} injection` : '',
+      dimensions,
+      report.liftAreaNotes || ''
+    ].filter(Boolean).join(' | ');
+  }
+
+  function getWebsitePhotoResultSummary(report) {
+    const hasOriginal = report.originalSettlement !== '' && report.originalSettlement !== null && report.originalSettlement !== undefined;
+    const hasFinal = report.finalSettlement !== '' && report.finalSettlement !== null && report.finalSettlement !== undefined;
+    const original = Number(report.originalSettlement);
+    const final = Number(report.finalSettlement);
+    const measuredLift = hasOriginal && hasFinal && Number.isFinite(original) && Number.isFinite(final)
+      ? Math.max(0, original - final)
+      : null;
+    return [
+      measuredLift !== null ? `${fmtNumber(measuredLift, 2)} in measured improvement` : '',
+      report.targetLiftAchieved ? `Target lift: ${report.targetLiftAchieved}` : '',
+      report.completionStatus ? `Status: ${report.completionStatus}` : '',
+      report.conditionObserved ? `Conditions: ${report.conditionObserved}` : '',
+      report.conditionObservedOther || ''
+    ].filter(Boolean).join(' | ');
+  }
+
+  function getWebsitePhotoSuggestedName(report, photo, photoIndex) {
+    const originalName = getPhotoName(photo, `photo-${photoIndex + 1}.jpg`);
+    const extensionMatch = String(originalName).match(/\.[a-z0-9]{2,5}$/i);
+    const extension = extensionMatch ? extensionMatch[0].toLowerCase() : '.jpg';
+    const category = String(photo?.category || 'Job').replace(/[^a-z0-9]+/gi, '-');
+    const job = getWebsitePhotoJobName(report).replace(/[^a-z0-9]+/gi, '-');
+    return safeFileName(`${report.date || 'no-date'}_${job}_${category}_${photoIndex + 1}${extension}`);
+  }
+
+  function downloadWebsitePhotoManifest() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for website photo export.', 'error');
+
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const docs = filterReportsForDashboardPeriod(activeDocs);
+    const rows = [];
+
+    docs.forEach(report => {
+      const photos = Array.isArray(report.photos) ? report.photos : [];
+      photos.forEach((photo, photoIndex) => {
+        const photoUrl = getPhotoUrl(photo);
+        if (!photoUrl) return;
+
+        rows.push([
+          getWebsitePhotoSuggestedName(report, photo, photoIndex),
+          getWebsitePhotoJobName(report),
+          report.date || '',
+          getDashboardCity(report),
+          report.address || '',
+          getWebsitePhotoScope(report),
+          getWorkAreaDisplay(report),
+          getInjectionInfo(report).fullLabel || '',
+          report.liftAreaLength || '',
+          report.liftAreaWidth || '',
+          report.liftAreaSqFt || '',
+          fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
+          fmtNumber(getReportPounds(report), 2),
+          report.originalSettlement || '',
+          report.finalSettlement || '',
+          report.targetLiftAchieved || '',
+          getWebsitePhotoResultSummary(report),
+          report.completionStatus || '',
+          report.conditionObserved || '',
+          report.conditionObservedOther || '',
+          report.notes || '',
+          photo?.category || '',
+          getPhotoName(photo, `Photo ${photoIndex + 1}`),
+          photoUrl,
+          report.id || ''
+        ]);
+      });
+    });
+
+    if (!rows.length) {
+      return showMessage('No job photos were found in the selected Dashboard date range.', 'error');
+    }
+
+    const headers = [
+      'Suggested Photo Filename', 'Job Name', 'Job Date', 'City', 'Address', 'Scope Summary',
+      'Work Area', 'Injection Type', 'Length Ft', 'Width Ft', 'Area Sq Ft',
+      'Pumped Lbs', 'Chemical Lbs From Clicks', 'Original Settlement In', 'Final Settlement In',
+      'Target Lift Achieved', 'Results Summary', 'Completion Status', 'Condition Observed',
+      'Other Condition Details', 'Job Notes', 'Photo Category', 'Original Photo Name', 'Photo URL', 'Report ID'
+    ];
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const range = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'dashboard-range';
+    const cleanRange = safeFileName(range.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'dashboard-range';
+    link.href = URL.createObjectURL(blob);
+    link.download = `kke-website-photo-manifest-${cleanRange}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    showMessage(`Website photo manifest downloaded: ${rows.length} photo${rows.length === 1 ? '' : 's'} matched to ${new Set(rows.map(row => row[24])).size} job report${new Set(rows.map(row => row[24])).size === 1 ? '' : 's'}.`);
   }
 
   function downloadPnlCsv() {
