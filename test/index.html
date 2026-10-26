@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KKE Crew Profile Sheet</title>
+  <link rel="stylesheet" href="./assets/app.css">
+<link rel="stylesheet" href="./assets/jobs.css">
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="auth-overlay">
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <img src="logo.png" alt="KKE Concrete Lifting" class="login-logo" onerror="swapLogoOrFallback(this)">
+      <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+    </div>
+    <h1 style="color: var(--kke-blue); margin: 0 0 8px;">KKE Concrete</h1>
+    <p style="color: var(--gray); margin-bottom: 30px;">Field Operations Portal</p>
+    <button id="btnGoogleLogin" class="btn btn-primary" style="width: 100%; padding: 15px;">
+      Sign in with Google
+    </button>
+    <p id="authError" style="color: var(--danger); font-size: 12px; margin-top: 15px;"></p>
+    <p style="color: var(--gray); font-size: 11px; margin-top: 10px; line-height: 1.4;">For best results on mobile, open this site directly in Chrome or Safari instead of an in-app browser.</p>
+  </div>
+</div>
+
+<div class="page" id="main-content">
+  <!-- Navigation Tabs -->
+  <div class="tabs">
+    <button id="tabNew" class="tab-btn active">New Report</button>
+    <button id="tabJobsScope" class="tab-btn">Jobs &amp; Scope</button>
+    <button id="tabHistory" class="tab-btn">History</button>
+    <button id="tabDashboard" class="tab-btn" style="display:none;">Dashboard</button>
+    <button id="tabFleetGPS" class="tab-btn" style="display:none;">Fleet Operations</button>
+    <button id="btnLogout" class="tab-btn" style="color: var(--danger); flex: 0.4;">Logout</button>
+  </div>
+  <div id="reportCacheStatus" class="report-cache-status" style="display:none;">
+    <span id="reportCacheStatusText">Reports not loaded yet.</span>
+    <span id="reportCacheRefreshText"></span>
+  </div>
+
+  <!-- Main Form Tab -->
+<section id="jobsScope" class="tab-content"><div id="jobs-root"></div></section>
+  <div id="new-form" class="tab-content active">
+    <div class="header">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
+          <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+        </div>
+        <div class="title-box">
+          <p class="eyebrow">Production & Profile</p>
+          <h1>Crew Profile Sheet</h1>
+          <p>Field report, GPS verification, production pounds, and road profile tracking.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="statusMessage" class="message-box"></div>
+
+    <form id="crewForm">
+      <div class="card">
+        <h2>Job Information</h2>
+        <div class="grid">
+          <label class="span-2">Date <span class="required">*</span><input name="date" type="date" required id="formDate"></label>
+          <label>City <span class="required">*</span>
+            <select name="city" required>
+              <option value="" disabled selected>Select City</option>
+              <option value="Celina">Celina</option>
+              <option value="The Colony">The Colony</option>
+              <option value="Coppell">Coppell</option>
+              <option value="Denison">Denison</option>
+              <option value="Frisco">Frisco</option>
+              <option value="Frisco Parks Department">Frisco Parks Department</option>
+              <option value="Garland">Garland</option>
+              <option value="Highland Village">Highland Village</option>
+              <option value="Keller">Keller</option>
+              <option value="McKinney">McKinney</option>
+              <option value="Melissa">Melissa</option>
+              <option value="Princeton">Princeton</option>
+              <option value="Prosper">Prosper</option>
+              <option value="Richardson">Richardson</option>
+              <option value="Sachse">Sachse</option>
+              <option value="Saginaw">Saginaw</option>
+              <option value="Burleson">Burleson</option>
+              <option value="Corinth">Corinth</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label>Truck # <span class="required">*</span>
+            <select name="truckNumber" required>
+              <option value="" disabled selected>Select Truck</option>
+              <option value="102">102</option>
+              <option value="106">106</option>
+              <option value="107">107</option>
+              <option value="118">118</option>
+              <option value="119">119</option>
+              <option value="203">203</option>
+            </select>
+          </label>
+          <label class="span-4">Address / Location <span class="required">*</span>
+            <input id="jobAddress" name="address" required placeholder="Start typing address or job location">
+            <input id="addressLatitude" name="addressLatitude" type="hidden">
+            <input id="addressLongitude" name="addressLongitude" type="hidden">
+            <input id="googlePlaceId" name="googlePlaceId" type="hidden">
+            <div class="helper-text">Start typing and select the Google-suggested address to standardize spelling.</div>
+          </label>
+        </div>
+      </div>
+
+
+      <div class="card">
+        <h2>Work Area Details</h2>
+        <div class="grid">
+          <label>Work Area Type <span class="required">*</span>
+            <select name="workAreaType" id="workAreaType" required>
+              <option value="" disabled selected>Select Area Type</option>
+              <option value="Alley">Alley</option>
+              <option value="Driveway">Driveway</option>
+              <option value="Leadwalk">Leadwalk</option>
+             <option value="Sidewalk">Sidewalk</option>
+              <option value="ADA">ADA</option>
+              <option value="Street">Street</option>
+              <option value="Parking Lot">Parking Lot</option>
+              <option value="Pool">Pool</option>
+              <option value="Deck">Deck</option>
+              <option value="Patio">Patio</option>
+              <option value="Sport Court">Sport Court</option>
+              <option value="Joint Grinding">Joint Grinding</option>
+              <option value="Other">Other</option>
+            </select>
+            <div class="helper-text">Use Street for road-profile jobs. Use dimensions below for patios, driveways, pool decks, sport courts, and other flat work.</div>
+          </label>
+<label>
+  Injection Type <span class="required">*</span>
+  <select name="injectionType" id="injectionType" required>
+    <option value="" disabled selected>Select Injection Type</option>
+    <option value="Method">Method</option>
+    <option value="Deep Injection">Deep Injection</option>
+  </select>
+  <div class="helper-text">
+    Method = standard 32" injection. Deep Injection = 4'+ stabilization injection.
+  </div>
+</label>
+          <label id="otherWorkAreaWrap" class="conditional-field">Other Area Type <span class="required">*</span>
+            <input name="workAreaOther" id="workAreaOther" placeholder="Example: loading dock, warehouse slab, sidewalk section">
+          </label>
+
+          <label>Lift Area Length (ft)
+            <input name="liftAreaLength" id="liftAreaLength" type="number" step="0.01" placeholder="Example: 12">
+          </label>
+
+          <label>Lift Area Width (ft)
+            <input name="liftAreaWidth" id="liftAreaWidth" type="number" step="0.01" placeholder="Example: 24">
+          </label>
+
+          <div class="area-summary-box">
+            <div class="area-summary-title">Calculated Work Area</div>
+            <div class="area-summary-value" id="liftAreaSqFtDisplay">—</div>
+          </div>
+
+          <label class="span-4">Area / Dimension Notes
+            <input name="liftAreaNotes" id="liftAreaNotes" placeholder="Example: 12' x 24' patio, west side by pool gate">
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Crew & Time</h2>
+        <div class="grid">
+          <label>Truck Boss <span class="required">*</span><input name="crewLead" list="crewNameOptions" autocomplete="off" required placeholder="Select or type name"></label>
+          <label>Helper 1<input name="helper1" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <label>Helper 2<input name="helper2" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <label>Helper 3<input name="helper3" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <label>Helper 4<input name="helper4" list="crewNameOptions" autocomplete="off" placeholder="Select or type name"></label>
+          <datalist id="crewNameOptions">
+            <option value="Dan"></option>
+            <option value="Isaiah"></option>
+            <option value="Carlton"></option>
+            <option value="Rolando"></option>
+            <option value="Logan"></option>
+            <option value="Osvaldo"></option>
+            <option value="Other"></option>
+          </datalist>
+          <label>Start Time <span class="required">*</span><input name="startTime" id="startTime" type="time" required></label>
+          <label>Finish Time <span class="required">*</span><input name="finishTime" id="finishTime" type="time" required></label>
+          <div class="calc-box">
+            <div class="calc-label">Total Hours</div>
+            <div class="calc-value" id="totalHoursDisplay">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Production Data</h2>
+        <div class="grid">
+          <label>A Lbs Start <span class="required">*</span><input name="aMeterStart" id="aMeterStart" type="number" step="0.01" value="0" required></label>
+          <label>A Lbs Finish <span class="required">*</span><input name="aMeterFinish" id="aMeterFinish" type="number" step="0.01" required></label>
+          <label>B Lbs Start <span class="required">*</span><input name="bMeterStart" id="bMeterStart" type="number" step="0.01" value="0" required></label>
+          <label>B Lbs Finish <span class="required">*</span><input name="bMeterFinish" id="bMeterFinish" type="number" step="0.01" required></label>
+          <label>Clicks <span class="required">*</span><input name="clicks" type="number" required></label>
+          <label>Joint Grinding LF <input name="jointGrindingLinearFeet" id="jointGrindingLinearFeet" type="number" step="0.01" min="0" placeholder="0"></label>
+          <label>Grind Depth <input name="jointGrindingDepth" id="jointGrindingDepth" placeholder="e.g. 1/8 in, 1/4 in, flush"></label>
+          <label>Lift Height <input name="lift" placeholder="e.g. 1.5 in"></label>
+          <label>Small Engine Run Time <input name="smallEngineHours" id="smallEngineHours" type="number" step="0.1" min="0" placeholder="Hours"></label>
+          <label class="span-2">Gen Run Time <input name="generatorRunTime"></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+          <h2 style="margin:0;">Job Site GPS</h2>
+          <button class="btn btn-outline" type="button" id="btnGPS">📍 Capture Location</button>
+        </div>
+        <div class="grid">
+          <label>Latitude <span class="required">*</span><input name="gpsLatitude" id="gpsLatitude" required readonly placeholder="Capture location..."></label>
+          <label>Longitude <span class="required">*</span><input name="gpsLongitude" id="gpsLongitude" required readonly placeholder="Capture location..."></label>
+          <div class="span-2" style="display:flex; align-items:center; gap:10px; padding-top:20px;">
+             <input type="checkbox" name="locationConfirmed" id="locationConfirmed" style="width:20px; height:20px; margin:0;">
+             <label for="locationConfirmed" style="cursor:pointer">I confirm GPS location is correct</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="roadProfileCard">
+        <h2>Road Profile</h2>
+        <p class="dashboard-note road-profile-guidance">Street jobs use this station table for before/after profile readings. Non-street jobs can use dimensions in Work Area Details.</p>
+        <div class="grid">
+          <label>Total Length (ft)<input id="profileLength" name="linearFeet" type="number" value="100" step="10"></label>
+          <label>Interval (ft)<input id="profileInterval" type="number" value="10" step="1"></label>
+          <div class="span-2" style="padding-top:22px;">
+            <button class="btn btn-outline" type="button" id="btnBuildRows">Build Table Rows</button>
+          </div>
+        </div>
+        
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2">Station</th>
+                <th colspan="2">North/East Bound</th>
+                <th colspan="2">South/West Bound</th>
+              </tr>
+              <tr>
+                <th>Before</th><th>After</th>
+                <th>Before</th><th>After</th>
+              </tr>
+            </thead>
+            <tbody id="profileRows">
+              <!-- Rows added via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <div class="card">
+        <h2>Job Photos</h2>
+        <div class="photo-upload-box">
+          <label>Before / Site Condition Photos
+            <input id="jobPhotos" name="jobPhotos" type="file" accept="image/*" multiple>
+          </label>
+          <div class="helper-text">Add before-work, site-condition, traffic-control, or issue photos.</div>
+          <div id="photoFileList" class="photo-file-list"></div>
+          <label style="margin-top:14px;">After Photos
+            <input id="afterPhotos" name="afterPhotos" type="file" accept="image/*" multiple>
+          </label>
+          <div class="helper-text">Use the same viewpoints as the before photos whenever possible.</div>
+          <div id="afterPhotoFileList" class="photo-file-list"></div>
+        </div>
+      </div>
+
+      <div class="card" id="completionRecordCard">
+        <h2>After Pumping — Completion Record</h2>
+        <p class="dashboard-note">Complete the record so managers can distinguish job conditions, estimating, technique, and material performance.</p>
+        <div class="completion-checklist" id="completionChecklist">
+          <div class="completion-check-item" data-check="finalSettlement">Final settlement recorded</div>
+          <div class="completion-check-item" data-check="targetLift">Target lift result selected</div>
+          <div class="completion-check-item" data-check="notes">Complete Job Notes entered</div>
+          <div class="completion-check-item" data-check="completion">Completion Status selected</div>
+          <div class="completion-check-item" data-check="returnInfo">Return-trip information complete</div>
+          <div class="completion-check-item" data-check="afterPhotos">After photos attached</div>
+        </div>
+        <div class="grid">
+          <label>Original Settlement (in)<input name="originalSettlement" type="number" min="0" step="0.01" placeholder="Example: 1.50"></label>
+          <label>Final Settlement (in)<input name="finalSettlement" type="number" min="0" step="0.01" placeholder="Example: 0.50"></label>
+          <label>Target Lift Achieved
+            <select name="targetLiftAchieved">
+              <option value="">Select result...</option>
+              <option value="Yes">Yes</option>
+              <option value="Partially">Partially</option>
+              <option value="No">No</option>
+            </select>
+          </label>
+          <div class="span-4">
+            <div style="font-weight:850;">Condition Observed</div>
+            <div class="condition-checks">
+              <label><input type="checkbox" name="conditionObservedOption" value="Normal void">Normal void</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Large/deep void">Large/deep void</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Water or saturated soil">Water or saturated soil</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Washout">Washout</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Broken subgrade">Broken subgrade</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Material escaping">Material escaping</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Nearby high point lifting">Nearby high point lifting</label>
+              <label><input type="checkbox" name="conditionObservedOption" value="Unknown">Unknown</label>
+            </div>
+          </div>
+          <label class="span-4">Other Condition<input name="conditionObservedOther" placeholder="Describe another condition..."></label>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:14px 0 6px; flex-wrap:wrap;">
+          <strong>A useful Job Note records the original dip and area, pounds used and where, lift achieved, conditions observed, and whether the work is complete or returning.</strong>
+          <button class="btn btn-outline small-btn" type="button" id="btnInsertNoteTemplate">Insert Note Template</button>
+        </div>
+        <textarea id="jobNotes" name="notes" rows="5" placeholder="Original dip ___. Work area ___. Used ___ lbs at ___. Achieved ___ lift. Observed ___. Job is Complete/Partial/Returning because ___."></textarea>
+        <div class="grid" style="margin-top:14px;">
+          <label>Return Trip Required
+            <select name="returnTripRequired">
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </label>
+          <label>Preventable Delay
+            <select name="preventableDelay">
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </label>
+          <label>Completion Status
+            <select name="completionStatus">
+              <option value="Complete" selected>Complete</option>
+              <option value="Partial">Partial</option>
+              <option value="Return Required">Return Required</option>
+            </select>
+          </label>
+          <label class="span-4">Return Trip Reason
+            <textarea name="returnTripReason" rows="2" placeholder="If a return trip is required, explain why..."></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="submit-bar">
+        <button class="btn btn-primary" type="submit" id="submitBtn" style="width:100%;">
+          Save & Submit Report
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- History Tab -->
+  <div id="history" class="tab-content">
+    <div class="header">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
+          <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+        </div>
+        <div class="title-box">
+          <p class="eyebrow">Live Field Records</p>
+          <h1>Report History</h1>
+          <p>Submitted crew reports shown from Firestore in real time.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recent Reports</h2>
+      <div class="tool-row">
+        <label>Search
+          <input id="historySearch" type="search" placeholder="Search city, truck, lead, address, notes...">
+        </label>
+        <label>City
+          <select id="historyCityFilter"><option value="">All Cities</option></select>
+        </label>
+        <label>Truck
+          <select id="historyTruckFilter"><option value="">All Trucks</option></select>
+        </label>
+        <label>Calendar Day
+          <input id="historyDateFilter" type="date" aria-label="Search reports by calendar day">
+        </label>
+        <label>Injection Type
+          <select id="historyInjectionFilter">
+            <option value="">All Types</option>
+            <option value="method">Method</option>
+            <option value="di">DI / Deep Injection</option>
+            <option value="unknown">Missing Type</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="historyStatusFilter">
+            <option value="">Active Reports</option>
+            <option value="Needs Review">Needs Review</option>
+            <option value="Needs Revision">Needs Revision</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Deleted">Deleted / Recovery</option>
+            <option value="all">All Including Deleted</option>
+          </select>
+        </label>
+        <button class="btn btn-warning small-btn" type="button" id="btnMissingRevenue" style="display:none;">Missing Revenue (0)</button>
+        <button class="btn btn-danger small-btn" type="button" id="btnReturnTrips">Return Trips (0)</button>
+        <button class="btn btn-outline small-btn" type="button" id="btnClearFilters">Clear</button>
+      </div>
+      <div class="history-pagination" id="historyPaginationTop">
+        <div class="history-page-info" id="historyPageInfoTop">Showing 0 reports</div>
+        <div class="history-pagination-controls">
+          <label>Per Page
+            <select id="historyPageSize" class="history-page-size">
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <button class="btn btn-outline small-btn" type="button" id="historyPrevPage">Previous</button>
+          <button class="btn btn-outline small-btn" type="button" id="historyNextPage">Next</button>
+        </div>
+      </div>
+      <div id="historyList">Loading reports...</div>
+      <div class="history-pagination" id="historyPaginationBottom">
+        <div class="history-page-info" id="historyPageInfoBottom">Showing 0 reports</div>
+        <div class="history-pagination-controls">
+          <button class="btn btn-outline small-btn" type="button" id="historyPrevPageBottom">Previous</button>
+          <button class="btn btn-outline small-btn" type="button" id="historyNextPageBottom">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manager Dashboard Tab -->
+  <div id="dashboard" class="tab-content">
+    <div class="header">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
+          <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+        </div>
+        <div class="title-box">
+          <p class="eyebrow">Manager Live Analytics</p>
+          <h1>Production Dashboard</h1>
+          <p>Live clicks, estimated lbs, flow meter lbs, and variance by report.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Manager Dashboard</h2>
+      <p class="dashboard-note">Live production metrics from submitted reports. Estimated lbs are calculated from clicks × 0.6 and compared against flow meter lbs.</p>
+
+      <div class="dashboard-filter-row">
+        <label>Dashboard Date Range
+          <select id="dashboardPeriodFilter">
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="week">This Week</option>
+            <option value="lastWeek">Last Week</option>
+            <option value="month" selected>This Month</option>
+            <option value="lastMonth">Last Month</option>
+            <option value="customRange">Custom Range</option>
+            <option value="all">All Time</option>
+          </select>
+        </label>
+        <label id="dashboardRangeStartWrap" class="dashboard-table-custom-range-wrap">Start Date
+          <input id="dashboardRangeStartDate" type="date">
+        </label>
+        <label id="dashboardRangeEndWrap" class="dashboard-table-custom-range-wrap">End Date
+          <input id="dashboardRangeEndDate" type="date">
+        </label>
+        <div>
+          <div class="calc-label">Current Dashboard View</div>
+          <div id="dashboardPeriodRangeLabel" class="dashboard-range-pill">This Month</div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin:-4px 0 16px;">
+        <button class="btn btn-outline" type="button" id="btnExportPhotosZip" style="margin-right:8px;">Export Photos (ZIP)</button>
+        <button class="btn btn-outline" type="button" id="btnDownloadPnlCsv" style="margin-right:8px;">Download P&amp;L CSV</button>
+        <button class="btn btn-outline" type="button" id="btnGenerateMeetingAgenda" style="margin-right:8px;">Generate Meeting Agenda</button>
+        <button class="btn btn-primary" type="button" id="btnGenerateExecutiveReport">Generate Executive Report</button>
+      </div>
+      <div id="photoZipExportStatus" style="display:none; margin:-4px 0 16px; padding:12px; border:1px solid #bfdbfe; border-radius:12px; background:#f8fbff;" aria-live="polite">
+        <div id="photoZipExportText" style="font-size:13px; font-weight:850; color:var(--kke-dark-blue); margin-bottom:7px;">Preparing photo export...</div>
+        <progress id="photoZipExportProgress" value="0" max="100" style="width:100%; height:16px;"></progress>
+      </div>
+
+      <section id="dashboardRevenueGoalCard" class="dashboard-goal-card dashboard-goal-neutral" aria-label="Revenue goal progress">
+        <div class="dashboard-goal-header">
+          <div>
+            <h2>Revenue Goal Progress</h2>
+            <p id="dashboardRevenueGoalMessage">Revenue goal progress will appear when dashboard data loads.</p>
+          </div>
+          <div id="dashboardRevenueGoalStatus" class="dashboard-goal-status">Waiting</div>
+        </div>
+        <div class="dashboard-goal-grid">
+          <div class="calc-box"><div class="calc-label">Monthly Goal</div><div class="calc-value" id="dashGoalMonthly">$0</div><div class="goal-sub">Executive target</div></div>
+          <div class="calc-box"><div class="calc-label">Revenue To Date</div><div class="calc-value" id="dashGoalRevenue">$0</div><div class="goal-sub" id="dashGoalRevenueSub">0.0% of monthly goal</div></div>
+          <div class="calc-box"><div class="calc-label">Expected To Date</div><div class="calc-value" id="dashGoalExpected">$0</div><div class="goal-sub" id="dashGoalExpectedSub">0 of 0 workdays elapsed</div></div>
+          <div class="calc-box"><div class="calc-label">Projected Month</div><div class="calc-value" id="dashGoalProjected">$0</div><div class="goal-sub" id="dashGoalProjectedSub">Waiting for revenue-ready reports</div></div>
+          <div class="calc-box"><div class="calc-label">Remaining Revenue</div><div class="calc-value" id="dashGoalRemaining">$0</div><div class="goal-sub">Needed to hit goal</div></div>
+          <div class="calc-box"><div class="calc-label">Needed / Workday</div><div class="calc-value" id="dashGoalNeededPerDay">$0</div><div class="goal-sub" id="dashGoalNeededPerDaySub">0 workdays remaining</div></div>
+          <div class="calc-box"><div class="calc-label">Pace Variance</div><div class="calc-value" id="dashGoalVariance">$0</div><div class="goal-sub">Against expected month-to-date pace</div></div>
+          <div class="calc-box"><div class="calc-label">Goal Status</div><div class="calc-value" id="dashGoalStatusValue">Waiting</div><div class="goal-sub">Based on revenue-ready reports</div></div>
+        </div>
+      </section>
+
+      <details class="dashboard-note" style="background:#f8fafc; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;">
+        <summary style="cursor:pointer; font-weight:900; color:var(--kke-blue);">Cost Settings and P&amp;L Rules</summary>
+        <p style="margin-top:10px;">Editable defaults for estimated job P&amp;L. Report-level values override these when better data is available.</p>
+        <div class="grid">
+          <label>Superintendent Day Rate<input id="costSuperintendentDayRate" type="number" step="0.01"></label>
+          <label>Technician Day Rate<input id="costTechnicianDayRate" type="number" step="0.01"></label>
+          <label>Default Superintendent Count<input id="costDefaultSuperintendentCount" type="number" step="1"></label>
+          <label>Default Technician Count<input id="costDefaultTechnicianCount" type="number" step="1"></label>
+          <label>Current Foam Cost / Lb (tax included)<input id="costChemicalPerLb" type="number" step="0.000001"></label>
+          <label>Disposables / Pumped Lb<input id="costDisposablesPerLb" type="number" step="0.01"></label>
+          <label>Overhead % of Revenue<input id="costOverheadPercent" type="number" step="0.01"></label>
+          <label>Monthly Revenue Goal<input id="costMonthlyRevenueGoal" type="number" step="1000"></label>
+          <label>Joint Grinding $ / LF<input id="costJointGrindingRatePerLinearFoot" type="number" step="0.01"></label>
+          <label>Default MPG<input id="costDefaultMpg" type="number" step="0.1"></label>
+          <label>Big Rig MPG<input id="costBigRigMpg" type="number" step="0.1"></label>
+          <label>Small Truck MPG<input id="costSmallTruckMpg" type="number" step="0.1"></label>
+          <label>Big Rig Units<input id="costBigRigUnits" placeholder="Example: 106,118,119"></label>
+          <label>Small Truck Units<input id="costSmallTruckUnits" placeholder="Example: 102,107,203"></label>
+          <label>Small Engine Gal / Hour<input id="costSmallEngineGalPerHour" type="number" step="0.01"></label>
+          <label>Diesel Generator Gal / Hour<input id="costDieselGeneratorGalPerHour" type="number" step="0.01"></label>
+          <label>Fuel Price / Gallon<input id="costFuelPricePerGallon" type="number" step="0.01"></label>
+          <label>Shop Start / End Address<input id="costShopAddress"></label>
+          <label>Shop GPS Latitude<input id="costShopLatitude" type="number" step="0.000001"></label>
+          <label>Shop GPS Longitude<input id="costShopLongitude" type="number" step="0.000001"></label>
+          <label>Apply Rules Starting<input id="costEffectiveDate" type="date"></label>
+          <label class="span-4">Manual Monthly Revenue Adjustments
+            <textarea id="costMonthlyRevenueAdjustments" rows="3" placeholder="Example: 2026-06 | override | 143859 | June actual revenue from accounting"></textarea>
+          </label>
+          <label class="span-4">Change Note<input id="costChangeNote" placeholder="Example: updated fuel price from accounting"></label>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
+          <button class="btn btn-outline small-btn" type="button" id="btnResetCostSettings">Reset Defaults</button>
+          <button class="btn btn-primary small-btn" type="button" id="btnSaveCostSettings">Save Cost Settings</button>
+        </div>
+        <div id="costSettingsStatus" style="font-size:12px; color:var(--gray); margin-top:8px;">Using default cost settings.</div>
+      </details>
+
+      <div class="grid">
+        <div class="calc-box">
+          <div class="calc-label">Clicks</div>
+          <div class="calc-value" id="dashTotalClicks">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Estimated Lbs</div>
+          <div class="calc-value" id="dashEstimatedLbs">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Flow Meter Lbs</div>
+          <div class="calc-value" id="dashFlowMeterLbs">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Flux</div>
+          <div class="calc-value" id="dashDifferencePercent">0%</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Flux Lbs</div>
+          <div class="calc-value" id="dashDifferenceLbs">0</div>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:14px;">
+        <div class="calc-box">
+          <div class="calc-label">Revenue</div>
+          <div class="calc-value" id="dashRevenue">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Direct Costs</div>
+          <div class="calc-value" id="dashDirectCosts">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Overhead</div>
+          <div class="calc-value" id="dashOverhead">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Estimated Profit</div>
+          <div class="calc-value" id="dashProfit">$0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Estimated Margin</div>
+          <div class="calc-value" id="dashMargin">0%</div>
+        </div>
+      </div>
+      <div id="dashCostQualityRead" class="dashboard-note" style="margin-top:10px;">P&amp;L quality will appear after revenue fields are reviewed.</div>
+    </div>
+
+    <div class="card" id="monthOverMonthCard">
+      <h2>Month-over-Month Comparison</h2>
+      <p class="dashboard-note" id="momComparisonLabel">Selected month compared to the previous month.</p>
+      <div class="mom-grid">
+        <div class="mom-card">
+          <div class="mom-label">Pounds</div>
+          <div class="mom-value" id="momPoundsChange">—</div>
+          <div class="mom-sub" id="momPoundsDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Reports</div>
+          <div class="mom-value" id="momReportsChange">—</div>
+          <div class="mom-sub" id="momReportsDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Hours</div>
+          <div class="mom-value" id="momHoursChange">—</div>
+          <div class="mom-sub" id="momHoursDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Lbs / Hr</div>
+          <div class="mom-value" id="momEfficiencyChange">—</div>
+          <div class="mom-sub" id="momEfficiencyDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Clicks</div>
+          <div class="mom-value" id="momClicksChange">—</div>
+          <div class="mom-sub" id="momClicksDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Flow Meter Lbs</div>
+          <div class="mom-value" id="momFlowChange">—</div>
+          <div class="mom-sub" id="momFlowDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Flux</div>
+          <div class="mom-value" id="momDifferenceChange">—</div>
+          <div class="mom-sub" id="momDifferenceDetail">—</div>
+        </div>
+        <div class="mom-card">
+          <div class="mom-label">Best Truck</div>
+          <div class="mom-value" id="momBestTruck">—</div>
+          <div class="mom-sub" id="momBestTruckDetail">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Daily / Weekly / Monthly Snapshot</h2>
+      <p class="dashboard-note">These update automatically from the report date. Week is Sunday through Saturday.</p>
+
+      <div class="period-metrics-grid">
+        <div class="period-card">
+          <div class="period-card-title">Yesterday</div>
+          <div class="period-main-value"><span id="dashYesterdayPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashYesterdayHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashYesterdayLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashYesterdayReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashYesterdayBestTruck">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="period-card">
+          <div class="period-card-title">Today</div>
+          <div class="period-main-value"><span id="dashTodayPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashTodayHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashTodayLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashTodayReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashTodayBestTruck">-</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="period-card">
+          <div class="period-card-title">This Week</div>
+          <div class="period-main-value"><span id="dashWeekPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashWeekHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashWeekLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashWeekReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashWeekBestTruck">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="period-card">
+          <div class="period-card-title">This Month</div>
+          <div class="period-main-value"><span id="dashMonthPounds">0</span> lbs</div>
+          <div class="period-mini-grid">
+            <div class="period-mini">
+              <div class="period-mini-label">Hours</div>
+              <div class="period-mini-value" id="dashMonthHours">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Lbs / Hr</div>
+              <div class="period-mini-value" id="dashMonthLbsPerHour">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Reports</div>
+              <div class="period-mini-value" id="dashMonthReports">0</div>
+            </div>
+            <div class="period-mini">
+              <div class="period-mini-label">Best Truck</div>
+              <div class="period-mini-value" id="dashMonthBestTruck">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Top Efficiency</h2>
+      <div class="grid">
+        <div class="calc-box">
+          <div class="calc-label">Best Truck Lbs / Hr</div>
+          <div class="calc-value" id="dashBestTruck">—</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Best Crew Lbs / Hr</div>
+          <div class="calc-value" id="dashBestCrew">—</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">This Month Pounds</div>
+          <div class="calc-value" id="dashMonthPoundsLarge">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">This Month Reports</div>
+          <div class="calc-value" id="dashMonthReportsLarge">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Injection Type Breakdown</h2>
+      <p class="dashboard-note">Quick split so managers can immediately distinguish Method vs. DI work in the selected dashboard period.</p>
+      <div class="injection-summary-grid">
+        <div class="calc-box">
+          <div class="calc-label">Method Jobs</div>
+          <div class="calc-value" id="dashMethodJobs">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Method Lbs</div>
+          <div class="calc-value" id="dashMethodLbs">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Method Hours</div>
+          <div class="calc-value" id="dashMethodHours">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Method Lbs / Hr</div>
+          <div class="calc-value" id="dashMethodLbsPerHour">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Jobs</div>
+          <div class="calc-value" id="dashDiJobs" style="color:#9a3412;">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Lbs</div>
+          <div class="calc-value" id="dashDiLbs" style="color:#9a3412;">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Hours</div>
+          <div class="calc-value" id="dashDiHours" style="color:#9a3412;">0</div>
+        </div>
+        <div class="calc-box" style="background:#fff7ed; border-color:#fed7aa;">
+          <div class="calc-label" style="color:#9a3412;">DI Lbs / Hr</div>
+          <div class="calc-value" id="dashDiLbsPerHour" style="color:#9a3412;">0</div>
+        </div>
+      </div>
+      <div id="dashInjectionLaborRead" class="dashboard-note" style="margin-top:12px;">Waiting for Method vs DI labor data.</div>
+    </div>
+
+
+
+    <div class="card" id="transitionAnalyticsCard">
+      <h2>Dispatch Efficiency — Job-to-Job Transition / GPS Travel</h2>
+      <p class="dashboard-note">Compact summary shown by default. Open details only when you need route charts, longest gaps, and the full transition log.</p>
+
+      <div class="transition-compact-grid">
+        <div class="calc-box">
+          <div class="calc-label">Avg Transition</div>
+          <div class="calc-value" id="dashAvgTransitionHero">0 min</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Avg GPS Miles</div>
+          <div class="calc-value" id="dashAvgTransitionMilesHero">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Avg Travel MPH</div>
+          <div class="calc-value" id="dashAvgTravelMphHero">0</div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-label">Longest Transition</div>
+          <div class="calc-value" id="dashLongestTransitionHero">0 min</div>
+        </div>
+      </div>
+
+      <div class="transition-compact-note" id="dashTransitionSummaryText">
+        Waiting for at least two same-day jobs from the same truck.
+      </div>
+
+      <details id="transitionDetailsPanel">
+        <summary class="transition-details-toggle">Show Dispatch Details</summary>
+
+        <div class="transition-details-content">
+          <div class="grid">
+            <div class="calc-box">
+              <div class="calc-label">Avg Transition</div>
+              <div class="calc-value" id="dashAvgTransition">0 min</div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-label">Avg GPS Miles</div>
+              <div class="calc-value" id="dashAvgTransitionMiles">0</div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-label">Avg Travel MPH</div>
+              <div class="calc-value" id="dashAvgTravelMph">0</div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-label">Longest Transition</div>
+              <div class="calc-value" id="dashLongestTransition">0 min</div>
+            </div>
+          </div>
+
+          <div id="transitionAlert" class="transition-alert" style="display:none;"></div>
+
+          <div class="visual-metric-grid">
+            <div class="visual-panel">
+              <div class="visual-panel-title">Average Transition Time by Truck</div>
+              <div id="transitionTruckChart" class="empty-state">No transition data yet.</div>
+            </div>
+            <div class="visual-panel">
+              <div class="visual-panel-title">Average GPS Miles by Truck</div>
+              <div id="transitionMilesChart" class="empty-state">No GPS transition data yet.</div>
+            </div>
+          </div>
+
+          <div class="visual-metric-grid">
+            <div class="visual-panel">
+              <div class="visual-panel-title">Longest Job-to-Job Gaps</div>
+              <div id="transitionLongestList" class="empty-state">No transition data yet.</div>
+            </div>
+            <div class="visual-panel">
+              <div class="visual-panel-title">Most Recent Job-to-Job Routes</div>
+              <div id="transitionRecentRoutes" class="empty-state">No route data yet.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;">
+            <h3 style="margin:0 0 8px; color:var(--kke-dark-blue);">Detailed Transition Log</h3>
+            <div id="transitionMetrics" class="empty-state">No transition data yet.</div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>New Service Cities</h2>
+      <p class="dashboard-note">Cities started or restarted this month after 60+ days without recorded work.</p>
+      <div id="newServiceCitiesMetrics" class="empty-state">No new city data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Pounds Pumped by City</h2>
+      <div id="cityMetrics" class="empty-state">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Pounds Pumped by Truck</h2>
+      <div id="truckMetrics" class="empty-state">No data yet.</div>
+    </div>
+
+
+    <div class="card">
+      <h2>Pounds Pumped by Work Area Type</h2>
+      <div id="workAreaMetrics" class="empty-state">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Truck Efficiency — Lbs Per Hour</h2>
+      <div id="truckEfficiencyMetrics" class="empty-state">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Crew Efficiency Leaderboard — Lbs Per Hour</h2>
+      <div id="crewMetrics" class="empty-state">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Production Trend — Last 7 Report Days</h2>
+      <p class="dashboard-note">Blue bars show pumped lbs. Green bars show revenue from revenue-ready job data. The bottom label shows revenue per lb.</p>
+      <div id="trendMetrics" class="empty-state">No trend data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Week-over-Week Production / Revenue Trend</h2>
+      <p class="dashboard-note">Sunday-to-Saturday totals for the last 6 weeks, including the current week-to-date. Blue is lbs and green is revenue.</p>
+      <div id="weekOverWeekTrendMetrics" class="empty-state">No weekly trend data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Production / Revenue Trend - Last 6 Months</h2>
+      <p class="dashboard-note">Calendar-month totals from active reports. Green revenue includes accounting monthly overrides when entered.</p>
+      <div id="sixMonthTrendMetrics" class="empty-state">No monthly trend data yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Reports Needing Review</h2>
+      <div id="flaggedReports" class="empty-state">No flagged reports.</div>
+    </div>
+  </div>
+
+  <!-- Fleet Operations Tab -->
+  <div id="fleetGPS" class="tab-content">
+    <div class="header">
+      <div class="header-topline"></div>
+      <div class="header-inner">
+        <div class="brand-panel">
+          <img src="logo.png" alt="KKE Concrete Lifting" class="brand-logo" onerror="swapLogoOrFallback(this)">
+          <div class="logo-placeholder" style="display:none;">KKE CONCRETE</div>
+        </div>
+        <div class="title-box">
+          <p class="eyebrow">Fleet Operations</p>
+          <h1>Fleet Operations Command</h1>
+          <p>OneStep-style fleet visibility: live truck map, status list, recent movement, and maintenance health.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fleet-command-card">
+      <div class="fleet-command-topbar">
+        <div class="fleet-command-title">
+          <div class="fleet-command-title-main">Live Fleet Map</div>
+          <div class="fleet-command-title-sub">Approved KKE units only. Click a unit or marker to inspect it.</div>
+          <div class="fleet-command-title-sub" id="fleetDataStatus">Fleet data connects after manager sign-in.</div>
+        </div>
+        <div class="fleet-summary-strip">
+          <div class="fleet-summary-tile">
+            <div class="calc-label">Approved Units</div>
+            <div class="calc-value" id="fleetTrackedCount">0</div>
+          </div>
+          <div class="fleet-summary-tile">
+            <div class="calc-label">Moving</div>
+            <div class="calc-value" id="fleetMovingCount">0</div>
+          </div>
+          <div class="fleet-summary-tile">
+            <div class="calc-label">Ignition On</div>
+            <div class="calc-value" id="fleetIgnitionCount">0</div>
+          </div>
+          <div class="fleet-summary-tile">
+            <div class="calc-label">Stale / Offline</div>
+            <div class="calc-value" id="fleetStaleCount">0</div>
+          </div>
+          <div class="fleet-summary-tile">
+            <div class="calc-label">Maintenance Due</div>
+            <div class="calc-value" id="fleetMaintenanceDueCount">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fleet-command-layout">
+        <div class="fleet-left-rail">
+          <div class="fleet-rail-header">
+            <span>Vehicles</span>
+            <span id="fleetRailCount">0</span>
+          </div>
+          <div id="fleetTruckList" class="fleet-list">
+            <div class="empty-state">Waiting for OneStep GPS truck data.</div>
+          </div>
+        </div>
+
+        <div class="fleet-map-panel">
+          <div id="fleetMap"></div>
+          <div id="fleetMapEmpty" class="fleet-map-empty">Waiting for approved KKE GPS points to draw the fleet map.</div>
+          <div class="fleet-map-drawer">
+            <div class="fleet-panel-header">Selected Truck</div>
+            <div id="fleetSelectedTruck" class="fleet-detail-body">
+              <div class="empty-state">Select a truck to view details.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fleet-bottom-grid">
+      <div class="card">
+        <h2>Fleet Health / Maintenance</h2>
+        <div id="fleetMaintenancePanel" class="fleet-maintenance-body">
+          <div class="empty-state">Waiting for truck odometer data.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Recent GPS Events</h2>
+        <div id="fleetRecentEvents" class="empty-state">Waiting for OneStep GPS events.</div>
+      </div>
+    </div>
+  </div>
+
+<!-- Photo Gallery Modal -->
+<div id="photoGalleryModal" class="photo-gallery-modal" aria-hidden="true">
+  <div class="photo-gallery-stage">
+    <button id="photoGalleryClose" class="photo-gallery-close" type="button" aria-label="Close photo gallery">×</button>
+    <button id="photoGalleryPrev" class="photo-gallery-nav photo-gallery-prev" type="button" aria-label="Previous photo">‹</button>
+    <img id="photoGalleryImage" class="photo-gallery-image" alt="Job photo">
+    <button id="photoGalleryNext" class="photo-gallery-nav photo-gallery-next" type="button" aria-label="Next photo">›</button>
+    <div id="photoGalleryCaption" class="photo-gallery-caption"></div>
+    <div id="photoGalleryCounter" class="photo-gallery-counter"></div>
+    <div class="photo-gallery-zoom-hint">Click / pinch to zoom</div>
+    <div class="photo-gallery-zoom-controls" aria-label="Photo zoom controls">
+      <button id="photoGalleryZoomOut" class="photo-gallery-zoom-btn" type="button" aria-label="Zoom out">−</button>
+      <button id="photoGalleryZoomReset" class="photo-gallery-zoom-btn" type="button" aria-label="Reset zoom">1×</button>
+      <button id="photoGalleryZoomIn" class="photo-gallery-zoom-btn" type="button" aria-label="Zoom in">+</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Manager Edit Modal -->
+<div id="editModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 style="margin:0; border:0; padding:0;">Manager Edit Report</h2>
+        <div id="editModalSub" style="font-size:12px; color:var(--gray); margin-top:4px;">Modify report fields and save an audit trail.</div>
+      </div>
+      <button class="btn btn-outline small-btn" type="button" id="btnCloseEditModal">Close</button>
+    </div>
+    <div class="modal-body">
+      <form id="editReportForm">
+        <input type="hidden" id="editDocId">
+        <div class="grid">
+          <label>Date<input id="editDate" type="date"></label>
+          <label>City<input id="editCity"></label>
+          <label>Truck #<input id="editTruckNumber"></label>
+          <label>Crew Lead<input id="editCrewLead"></label>
+          <label class="span-4">Address / Location<input id="editAddress"></label>
+          <label>Work Area Type
+            <select id="editWorkAreaType">
+              <option value="">Select Area Type</option>
+              <option value="Alley">Alley</option>
+              <option value="Driveway">Driveway</option>
+              <option value="Leadwalk">Leadwalk</option>
+             <option value="Sidewalk">Sidewalk</option>
+              <option value="ADA">ADA</option>
+              <option value="Street">Street</option>
+              <option value="Parking Lot">Parking Lot</option>
+              <option value="Pool">Pool</option>
+              <option value="Deck">Deck</option>
+              <option value="Patio">Patio</option>
+              <option value="Sport Court">Sport Court</option>
+              <option value="Joint Grinding">Joint Grinding</option>
+              <option value="Other">Other</option>
+            </select>
+          <label>Injection Type
+  <select id="editInjectionType">
+    <option value="">Select Injection Type</option>
+    <option value="Method">Method</option>
+    <option value="Deep Injection">Deep Injection</option>
+  </select>
+          
+          <label>Other Area Type<input id="editWorkAreaOther" placeholder="Only if Other"></label>
+          <label>Lift Area Length (ft)<input id="editLiftAreaLength" type="number" step="0.01"></label>
+          <label>Lift Area Width (ft)<input id="editLiftAreaWidth" type="number" step="0.01"></label>
+          <label class="span-4">Area / Dimension Notes<input id="editLiftAreaNotes"></label>
+          <label>A Lbs Start<input id="editAMeterStart" type="number" step="0.01"></label>
+          <label>A Lbs Finish<input id="editAMeterFinish" type="number" step="0.01"></label>
+          <label>B Lbs Start<input id="editBMeterStart" type="number" step="0.01"></label>
+          <label>B Lbs Finish<input id="editBMeterFinish" type="number" step="0.01"></label>
+          <label>Clicks<input id="editClicks" type="number" step="1"></label>
+          <label>Total Hours<input id="editTotalHours" type="number" step="0.01"></label>
+          <label>Linear Feet<input id="editLinearFeet" type="number" step="1"></label>
+          <label>Joint Grinding LF<input id="editJointGrindingLinearFeet" type="number" step="0.01"></label>
+          <label>Grind Depth<input id="editJointGrindingDepth" placeholder="e.g. 1/8 in, 1/4 in, flush"></label>
+          <label>Billable Lbs<input id="editBillableLbs" type="number" step="0.01"></label>
+          <label>Billing Rate<input id="editBillingRate" type="number" step="0.01"></label>
+          <label style="display:flex; align-items:center; gap:8px; padding-top:20px;">
+            <input id="editFreeChemicalUsed" type="checkbox" style="width:18px; height:18px; margin:0;"> Free chemical used
+          </label>
+          <label class="span-2">Job Group ID<input id="editJobGroupId" placeholder="Example: garland-4406-willett"></label>
+          <label>Revenue Allocation
+            <select id="editRevenueAllocationMethod">
+              <option value="laborHours">By labor hours</option>
+              <option value="pumpedLbs">By pumped lbs</option>
+              <option value="evenly">Evenly by report</option>
+              <option value="allOnThisReport">All on this report</option>
+            </select>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; padding-top:20px;">
+            <input id="editFinalRevenueReport" type="checkbox" style="width:18px; height:18px; margin:0;"> Final revenue entered here
+          </label>
+          <label>Superintendent Count<input id="editSuperintendentCount" type="number" step="1"></label>
+          <label>Technician Count<input id="editTechnicianCount" type="number" step="1"></label>
+          <label>Route Miles Override<input id="editRouteMiles" type="number" step="0.1" placeholder="Auto if blank"></label>
+          <label>Unit MPG Override<input id="editUnitMpg" type="number" step="0.1" placeholder="Auto by truck"></label>
+          <label>Fuel Price Override<input id="editFuelPricePerGallon" type="number" step="0.01" placeholder="Auto from settings"></label>
+          <label>Small Engine Hours<input id="editSmallEngineHours" type="number" step="0.1"></label>
+          <div class="span-4" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-outline small-btn" type="button" id="btnCalculateEditRouteMiles">Calculate Route Miles</button>
+            <span id="editRouteMilesStatus" style="font-size:12px; color:var(--gray); font-weight:800;">Generated route miles will appear here.</span>
+          </div>
+          <label>GPS Latitude<input id="editGpsLatitude" type="number" step="0.000001"></label>
+          <label>GPS Longitude<input id="editGpsLongitude" type="number" step="0.000001"></label>
+          <label>Approval Status
+            <select id="editApprovalStatus">
+              <option value="Needs Review">Needs Review</option>
+              <option value="Needs Revision">Needs Revision</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </label>
+          <label>Manager Initials<input id="editManagerInitials" placeholder="Optional"></label>
+          <label class="span-4">Crew Notes<textarea id="editNotes" rows="3"></textarea></label>
+          <label>Original Settlement (in)<input id="editOriginalSettlement" type="number" min="0" step="0.01"></label>
+          <label>Final Settlement (in)<input id="editFinalSettlement" type="number" min="0" step="0.01"></label>
+          <label>Target Lift Achieved
+            <select id="editTargetLiftAchieved"><option value="">Not recorded</option><option value="Yes">Yes</option><option value="Partially">Partially</option><option value="No">No</option></select>
+          </label>
+          <label class="span-4">Condition Observed<input id="editConditionObserved" placeholder="Separate multiple conditions with semicolons"></label>
+          <label class="span-4">Other Condition<input id="editConditionObservedOther"></label>
+          <label>Return Trip Required
+            <select id="editReturnTripRequired"><option value="">Not recorded</option><option value="No">No</option><option value="Yes">Yes</option></select>
+          </label>
+          <label>Preventable Delay
+            <select id="editPreventableDelay"><option value="">Not recorded</option><option value="No">No</option><option value="Yes">Yes</option></select>
+          </label>
+          <label>Completion Status
+            <select id="editCompletionStatus"><option value="">Not recorded</option><option value="Complete">Complete</option><option value="Partial">Partial</option><option value="Return Required">Return Required</option></select>
+          </label>
+          <label class="span-4">Return Trip Reason<textarea id="editReturnTripReason" rows="2"></textarea></label>
+          <label class="span-4">Manager Notes<textarea id="editManagerNotes" rows="3" placeholder="Internal manager notes, corrections, or approval comments..."></textarea></label>
+        </div>
+      </form>
+      <div style="margin-top:18px;">
+        <h2>Report Photos</h2>
+        <div id="editPhotoLinks" class="empty-state">No photos attached.</div>
+      </div>
+      <div style="margin-top:18px;">
+        <h2>Audit Trail</h2>
+        <div id="auditTrailBox" class="audit-log">No audit entries yet.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" id="btnPrintReport">PDF / Print</button>
+      <button class="btn btn-outline" type="button" id="btnCancelEdit">Cancel</button>
+      <button class="btn btn-primary" type="button" id="btnSaveEdit">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script src="./js/logo-fallback.js"></script>
+<script src="./js/address-autocomplete.js"></script>
+
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA0D2DxYi-ouBVavw_uWbp8YPuvq1wNFnI&loading=async&libraries=places,routes&callback=initKKEAddressAutocomplete"
+  async
+  defer>
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<script type="module" src="./js/legacy-app.js"></script>
+<script type="module" src="./js/jobs.js"></script>
+
+</body>
+</html>
+ 
