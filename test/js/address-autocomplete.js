@@ -43,6 +43,7 @@
 
     autocomplete.addEventListener("input", () => {
       addressInput.value = autocomplete.value || "";
+      addressInput.dispatchEvent(new Event("input",{bubbles:true}));
     });
 
     autocomplete.addEventListener("gmp-select", async event => {
@@ -65,6 +66,7 @@
       }
 
       setCityFromGooglePlace(place, options.cityFieldId);
+      addressInput.dispatchEvent(new Event('change',{bubbles:true}));
     });
 
     addressInput.form?.addEventListener("reset", () => {
@@ -73,6 +75,8 @@
       }, 0);
     });
   }
+
+  window.mountKKEAddressAutocomplete = mountKKEAddressAutocomplete;
 
   window.setKKEAddressAutocompleteValue = function (inputId, value) {
     const addressInput = document.getElementById(inputId);
@@ -84,6 +88,7 @@
   };
 
   window.initKKEAddressAutocomplete = async function () {
+    document.dispatchEvent(new Event("kke:maps-ready"));
     try {
       await Promise.all([
         mountKKEAddressAutocomplete("jobAddress", { captureLocation: true }),
