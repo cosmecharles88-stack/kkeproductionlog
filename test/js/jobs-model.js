@@ -7,7 +7,7 @@ export function validateScope(job) {
     if (!area.label?.trim()) return 'Give each work area a label.';
     if ([area.length,area.width,area.sunk].some(x => x === '' || !Number.isFinite(Number(x)) || Number(x)<0)) return 'Enter valid nonnegative dimensions and amount sunk.';
     if (area.profile) { const error=validateProfile(area.profile); if(error) return error; }
-    else if (!area.before?.trim() || !area.target?.trim()) return 'Enter before and target profiles for each area.';
+    else if ((area.before?.trim() || area.target?.trim()) && (!area.before?.trim() || !area.target?.trim())) return 'When entering profile notes, include both before and target profiles.';
   }
   return '';
 }
