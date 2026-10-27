@@ -12,20 +12,7 @@ function readRows(host){return [...host.querySelectorAll('tbody tr')].map(row=>(
 export function readProfile(host){return {length:host.querySelector('[data-profile-length]').value,interval:host.querySelector('[data-profile-interval]').value,units:host.querySelector('[data-profile-units]').value.trim(),rows:readRows(host)};}
 export function mountProfile(host,profile={},length='100'){
  const initial=profile.rows||buildStations(profile.length??(Number(length)>0?length:100),profile.interval??10);
- host.innerHTML=`<h4>Profile readings (optional)</h4><p>Leave all readings blank if profiles are not needed for this area. If entering readings, include before/target pairs and units. Use the same station layout as the crew sheet. Target is the reading the crew should achieve. Leave an unused direction blank.</p><div class="jobs-grid"><label>Total Length (ft)<input type="number" min="0" step="any" data-profile-length value="${escape(profile.length??(Number(length)>0?length:100))}"></label><label>Interval (ft)<input type="number" min="0.01" step="any" data-profile-interval value="${escape(profile.interval??10)}"></label></div><label>Reading units / reference (required when entering readings)<input data-profile-units value="${escape(profile.units??'')}" placeholder="Example: inches below string line"></label><button type="button" data-build-profile>Build Table Rows</button><p data-profile-error role="status"></p><div data-profile-table>${profileTable(initial,true)}</div>`;
+ host.innerHTML=`<h4>Profile readings (optional)</h4><p>Leave all readings blank if profiles are not needed for this area. Enter any readings you have; blanks are allowed. Use the same station layout as the crew sheet. Target is the reading the crew should achieve. Leave an unused direction blank.</p><div class="jobs-grid"><label>Total Length (ft)<input type="number" min="0" step="any" data-profile-length value="${escape(profile.length??(Number(length)>0?length:100))}"></label><label>Interval (ft)<input type="number" min="0.01" step="any" data-profile-interval value="${escape(profile.interval??10)}"></label></div><label>Reading units / reference (optional)<input data-profile-units value="${escape(profile.units??'')}" placeholder="Example: inches below string line"></label><button type="button" data-build-profile>Build Table Rows</button><p data-profile-error role="status"></p><div data-profile-table>${profileTable(initial,true)}</div>`;
  host.querySelector('[data-build-profile]').onclick=()=>{const error=host.querySelector('[data-profile-error]');try{const p=readProfile(host);const rows=buildStations(p.length,p.interval,p.rows);const retained=new Set(rows.map(r=>r.station));if(p.rows.some(r=>!retained.has(r.station)&&columns.some(k=>r[k]!==''))){error.textContent='This length/interval would remove entered readings. Clear those readings first, or keep the existing station layout.';return;}host.querySelector('[data-profile-table]').innerHTML=profileTable(rows,true);error.textContent='';}catch(e){error.textContent=e.message;}};
 }
-export function validateProfile(p){
- // An entirely blank profile is optional. Zero is a real reading, not a blank.
- if(!p?.rows?.some(r=>columns.some(k=>r[k]!==''&&r[k]!=null)))return '';
- if(!p.units?.trim())return 'Enter the profile reading units / reference.';
- let expected;try{expected=buildStations(p.length,p.interval);}catch(e){return e.message;}
- if(expected.length!==p.rows.length||expected.some((r,i)=>r.station!==p.rows[i].station))return 'Build Table Rows to apply the current profile length and interval.';
- for(const row of p.rows){for(const [before,target] of [['neBefore','neTarget'],['swBefore','swTarget']]){
-  const present=k=>row[k]!==''&&row[k]!=null;
-  if(present(before)!==present(target))return 'Each entered before reading needs a target at the same station and direction.';
-  if([before,target].some(k=>present(k)&&!Number.isFinite(Number(row[k]))))return 'Profile readings must be valid numbers.';
- }}return '';
-}
-
-
+export function validateProfile(){return '';}
