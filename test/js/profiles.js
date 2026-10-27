@@ -7,7 +7,7 @@ export function buildStations(length,interval,old=[]){
  const byStation=new Map(old.map(r=>[Number(r.station),r]));
  return Array.from({length:Math.floor(length/interval)+1},(_,i)=>{const station=Number((i*interval).toFixed(6));return {station,...Object.fromEntries(columns.map(k=>[k,byStation.get(station)?.[k]??'']))};});
 }
-export function profileTable(rows,editable=false){return `<div class="scope-profile-wrap"><table class="scope-profile-table"><thead><tr><th rowspan="2">Station</th><th colspan="2">North/East Bound</th><th colspan="2">South/West Bound</th></tr><tr><th>Before</th><th>Target</th><th>Before</th><th>Target</th></tr></thead><tbody>${rows.map(r=>`<tr data-station="${escape(r.station)}"><th scope="row">${escape(r.station)} ft</th>${columns.map((k,i)=>`<td>${editable?`<input type="number" step="0.01" data-reading="${k}" value="${escape(r[k])}" aria-label="${names[i]} at ${escape(r.station)} feet">`:escape(r[k]===''||r[k]==null?'—':r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+export function profileTable(rows,editable=false){return `<div class="scope-profile-wrap"><table class="scope-profile-table"><thead><tr><th rowspan="2">Station</th><th colspan="2">North/East Bound</th><th colspan="2">South/West Bound</th></tr><tr><th>Before</th><th>Target</th><th>Before</th><th>Target</th></tr></thead><tbody>${rows.map(r=>`<tr data-station="${escape(r.station)}"><th scope="row">${escape(r.station)} ft</th>${columns.map((k,i)=>`<td>${editable?`<input type="number" step="any" data-reading="${k}" value="${escape(r[k])}" aria-label="${names[i]} at ${escape(r.station)} feet">`:escape(r[k]===''||r[k]==null?'—':r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
 function readRows(host){return [...host.querySelectorAll('tbody tr')].map(row=>({station:Number(row.dataset.station),...Object.fromEntries(columns.map(k=>[k,row.querySelector(`[data-reading=${k}]`).value]))}));}
 export function readProfile(host){return {length:host.querySelector('[data-profile-length]').value,interval:host.querySelector('[data-profile-interval]').value,units:host.querySelector('[data-profile-units]').value.trim(),rows:readRows(host)};}
 export function mountProfile(host,profile={},length='100'){
@@ -26,3 +26,4 @@ export function validateProfile(p){
   if([before,target].some(k=>present(k)&&!Number.isFinite(Number(row[k]))))return 'Profile readings must be valid numbers.';
  }}return '';
 }
+
