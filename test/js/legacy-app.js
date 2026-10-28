@@ -1,3 +1,6 @@
+import {simplifyDashboard} from './dashboard-layout.js';
+simplifyDashboard();
+import {renderCalculationRoadmap} from './dashboard-roadmap.js';
 import {revenueGoalProgress} from './revenue-goal.js';
 import {initializeReportLink,readJobContext,renderJobContext,fillLinkedProfile,clearJobContext,linkedReportFields,checkJobRevision} from './report-link.js';
 
@@ -3934,6 +3937,7 @@ const differencePercent =
   function renderDashboardRevenueGoal(docs, range) {
     const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(docs || []), range, costSettings);
     const revenueGoal = getRevenueGoalProgress(summary, range, costSettings);
+    renderCalculationRoadmap({goal:revenueGoal,summary,settings:costSettings,periodLabel:range?.label||"Selected period"});
     const hasGoal = revenueGoal.supported;
     const onPace = hasGoal && revenueGoal.projected >= revenueGoal.goal;
     const card = document.getElementById('dashboardRevenueGoalCard');
@@ -7339,5 +7343,6 @@ function loadFleetGPS() {
   document.getElementById('editModal')?.addEventListener('click', (event) => {
     if (event.target.id === 'editModal') closeEditModal();
   });
+
 
 
