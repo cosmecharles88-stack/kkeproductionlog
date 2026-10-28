@@ -1,3 +1,4 @@
+import {revenueGoalProgress} from './revenue-goal.js';
 import {initializeReportLink,readJobContext,renderJobContext,fillLinkedProfile,clearJobContext,linkedReportFields,checkJobRevision} from './report-link.js';
 
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -79,6 +80,7 @@ import {initializeReportLink,readJobContext,renderJobContext,fillLinkedProfile,c
 
   let isCurrentUserManager = false;
   let reportCacheUnsubscribe = null;
+  let costSettingsUnsubscribe = null;
   let reportCacheLoaded = false;
   let reportCacheLastSync = null;
   let historyUsesReportCache = false;
@@ -194,6 +196,7 @@ import {initializeReportLink,readJobContext,renderJobContext,fillLinkedProfile,c
   document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
 
   onAuthStateChanged(auth, (user) => {
+    costSettingsUnsubscribe?.();costSettingsUnsubscribe=null;
     if (reportCacheUnsubscribe) {
       reportCacheUnsubscribe();
       reportCacheUnsubscribe = null;
@@ -812,20 +815,18 @@ const differencePercent =
   }
 
   async function loadCostSettings() {
+    costSettingsUnsubscribe?.();costSettingsUnsubscribe=null;
     loadLocalCostSettings();
-    if (!auth.currentUser || !isCurrentUserManager) return;
-    try {
-      const snap = await getDoc(costSettingsRef());
-      if (snap.exists()) {
-        costSettings = mergeCostSettings(snap.data());
-        localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
+    if(!auth.currentUser||!isCurrentUserManager)return;
+    costSettingsUnsubscribe=onSnapshot(costSettingsRef(),snap=>{
+      if(snap.exists()){
+        costSettings=mergeCostSettings(snap.data());
+        localStorage.setItem(COST_SETTINGS_STORAGE_KEY,JSON.stringify(costSettings));
         populateCostSettingsForm();
-        setText('costSettingsStatus', `Loaded shared cost settings${costSettings.updatedAt ? ` | Last updated ${costSettings.updatedAt}` : ''}. Effective ${costSettings.effectiveDate || 'today'} with ${fmtNumber((costSettings.ruleHistory || []).length, 0)} rule version(s).`);
-      }
-    } catch (err) {
-      console.warn('Shared cost settings unavailable; using local/default settings.', err);
-      setText('costSettingsStatus', 'Using local/default cost settings. Firestore settings may need rules access.');
-    }
+        setText('costSettingsStatus',`Shared settings synced. Monthly goal ${formatMoney(costSettings.monthlyRevenueGoal)}. Last saved by ${costSettings.updatedBy||'manager'}.`);
+        if(activeTabId==='dashboard')renderDashboardAnalytics(dashboardReports);
+      }else{setText('costSettingsStatus','No shared settings saved yet. Using local/default values; select Save Cost Settings to establish the shared goal.');}
+    },error=>setText('costSettingsStatus',`Shared settings unavailable: ${error.message}. Values on this device may differ from other managers.`));
   }
 
   function populateCostSettingsForm() {
@@ -892,27 +893,26 @@ const differencePercent =
 
   async function saveCostSettings() {
     if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
-    const nextSettings = readCostSettingsForm();
-    const nextVersion = makeCostRuleVersion(nextSettings);
-    const existingHistory = Array.isArray(costSettings.ruleHistory) ? costSettings.ruleHistory : [];
-    const ruleHistory = existingHistory
-      .filter(item => normalizeDateInput(item.effectiveDate) !== nextVersion.effectiveDate)
-      .concat(nextVersion)
-      .sort((a, b) => String(a.effectiveDate || '').localeCompare(String(b.effectiveDate || '')));
-    costSettings = mergeCostSettings({ ...nextSettings, ruleHistory });
-    localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
-    populateCostSettingsForm();
-    setText('costSettingsStatus', 'Saved locally. Trying to save shared settings...');
-    try {
-      await setDoc(costSettingsRef(), costSettings, { merge: true });
-      setText('costSettingsStatus', `Shared cost settings saved by ${costSettings.updatedBy}. Effective ${costSettings.effectiveDate}. ${ruleHistory.length} rule version(s) available.`);
-      showMessage('Cost settings saved.');
-    } catch (err) {
-      console.warn(err);
-      setText('costSettingsStatus', 'Saved locally. Firestore rules may need access for shared cost settings.');
-      showMessage('Cost settings saved locally. Firestore settings may need rules access.', 'warning');
-    }
-    renderDashboardAnalytics(dashboardReports);
+    const nextSettings=readCostSettingsForm();
+    const nextVersion=makeCostRuleVersion(nextSettings);
+    const ruleHistory=(Array.isArray(costSettings.ruleHistory)?costSettings.ruleHistory:[])
+      .filter(item=>normalizeDateInput(item.effectiveDate)!==nextVersion.effectiveDate)
+      .concat(nextVersion).sort((a,b)=>String(a.effectiveDate||'').localeCompare(String(b.effectiveDate||'')));
+    const next=mergeCostSettings({...nextSettings,ruleHistory});
+    if(!Number.isFinite(Number(next.monthlyRevenueGoal))||Number(next.monthlyRevenueGoal)<0)return showMessage('Enter a nonnegative monthly revenue goal.','error');
+    setText('costSettingsStatus','Saving shared settings…');
+    const button=document.getElementById('btnSaveCostSettings');if(button)button.disabled=true;
+    try{
+      await setDoc(costSettingsRef(),next,{merge:true});
+      costSettings=next;localStorage.setItem(COST_SETTINGS_STORAGE_KEY,JSON.stringify(costSettings));
+      populateCostSettingsForm();
+      setText('costSettingsStatus',`Shared cost settings saved by ${costSettings.updatedBy}. Monthly goal ${formatMoney(costSettings.monthlyRevenueGoal)}.`);
+      showMessage('Shared cost settings saved.');
+      renderDashboardAnalytics(dashboardReports);
+    }catch(error){
+      setText('costSettingsStatus',`Shared settings were not saved: ${error.message}. Your edits remain in the form; retry after checking access.`);
+      showMessage('Shared settings were not saved. Check the settings message before retrying.','error');
+    }finally{if(button)button.disabled=false;}
   }
 
   function syncVisibleCostSettingsForm() {
@@ -2346,36 +2346,7 @@ const differencePercent =
   }
 
   function getRevenueGoalProgress(summary, range, settings = costSettings) {
-    const goal = Number(settings.monthlyRevenueGoal || 0);
-    const revenue = Number(summary?.revenue || 0);
-    if (!goal || !range?.start || !range?.end || range.key === 'all') {
-      return { goal, revenue, percent: 0, expectedToDate: 0, pacingVariance: 0, projected: 0, remaining: Math.max(0, goal - revenue), remainingWorkdays: 0, requiredPerWorkday: 0 };
-    }
-    const today = new Date();
-    const todayStart = new Date(today);
-    todayStart.setHours(0, 0, 0, 0);
-    const currentEnd = range.end > todayStart && range.start <= todayStart ? addDays(todayStart, 1) : range.end;
-    const elapsedRange = { ...range, end: currentEnd < range.start ? range.start : currentEnd };
-    const elapsedWorkdays = Math.max(1, countWeekdaysInRange(elapsedRange));
-    const totalWorkdays = Math.max(1, countWeekdaysInRange(range));
-    const remainingRange = { ...range, start: currentEnd > range.start ? currentEnd : range.start };
-    const remainingWorkdays = Math.max(0, countWeekdaysInRange(remainingRange));
-    const expectedToDate = goal * Math.min(1, elapsedWorkdays / totalWorkdays);
-    const projected = (revenue / elapsedWorkdays) * totalWorkdays;
-    const remaining = Math.max(0, goal - revenue);
-    return {
-      goal,
-      revenue,
-      percent: (revenue / goal) * 100,
-      expectedToDate,
-      pacingVariance: revenue - expectedToDate,
-      projected,
-      remaining,
-      elapsedWorkdays,
-      totalWorkdays,
-      remainingWorkdays,
-      requiredPerWorkday: remainingWorkdays > 0 ? remaining / remainingWorkdays : 0
-    };
+    return revenueGoalProgress(summary,range,settings);
   }
 
   function formatExecChange(current, previous, formatter = value => fmtNumber(value, 0), lowerIsBetter = false) {
@@ -3406,10 +3377,10 @@ const differencePercent =
         ${renderExecutiveMetricGrid([
           { label: 'Monthly Goal', value: formatMoney(revenueGoal.goal), sub: 'Executive target' },
           { label: 'Revenue To Date', value: formatMoney(revenueGoal.revenue), sub: `${fmtNumber(revenueGoal.percent, 1)}% of monthly goal` },
-          { label: 'Expected To Date', value: formatMoney(revenueGoal.expectedToDate), sub: `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays elapsed` },
+          { label: 'Expected To Date', value: formatMoney(revenueGoal.expectedToDate), sub: `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays; includes today in full. Mon–Fri, holidays included.` },
           { label: 'Projected Month', value: formatMoney(revenueGoal.projected), sub: revenueGoalOnPace ? 'Pacing above goal' : 'Pacing below goal' },
           { label: 'Remaining Revenue', value: formatMoney(revenueGoal.remaining), sub: 'Needed to hit goal' },
-          { label: 'Needed / Workday', value: formatMoney(revenueGoal.requiredPerWorkday), sub: `${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining` },
+          { label: 'Needed / Workday', value: revenueGoal.supported&&revenueGoal.requiredPerWorkday!==null?formatMoney(revenueGoal.requiredPerWorkday):'—', sub: revenueGoal.ended?'Month ended':revenueGoal.supported?`${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining`:'Monthly view required' },
           { label: 'Pace Variance', value: `${revenueGoal.pacingVariance >= 0 ? '+' : '-'}${formatMoney(Math.abs(revenueGoal.pacingVariance))}`, sub: 'Against expected month-to-date pace' },
           { label: 'Goal Status', value: revenueGoalOnPace ? 'On Pace' : 'Behind Pace', sub: 'Based on revenue-ready reports' }
         ])}
@@ -3963,7 +3934,7 @@ const differencePercent =
   function renderDashboardRevenueGoal(docs, range) {
     const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(docs || []), range, costSettings);
     const revenueGoal = getRevenueGoalProgress(summary, range, costSettings);
-    const hasGoal = revenueGoal.goal > 0 && range?.key !== 'all';
+    const hasGoal = revenueGoal.supported;
     const onPace = hasGoal && revenueGoal.projected >= revenueGoal.goal;
     const card = document.getElementById('dashboardRevenueGoalCard');
     if (card) {
@@ -3971,8 +3942,11 @@ const differencePercent =
       card.classList.add(hasGoal ? (onPace ? 'dashboard-goal-on-pace' : 'dashboard-goal-behind-pace') : 'dashboard-goal-neutral');
     }
 
+    const goalStatus=!hasGoal?'Monthly view required':revenueGoal.ended?(revenueGoal.remaining>0?'Goal missed':'Goal achieved'):!revenueGoal.started?'Not started':revenueGoal.elapsedWorkdays===0?'Waiting for first workday':(onPace?'On Pace':'Behind Pace');
     const message = !hasGoal
       ? 'Select a monthly dashboard period and set a monthly revenue goal to track pacing.'
+      : revenueGoal.ended
+        ? (revenueGoal.remaining>0?`Month ended — short by ${formatMoney(revenueGoal.remaining)}.`:'Month ended — goal achieved.')
       : revenueGoal.pacingVariance >= 0
         ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
         : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`;
@@ -3981,19 +3955,27 @@ const differencePercent =
       : '';
 
     setText('dashboardRevenueGoalMessage', `${message}${manualNote}`);
-    setText('dashboardRevenueGoalStatus', hasGoal ? (onPace ? 'On Pace' : 'Behind Pace') : 'No Goal');
+    setText('dashboardRevenueGoalStatus',goalStatus);
     setText('dashGoalMonthly', formatMoney(revenueGoal.goal));
     setText('dashGoalRevenue', formatMoney(revenueGoal.revenue));
     setText('dashGoalRevenueSub', `${fmtNumber(revenueGoal.percent, 1)}% of monthly goal`);
     setText('dashGoalExpected', formatMoney(revenueGoal.expectedToDate));
-    setText('dashGoalExpectedSub', `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays elapsed`);
+    setText('dashGoalExpectedSub', `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays; includes today in full. Mon–Fri, holidays included.`);
     setText('dashGoalProjected', formatMoney(revenueGoal.projected));
     setText('dashGoalProjectedSub', hasGoal ? (onPace ? 'Pacing above goal' : 'Pacing below goal') : 'Waiting for goal');
     setText('dashGoalRemaining', formatMoney(revenueGoal.remaining));
-    setText('dashGoalNeededPerDay', formatMoney(revenueGoal.requiredPerWorkday));
+    setText('dashGoalNeededPerDay',revenueGoal.requiredPerWorkday===null?'—':formatMoney(revenueGoal.requiredPerWorkday));
     setText('dashGoalNeededPerDaySub', `${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining`);
     setText('dashGoalVariance', `${revenueGoal.pacingVariance >= 0 ? '+' : '-'}${formatMoney(Math.abs(revenueGoal.pacingVariance))}`);
-    setText('dashGoalStatusValue', hasGoal ? (onPace ? 'On Pace' : 'Behind Pace') : 'No Goal');
+    setText('dashGoalStatusValue',goalStatus);
+    if(!hasGoal){
+      ['dashGoalExpected','dashGoalProjected','dashGoalRemaining','dashGoalNeededPerDay','dashGoalVariance'].forEach(id=>setText(id,'—'));
+      setText('dashGoalRevenueSub','Revenue for selected period; not a monthly-goal comparison');
+      setText('dashGoalExpectedSub','Choose This Month, Last Month, or a complete calendar month');
+      setText('dashGoalProjectedSub','Monthly projection unavailable for this date range');
+      setText('dashGoalNeededPerDaySub','Monthly view required');
+    }else if(revenueGoal.ended){setText('dashGoalProjectedSub','Final reported month total');setText('dashGoalNeededPerDaySub','Month ended');}
+
   }
 
   function renderDashboardAnalytics(rawDocs) {
