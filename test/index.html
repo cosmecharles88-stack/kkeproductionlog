@@ -949,8 +949,8 @@
         </div>
         <div class="title-box">
           <p class="eyebrow">Fleet Operations</p>
-          <h1>Fleet Operations Command</h1>
-          <p>OneStep-style fleet visibility: live truck map, status list, recent movement, and maintenance health.</p>
+          <h1>Fleet Operations</h1>
+          <p>Your KKE fleet at a glance. Open OneStepGPS for history, cameras and advanced tools.</p>
         </div>
       </div>
     </div>
@@ -958,9 +958,9 @@
     <div class="card fleet-command-card">
       <div class="fleet-command-topbar">
         <div class="fleet-command-title">
-          <div class="fleet-command-title-main">Live Fleet Map</div>
+          <div class="fleet-command-title-main">Fleet tracking</div>
           <div class="fleet-command-title-sub">Approved KKE units only. Click a unit or marker to inspect it.</div>
-          <div class="fleet-command-title-sub" id="fleetDataStatus">Fleet data connects after manager sign-in.</div>
+          <a href="https://track.onestepgps.com/" target="_blank" rel="noopener noreferrer">Open OneStepGPS ↗</a><div class="fleet-command-title-sub" id="fleetDataStatus">Fleet data connects after manager sign-in.</div>
         </div>
         <div class="fleet-summary-strip">
           <div class="fleet-summary-tile">
@@ -1012,15 +1012,16 @@
 
     <div class="fleet-bottom-grid">
       <div class="card">
-        <h2>Fleet Health / Maintenance</h2>
+        <details><summary>Fleet health &amp; maintenance</summary>
         <div id="fleetMaintenancePanel" class="fleet-maintenance-body">
           <div class="empty-state">Waiting for truck odometer data.</div>
         </div>
+        </details>
       </div>
 
       <div class="card">
-        <h2>Recent GPS Events</h2>
-        <div id="fleetRecentEvents" class="empty-state">Waiting for OneStep GPS events.</div>
+        <details><summary>Recent GPS events</summary>
+        <div id="fleetRecentEvents" class="empty-state">Waiting for OneStep GPS events.</div></details>
       </div>
     </div>
   </div>

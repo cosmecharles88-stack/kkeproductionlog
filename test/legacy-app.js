@@ -1,0 +1,7372 @@
+import {simplifyDashboard} from './dashboard-layout.js';
+simplifyDashboard();
+import {renderCalculationRoadmap} from './dashboard-roadmap.js';
+import {revenueGoalProgress} from './revenue-goal.js';
+import {initializeReportLink,readJobContext,renderJobContext,fillLinkedProfile,clearJobContext,linkedReportFields,checkJobRevision} from './report-link.js';
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc as firestoreDoc, updateDoc, deleteDoc, arrayUnion, getDoc, setDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, getBlob } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+  // --- FIREBASE CONFIG ---
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+      apiKey: "AIzaSyA0D2DxYi-ouBVavw_uWbp8YPuvq1wNFnI",
+      authDomain: "kke-crew-profile-sheet.firebaseapp.com",
+      projectId: "kke-crew-profile-sheet",
+      storageBucket: "kke-crew-profile-sheet.firebasestorage.app",
+      messagingSenderId: "154350100370",
+      appId: "1:154350100370:web:baa9e7c9d433ecf93d6b4b"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'kke-profile-sheet-main';
+
+  const ALLOWED_USERS = [
+    "varga307188@gmail.com",
+    "kkeincinfo@gmail.com",
+    "steverickenbrode@gmail.com",
+    "isaiah051812@gmail.com",
+    "cosmecharles88@gmail.com",
+    "logan95mc@gmail.com",
+    "hectordanielzamarripajunior@gmail.com"
+     ];
+
+  const MANAGER_USERS = [
+  "waltertimms365@gmail.com",
+  "kkeincinfo@gmail.com",
+  "steverickenbrode@gmail.com",
+  "isaiah051812@gmail.com",
+  "cosmecharles88@gmail.com"
+];
+
+  const TRUCK_COLORS = {
+    "102": "#0057a8",
+    "106": "#16a34a",
+    "107": "#f97316",
+    "118": "#7c3aed",
+    "119": "#0891b2",
+    "203": "#dc2626",
+    "Unknown Truck": "#6b7280"
+  };
+
+  const CITY_COLORS = {
+    "Celina": "#0057a8",
+    "The Colony": "#0f766e",
+    "Coppell": "#9333ea",
+    "Denison": "#0d9488",
+    "Frisco": "#ea580c",
+    "Frisco Parks Department": "#16a34a",
+    "Garland": "#dc2626",
+    "Highland Village": "#2563eb",
+    "Keller": "#a21caf",
+    "McKinney": "#ca8a04",
+    "Mckinney": "#ca8a04",
+    "Melissa": "#be185d",
+    "Princeton": "#4f46e5",
+    "Prosper": "#0891b2",
+    "Richardson": "#7c3aed",
+    "Sachse": "#be123c",
+    "Saginaw": "#4d7c0f",
+    "Burleson": "#c2410c",
+    "Corinth": "#0284c7",
+    "Other": "#6b7280",
+    "Unknown City": "#6b7280"
+  };
+
+  const FALLBACK_COLORS = ["#0057a8", "#16a34a", "#f97316", "#7c3aed", "#dc2626", "#0891b2", "#ca8a04", "#be123c"];
+
+  let isCurrentUserManager = false;
+  let reportCacheUnsubscribe = null;
+  let costSettingsUnsubscribe = null;
+  let reportCacheLoaded = false;
+  let reportCacheLastSync = null;
+  let historyUsesReportCache = false;
+  let dashboardUsesReportCache = false;
+  let activeTabId = 'new-form';
+  let historyNeedsRender = false;
+  let dashboardNeedsRender = false;
+  let fleetLocationsUnsubscribe = null;
+  let fleetFallbackLocationsUnsubscribe = null;
+  let fleetEventsUnsubscribe = null;
+  let fleetMaintenanceUnsubscribe = null;
+  let fleetLocations = [];
+  let fleetLocationSource = '';
+  let fleetEvents = [];
+  let fleetMaintenance = [];
+  let selectedFleetTruckId = null;
+  let fleetMap = null;
+  let fleetMarkers = {};
+  let allReports = [];
+  let historyPage = 1;
+  let historyMissingRevenueOnly = false;
+  let historyReturnTripsOnly = false;
+  let dashboardReports = [];
+  let currentEditReport = null;
+  let currentEditGeneratedRouteMiles = 0;
+  let currentEditGeneratedRouteSource = '';
+  let lastRouteMilesResult = { miles: 0, source: '', status: '' };
+  let isSubmittingReport = false;
+  const COST_SETTINGS_STORAGE_KEY = 'kkeCostSettingsV1';
+  const DEFAULT_COST_SETTINGS = {
+    superintendentDayRate: 325,
+    technicianDayRate: 212,
+    defaultSuperintendentCount: 1,
+    defaultTechnicianCount: 2,
+    chemicalCostPerLb: 2.110875,
+    disposablesCostPerLb: 0.47,
+    overheadPercentOfRevenue: 20,
+    monthlyRevenueGoal: 225000,
+    jointGrindingRatePerLinearFoot: 9,
+    shopAddress: '1900 S Main St, Grapevine, TX 76051',
+    shopLatitude: 32.919092,
+    shopLongitude: -97.0799059,
+    defaultMpg: 12,
+    bigRigMpg: 8,
+    smallTruckMpg: 12,
+    bigRigUnits: '106,118,119',
+    smallTruckUnits: '102,107,117,203',
+    smallEngineGalPerHour: 0.8,
+    dieselGeneratorGalPerHour: 3,
+    fuelPricePerGallon: 3.5,
+    fuelAllocationMethod: 'report-route-miles',
+    effectiveDate: '',
+    ruleHistory: [],
+    monthlyRevenueAdjustments: [],
+    updatedBy: '',
+    updatedAt: '',
+    changeNote: ''
+  };
+  const FOAM_COST_RULES = [
+    {
+      effectiveDate: '0001-01-01',
+      baseCostPerLb: 2.31,
+      taxRate: 0,
+      costPerLb: 2.31,
+      label: 'Legacy foam'
+    },
+    {
+      effectiveDate: '2026-08-03',
+      baseCostPerLb: 1.95,
+      taxRate: 8.25,
+      costPerLb: 1.95 * 1.0825,
+      label: 'UPC foam'
+    }
+  ];
+  let costSettings = { ...DEFAULT_COST_SETTINGS };
+
+
+  // --- AUTH LOGIC ---
+  const authOverlay = document.getElementById('auth-overlay');
+  const mainContent = document.getElementById('main-content');
+  const loginError = document.getElementById('authError');
+
+  function getFriendlyAuthError(err) {
+    const code = err?.code || '';
+    const message = err?.message || String(err || 'Unknown error');
+
+    if (code.includes('unauthorized-domain')) {
+      return 'This website domain is not authorized in Firebase Authentication settings.';
+    }
+
+    if (message.includes('missing initial state') || code.includes('argument-error')) {
+      return 'Google sign-in could not finish because this browser blocked the login window or storage. Open the site directly in Chrome/Safari, then try again.';
+    }
+
+    if (code.includes('popup-blocked') || code.includes('popup-closed-by-user')) {
+      return 'The Google sign-in window was blocked or closed. Try again and allow popups for this site, or open the site directly in Chrome/Safari.';
+    }
+
+    return message;
+  }
+
+  document.getElementById('btnGoogleLogin').addEventListener('click', async () => {
+    try {
+      loginError.textContent = "Opening Google sign-in...";
+      await signInWithPopup(auth, provider);
+      loginError.textContent = "";
+    } catch (err) {
+      console.error(err);
+      loginError.textContent = "Sign-in failed: " + getFriendlyAuthError(err);
+    }
+  });
+
+  document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+  onAuthStateChanged(auth, (user) => {
+    costSettingsUnsubscribe?.();costSettingsUnsubscribe=null;
+    if (reportCacheUnsubscribe) {
+      reportCacheUnsubscribe();
+      reportCacheUnsubscribe = null;
+    }
+    reportCacheLoaded = false;
+    reportCacheLastSync = null;
+    historyUsesReportCache = false;
+    dashboardUsesReportCache = false;
+    historyNeedsRender = false;
+    dashboardNeedsRender = false;
+    allReports = [];
+    dashboardReports = [];
+    if (fleetLocationsUnsubscribe) {
+      fleetLocationsUnsubscribe();
+      fleetLocationsUnsubscribe = null;
+    }
+    if (fleetFallbackLocationsUnsubscribe) {
+      fleetFallbackLocationsUnsubscribe();
+      fleetFallbackLocationsUnsubscribe = null;
+    }
+    if (fleetEventsUnsubscribe) {
+      fleetEventsUnsubscribe();
+      fleetEventsUnsubscribe = null;
+    }
+    if (fleetMaintenanceUnsubscribe) {
+      fleetMaintenanceUnsubscribe();
+      fleetMaintenanceUnsubscribe = null;
+    }
+    fleetLocations = [];
+    fleetLocationSource = '';
+    fleetEvents = [];
+    fleetMaintenance = [];
+    selectedFleetTruckId = null;
+
+    if (user) {
+      const email = String(user.email || '').toLowerCase();
+
+      if (!ALLOWED_USERS.includes(email)) {
+        signOut(auth);
+        loginError.textContent = "Access denied. This email is not approved for KKE field access.";
+        return;
+      }
+
+      isCurrentUserManager = MANAGER_USERS.includes(email);
+      authOverlay.style.display = 'none';
+      mainContent.style.display = 'block';
+
+      const dashboardTab = document.getElementById('tabDashboard');
+      if (dashboardTab) dashboardTab.style.display = isCurrentUserManager ? 'block' : 'none';
+      const fleetTab = document.getElementById('tabFleetGPS');
+      if (fleetTab) fleetTab.style.display = isCurrentUserManager ? 'block' : 'none';
+      const missingRevenueButton = document.getElementById('btnMissingRevenue');
+      if (missingRevenueButton) missingRevenueButton.style.display = isCurrentUserManager ? 'inline-flex' : 'none';
+
+      loadCostSettings();
+      loadHistory();
+      if (isCurrentUserManager) {
+        loadDashboard();
+        loadFleetGPS();
+      }
+      document.getElementById('crewForm')?.reset();
+      clearJobContext();
+      generateProfileRows();
+      restoreLocalDraft();
+      renderJobContext();
+    } else {
+      isCurrentUserManager = false;
+      authOverlay.style.display = 'flex';
+      mainContent.style.display = 'none';
+      const dashboardTab = document.getElementById('tabDashboard');
+      if (dashboardTab) dashboardTab.style.display = 'none';
+      const fleetTab = document.getElementById('tabFleetGPS');
+      if (fleetTab) fleetTab.style.display = 'none';
+      switchTab('new-form');
+    }
+  });
+// --- LOCAL DRAFT AUTOSAVE ---
+const DRAFT_KEY = "kkeCrewProfileDraft_v1";
+
+function saveDraftLocally() {
+  const form = document.getElementById("crewForm");
+  if (!form) return;
+
+  const formData = new FormData(form);
+  const draft = {};
+
+  formData.forEach((value, key) => {
+    draft[key] = value;
+  });
+
+  draft.linkedActualProfiles = [...document.querySelectorAll('#profileRows tr')].map(tr=>{const inputs=tr.querySelectorAll('input');return {station:tr.querySelector('.station-cell')?.textContent||'',d1Before:inputs[0]?.value||'',d1After:inputs[1]?.value||'',d2Before:inputs[2]?.value||'',d2After:inputs[3]?.value||''};});
+  draft.savedAt = new Date().toLocaleString();
+
+  localStorage.setItem(`${DRAFT_KEY}:${auth.currentUser?.uid||'signed-out'}`, JSON.stringify(draft));
+}
+
+function restoreLocalDraft() {
+  const form = document.getElementById("crewForm");
+  if (!form) return;
+
+  const saved = localStorage.getItem(`${DRAFT_KEY}:${auth.currentUser?.uid||'signed-out'}`);
+  if (!saved) return;
+
+  const draft = JSON.parse(saved);
+
+  Object.keys(draft).forEach((key) => {
+    const field = form.elements[key];
+    if (field && key !== "savedAt") {
+      if (field.type === "checkbox") {
+        field.checked = draft[key] === "on" || draft[key] === true;
+      } else {
+        field.value = draft[key];
+      }
+    }
+  });
+
+  const linkedContext=readJobContext();
+  if(linkedContext)fillLinkedProfile(linkedContext,draft.linkedActualProfiles);
+  renderJobContext();
+  showMessage("Draft restored from this device. Last saved: " + draft.savedAt, "success");
+
+  if (typeof calculateHours === "function") calculateHours();
+  if (typeof calculateLiftArea === "function") calculateLiftArea();
+}
+
+function clearLocalDraft() {
+  localStorage.removeItem(`${DRAFT_KEY}:${auth.currentUser?.uid||'signed-out'}`);
+}
+
+document.addEventListener("input", (e) => {
+  if (e.target.closest("#crewForm")) {
+    saveDraftLocally();
+  }
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target.closest("#crewForm")) {
+    saveDraftLocally();
+  }
+});
+  // --- UI LOGIC ---
+  const dateInput = document.getElementById('formDate');
+  if (dateInput) dateInput.valueAsDate = new Date();
+
+  const switchTab = (tabId) => {
+    activeTabId = tabId;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const btnId =
+      tabId === 'new-form' ? 'tabNew' :
+      tabId === 'history' ? 'tabHistory' :
+      tabId === 'dashboard' ? 'tabDashboard' :
+      tabId === 'fleetGPS' ? 'tabFleetGPS' :
+      tabId === 'jobsScope' ? 'tabJobsScope' :
+      'tabNew';
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.add('active');
+    const content = document.getElementById(tabId);
+    if (content) content.classList.add('active');
+    mainContent?.classList.toggle('fleet-page-active', tabId === 'fleetGPS');
+    refreshActiveReportTab(tabId);
+  };
+
+  document.getElementById('tabJobsScope').addEventListener('click', () => switchTab('jobsScope'));
+  document.getElementById('tabNew').addEventListener('click', () => switchTab('new-form'));
+  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
+  document.getElementById('tabDashboard')?.addEventListener('click', () => {
+    if (!isCurrentUserManager) {
+      showMessage("Dashboard access is restricted to managers.", "error");
+      return;
+    }
+    switchTab('dashboard');
+  });
+
+  document.getElementById('tabFleetGPS')?.addEventListener('click', () => {
+    if (!isCurrentUserManager) {
+      showMessage("Fleet GPS access is restricted to managers.", "error");
+      return;
+    }
+    switchTab('fleetGPS');
+    setTimeout(() => {
+      if (fleetMap && window.google?.maps) google.maps.event.trigger(fleetMap, 'resize');
+      renderFleetMap();
+    }, 150);
+  });
+
+  const dashboardRangeStartDate = document.getElementById('dashboardRangeStartDate');
+  const dashboardRangeEndDate = document.getElementById('dashboardRangeEndDate');
+  if (dashboardRangeStartDate && !dashboardRangeStartDate.value) {
+    const now = new Date();
+    dashboardRangeStartDate.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+  }
+  if (dashboardRangeEndDate && !dashboardRangeEndDate.value) {
+    dashboardRangeEndDate.value = formatDateInputValue(new Date());
+  }
+  toggleDashboardDateRangePicker();
+
+  document.getElementById('dashboardPeriodFilter')?.addEventListener('change', () => {
+    if (!isCurrentUserManager) return;
+    toggleDashboardDateRangePicker();
+    renderDashboardAnalytics(dashboardReports);
+  });
+
+  document.getElementById('btnGenerateExecutiveReport')?.addEventListener('click', generateExecutiveReport);
+  document.getElementById('btnGenerateMeetingAgenda')?.addEventListener('click', generateMeetingAgendaPacket);
+  document.getElementById('btnExportPhotosZip')?.addEventListener('click', exportPhotosAsZip);
+  document.getElementById('btnDownloadPnlCsv')?.addEventListener('click', downloadPnlCsv);
+  document.getElementById('btnSaveCostSettings')?.addEventListener('click', saveCostSettings);
+  document.getElementById('btnResetCostSettings')?.addEventListener('click', resetCostSettings);
+
+  [dashboardRangeStartDate, dashboardRangeEndDate].forEach(input => {
+    input?.addEventListener('change', () => {
+      if (!isCurrentUserManager) return;
+      renderDashboardAnalytics(dashboardReports);
+    });
+  });
+
+  function showMessage(text, type = 'success') {
+    const box = document.getElementById('statusMessage');
+    if (!box) return;
+    box.textContent = text;
+    box.style.display = 'block';
+    box.style.backgroundColor = type === 'success' ? '#f0fdf4' : '#fef2f2';
+    box.style.color = type === 'success' ? '#166534' : '#b91c1c';
+    box.style.border = `1px solid ${type === 'success' ? '#bbf7d0' : '#fecaca'}`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (type === 'success') setTimeout(() => box.style.display = 'none', 5000);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function escapeAttr(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[ch]));
+  }
+
+
+  // --- DATA NORMALIZATION ---
+  // Keeps dashboard totals from splitting when users type different capitalization.
+  function titleCaseWords(value = "") {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .replace(/\b[a-z]/g, char => char.toUpperCase());
+  }
+
+  function normalizeCityName(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const key = raw.toLowerCase();
+
+    const cityMap = {
+      "celina": "Celina",
+      "the colony": "The Colony",
+      "coppel": "Coppell",
+      "coppell": "Coppell",
+      "denison": "Denison",
+      "dennison": "Denison",
+      "frisco": "Frisco",
+      "frisco parks department": "Frisco Parks Department",
+      "garland": "Garland",
+      "highland village": "Highland Village",
+      "keller": "Keller",
+      "mckinney": "McKinney",
+      "mc kinney": "McKinney",
+      "melissa": "Melissa",
+      "princeton": "Princeton",
+      "prosper": "Prosper",
+      "richardson": "Richardson",
+      "sachse": "Sachse",
+      "saginaw": "Saginaw",
+      "burleson": "Burleson",
+      "corinth": "Corinth",
+      "other": "Other"
+    };
+
+    return cityMap[key] || titleCaseWords(raw);
+  }
+
+  function normalizeInjectionType(value = "") {
+    const raw = String(value || "").trim();
+    const key = raw.toLowerCase();
+    if (!key) return "";
+    if (key === "di" || key.includes("deep")) return "Deep Injection";
+    if (key.includes("method")) return "Method";
+    return titleCaseWords(raw);
+  }
+
+  function normalizeWorkAreaType(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const key = raw.toLowerCase();
+
+    const areaMap = {
+      "alley": "Alley",
+      "driveway": "Driveway",
+      "leadwalk": "Leadwalk",
+      "lead walk": "Leadwalk",
+      "sidewalk": "Sidewalk",
+      "ada": "ADA",
+      "street": "Street",
+      "parking lot": "Parking Lot",
+      "pool": "Pool",
+      "deck": "Deck",
+      "patio": "Patio",
+      "sport court": "Sport Court",
+      "sports court": "Sport Court",
+      "joint grinding": "Joint Grinding",
+      "joint grind": "Joint Grinding",
+      "grinding": "Joint Grinding",
+      "other": "Other"
+    };
+
+    return areaMap[key] || titleCaseWords(raw);
+  }
+
+  function normalizePersonName(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    const key = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const nameMap = {
+      "walter": "Walter Timms",
+      "walt": "Walter Timms",
+      "walter timms": "Walter Timms",
+      "steve": "Steve Rickenbrode",
+      "steven": "Steve Rickenbrode",
+      "steve rickenbrode": "Steve Rickenbrode",
+      "isaiah": "Isaiah",
+      "cosme": "Cosme Charles",
+      "cosme charles": "Cosme Charles",
+      "dan": "Dan Zamarripa",
+      "dan zamarripa": "Daniel Zamaripa",
+      "logan": "Logan",
+      "osvaldo": "Osvaldo",
+      "varga": "Varga"
+    };
+
+    return nameMap[key] || titleCaseWords(raw);
+  }
+
+  const ACTIVE_TRUCK_BOSSES = new Set([
+    "Carlton",
+    "Isaiah",
+    "Dan Zamaripa",
+    "Logan",
+    "Osvaldo Varga"
+  ]);
+
+  function isActiveTruckBoss(name) {
+    return ACTIVE_TRUCK_BOSSES.has(normalizePersonName(name));
+  }
+
+  function getNormalizedCity(report) {
+    return normalizeCityName(report?.city) || "Unknown City";
+  }
+
+  function inferKnownCityFromAddress(address = "") {
+    const text = String(address || "").toLowerCase();
+    if (!text) return "";
+    const normalizedText = ` ${text.replace(/[^a-z]+/g, " ").trim()} `;
+
+    const cityAliases = {
+      "celina": "Celina",
+      "the colony": "The Colony",
+      "coppel": "Coppell",
+      "coppell": "Coppell",
+      "denison": "Denison",
+      "dennison": "Denison",
+      "frisco": "Frisco",
+      "garland": "Garland",
+      "highland village": "Highland Village",
+      "keller": "Keller",
+      "mckinney": "McKinney",
+      "mc kinney": "McKinney",
+      "melissa": "Melissa",
+      "princeton": "Princeton",
+      "prosper": "Prosper",
+      "richardson": "Richardson",
+      "sachse": "Sachse",
+      "saginaw": "Saginaw",
+      "burleson": "Burleson",
+      "corinth": "Corinth"
+    };
+
+    for (const [alias, city] of Object.entries(cityAliases)) {
+      const normalizedAlias = ` ${alias.replace(/[^a-z]+/g, " ").trim()} `;
+      if (normalizedText.includes(normalizedAlias)) return city;
+    }
+
+    const commaCityMatch = String(address || "").match(/,\s*([^,]+),\s*(TX|Texas)\b/i);
+    return commaCityMatch ? normalizeCityName(commaCityMatch[1]) : "";
+  }
+
+  function getDashboardCity(report) {
+    const normalized = getNormalizedCity(report);
+    if (normalized !== "Other" && normalized !== "Unknown City") return normalized;
+    return inferKnownCityFromAddress(report?.address) || normalized;
+  }
+
+  function getNormalizedTruck(report) {
+    return String(report?.truckNumber || "").trim() || "Unknown Truck";
+  }
+
+  function getNormalizedCrew(report) {
+    return normalizePersonName(report?.crewLead) || "Unknown Crew";
+  }
+
+  function fmtNumber(value, decimals = 0) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return decimals > 0 ? (0).toFixed(decimals) : '0';
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+  }
+
+  function getReportClicks(doc) {
+    const clicks = Number(doc.clicks || 0);
+    return Number.isFinite(clicks) && clicks > 0 ? clicks : 0;
+  }
+
+  function getReportEstimatedPounds(doc) {
+    return getReportClicks(doc) * 0.6;
+  }
+
+  function getReportFlowMeterPounds(doc) {
+    if (Number.isFinite(Number(doc.flowMeterPounds))) return Number(doc.flowMeterPounds);
+    const aStart = Number(doc.aMeterStart || 0);
+    const aFinish = Number(doc.aMeterFinish || 0);
+    const bStart = Number(doc.bMeterStart || 0);
+    const bFinish = Number(doc.bMeterFinish || 0);
+    return Math.max(0, aFinish - aStart) + Math.max(0, bFinish - bStart);
+  }
+
+  function getReportPounds(doc) {
+    return getReportEstimatedPounds(doc);
+  }
+
+  function getPoundComparison(doc) {
+    const clicks = getReportClicks(doc);
+    const estimatedPounds = getReportEstimatedPounds(doc);
+    const flowMeterPounds = getReportFlowMeterPounds(doc);
+    const differencePounds = flowMeterPounds - estimatedPounds;
+
+const differencePercent =
+  estimatedPounds > 0
+    ? (differencePounds / estimatedPounds) * 100
+    : 0;
+    return { clicks, estimatedPounds, flowMeterPounds, differencePounds, differencePercent };
+  }
+
+  function getReportHours(doc) {
+    const hours = Number(doc.totalHours || 0);
+    return Number.isFinite(hours) && hours > 0 ? hours : 0;
+  }
+
+  function normalizeRevenueAdjustmentMode(value) {
+    const mode = String(value || '').trim().toLowerCase();
+    return mode === 'add' || mode === 'addition' || mode === 'additional' ? 'add' : 'override';
+  }
+
+  function normalizeMonthlyRevenueAdjustments(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map(item => ({
+        month: String(item?.month || '').trim(),
+        mode: normalizeRevenueAdjustmentMode(item?.mode),
+        amount: Number(item?.amount || item?.revenue || 0),
+        note: String(item?.note || '').trim()
+      }))
+      .filter(item => /^\d{4}-\d{2}$/.test(item.month) && Number.isFinite(item.amount) && item.amount >= 0)
+      .sort((a, b) => a.month.localeCompare(b.month));
+  }
+
+  function parseMonthlyRevenueAdjustmentsText(text) {
+    return String(text || '')
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const parts = line.split('|').map(part => part.trim());
+        const month = parts[0] || '';
+        let mode = 'override';
+        let amountText = parts[1] || '';
+        let note = parts.slice(2).join(' | ');
+        if (/^(override|add|addition|additional)$/i.test(parts[1] || '')) {
+          mode = parts[1];
+          amountText = parts[2] || '';
+          note = parts.slice(3).join(' | ');
+        }
+        const amount = Number(String(amountText).replace(/[$,]/g, ''));
+        return { month, mode: normalizeRevenueAdjustmentMode(mode), amount, note };
+      })
+      .filter(item => /^\d{4}-\d{2}$/.test(item.month) && Number.isFinite(item.amount) && item.amount >= 0);
+  }
+
+  function formatMonthlyRevenueAdjustmentsText(adjustments = []) {
+    return normalizeMonthlyRevenueAdjustments(adjustments)
+      .map(item => `${item.month} | ${item.mode} | ${item.amount}${item.note ? ` | ${item.note}` : ''}`)
+      .join('\n');
+  }
+
+  function mergeCostSettings(value = {}) {
+    const merged = { ...DEFAULT_COST_SETTINGS, ...(value || {}) };
+    [
+      'superintendentDayRate',
+      'technicianDayRate',
+      'defaultSuperintendentCount',
+      'defaultTechnicianCount',
+      'chemicalCostPerLb',
+      'disposablesCostPerLb',
+      'overheadPercentOfRevenue',
+      'monthlyRevenueGoal',
+      'jointGrindingRatePerLinearFoot',
+      'defaultMpg',
+      'bigRigMpg',
+      'smallTruckMpg',
+      'smallEngineGalPerHour',
+      'dieselGeneratorGalPerHour',
+      'fuelPricePerGallon',
+      'shopLatitude',
+      'shopLongitude'
+    ].forEach(key => {
+      if (key === 'dieselGeneratorGalPerHour' && typeof merged[key] === 'undefined' && typeof value.dieselGeneratorGalPerMinute !== 'undefined') {
+        merged[key] = value.dieselGeneratorGalPerMinute;
+      }
+      const number = Number(merged[key]);
+      merged[key] = Number.isFinite(number) ? number : DEFAULT_COST_SETTINGS[key];
+    });
+    merged.shopAddress = merged.shopAddress || DEFAULT_COST_SETTINGS.shopAddress;
+    merged.bigRigUnits = merged.bigRigUnits || DEFAULT_COST_SETTINGS.bigRigUnits;
+    merged.smallTruckUnits = merged.smallTruckUnits || DEFAULT_COST_SETTINGS.smallTruckUnits;
+    merged.effectiveDate = normalizeDateInput(merged.effectiveDate || value.effectiveDate || '');
+    merged.ruleHistory = Array.isArray(value.ruleHistory) ? value.ruleHistory : [];
+    merged.monthlyRevenueAdjustments = normalizeMonthlyRevenueAdjustments(value.monthlyRevenueAdjustments);
+    return merged;
+  }
+
+  function normalizeDateInput(value) {
+    const text = String(value || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+    return '';
+  }
+
+  function getTodayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function getReportDateKey(report) {
+    return normalizeDateInput(report?.date || report?.createdAt || '') || getTodayKey();
+  }
+
+  function getFoamCostRuleForReport(report) {
+    const reportDate = getReportDateKey(report);
+    return FOAM_COST_RULES
+      .filter(rule => rule.effectiveDate <= reportDate)
+      .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))
+      .at(-1) || FOAM_COST_RULES[0];
+  }
+
+  function makeCostRuleVersion(settings = costSettings) {
+    const merged = mergeCostSettings(settings);
+    const version = { ...merged };
+    delete version.ruleHistory;
+    version.effectiveDate = normalizeDateInput(version.effectiveDate) || getTodayKey();
+    version.updatedBy = auth.currentUser?.email || merged.updatedBy || 'local';
+    version.updatedAt = new Date().toISOString();
+    version.changeNote = String(merged.changeNote || '').trim();
+    return version;
+  }
+
+  function getEffectiveCostSettingsForReport(report, settings = costSettings) {
+    const reportDate = getReportDateKey(report);
+    const versions = (Array.isArray(settings.ruleHistory) ? settings.ruleHistory : [])
+      .concat(settings.effectiveDate ? [makeCostRuleVersion(settings)] : [])
+      .map(item => ({ ...item, effectiveDate: normalizeDateInput(item.effectiveDate) }))
+      .filter(item => item.effectiveDate && item.effectiveDate <= reportDate)
+      .sort((a, b) => String(a.effectiveDate).localeCompare(String(b.effectiveDate)));
+    const activeVersion = versions[versions.length - 1];
+    return activeVersion ? mergeCostSettings({ ...settings, ...activeVersion, ruleHistory: settings.ruleHistory || [] }) : mergeCostSettings(settings);
+  }
+
+  function costSettingsRef() {
+    return firestoreDoc(db, 'artifacts', appId, 'public', 'data', 'settings', 'costRules');
+  }
+
+  function loadLocalCostSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COST_SETTINGS_STORAGE_KEY) || '{}');
+      costSettings = mergeCostSettings(saved);
+    } catch {
+      costSettings = { ...DEFAULT_COST_SETTINGS };
+    }
+    populateCostSettingsForm();
+  }
+
+  async function loadCostSettings() {
+    costSettingsUnsubscribe?.();costSettingsUnsubscribe=null;
+    loadLocalCostSettings();
+    if(!auth.currentUser||!isCurrentUserManager)return;
+    costSettingsUnsubscribe=onSnapshot(costSettingsRef(),snap=>{
+      if(snap.exists()){
+        costSettings=mergeCostSettings(snap.data());
+        localStorage.setItem(COST_SETTINGS_STORAGE_KEY,JSON.stringify(costSettings));
+        populateCostSettingsForm();
+        setText('costSettingsStatus',`Shared settings synced. Monthly goal ${formatMoney(costSettings.monthlyRevenueGoal)}. Last saved by ${costSettings.updatedBy||'manager'}.`);
+        if(activeTabId==='dashboard')renderDashboardAnalytics(dashboardReports);
+      }else{setText('costSettingsStatus','No shared settings saved yet. Using local/default values; select Save Cost Settings to establish the shared goal.');}
+    },error=>setText('costSettingsStatus',`Shared settings unavailable: ${error.message}. Values on this device may differ from other managers.`));
+  }
+
+  function populateCostSettingsForm() {
+    const fields = {
+      costSuperintendentDayRate: costSettings.superintendentDayRate,
+      costTechnicianDayRate: costSettings.technicianDayRate,
+      costDefaultSuperintendentCount: costSettings.defaultSuperintendentCount,
+      costDefaultTechnicianCount: costSettings.defaultTechnicianCount,
+      costChemicalPerLb: costSettings.chemicalCostPerLb,
+      costDisposablesPerLb: costSettings.disposablesCostPerLb,
+      costOverheadPercent: costSettings.overheadPercentOfRevenue,
+      costMonthlyRevenueGoal: costSettings.monthlyRevenueGoal,
+      costJointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
+      costDefaultMpg: costSettings.defaultMpg,
+      costBigRigMpg: costSettings.bigRigMpg,
+      costSmallTruckMpg: costSettings.smallTruckMpg,
+      costBigRigUnits: costSettings.bigRigUnits,
+      costSmallTruckUnits: costSettings.smallTruckUnits,
+      costSmallEngineGalPerHour: costSettings.smallEngineGalPerHour,
+      costDieselGeneratorGalPerHour: costSettings.dieselGeneratorGalPerHour,
+      costFuelPricePerGallon: costSettings.fuelPricePerGallon,
+      costShopAddress: costSettings.shopAddress,
+      costShopLatitude: costSettings.shopLatitude,
+      costShopLongitude: costSettings.shopLongitude,
+      costEffectiveDate: costSettings.effectiveDate || getTodayKey(),
+      costMonthlyRevenueAdjustments: formatMonthlyRevenueAdjustmentsText(costSettings.monthlyRevenueAdjustments)
+    };
+    Object.entries(fields).forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input) input.value = value ?? '';
+    });
+  }
+
+  function readCostSettingsForm() {
+    return mergeCostSettings({
+      superintendentDayRate: document.getElementById('costSuperintendentDayRate')?.value,
+      technicianDayRate: document.getElementById('costTechnicianDayRate')?.value,
+      defaultSuperintendentCount: document.getElementById('costDefaultSuperintendentCount')?.value,
+      defaultTechnicianCount: document.getElementById('costDefaultTechnicianCount')?.value,
+      chemicalCostPerLb: document.getElementById('costChemicalPerLb')?.value,
+      disposablesCostPerLb: document.getElementById('costDisposablesPerLb')?.value,
+      overheadPercentOfRevenue: document.getElementById('costOverheadPercent')?.value,
+      monthlyRevenueGoal: document.getElementById('costMonthlyRevenueGoal')?.value,
+      jointGrindingRatePerLinearFoot: document.getElementById('costJointGrindingRatePerLinearFoot')?.value,
+      defaultMpg: document.getElementById('costDefaultMpg')?.value,
+      bigRigMpg: document.getElementById('costBigRigMpg')?.value,
+      smallTruckMpg: document.getElementById('costSmallTruckMpg')?.value,
+      bigRigUnits: document.getElementById('costBigRigUnits')?.value?.trim() || DEFAULT_COST_SETTINGS.bigRigUnits,
+      smallTruckUnits: document.getElementById('costSmallTruckUnits')?.value?.trim() || DEFAULT_COST_SETTINGS.smallTruckUnits,
+      smallEngineGalPerHour: document.getElementById('costSmallEngineGalPerHour')?.value,
+      dieselGeneratorGalPerHour: document.getElementById('costDieselGeneratorGalPerHour')?.value,
+      fuelPricePerGallon: document.getElementById('costFuelPricePerGallon')?.value,
+      shopAddress: document.getElementById('costShopAddress')?.value?.trim() || DEFAULT_COST_SETTINGS.shopAddress,
+      shopLatitude: document.getElementById('costShopLatitude')?.value,
+      shopLongitude: document.getElementById('costShopLongitude')?.value,
+      effectiveDate: document.getElementById('costEffectiveDate')?.value || getTodayKey(),
+      ruleHistory: costSettings.ruleHistory || [],
+      monthlyRevenueAdjustments: parseMonthlyRevenueAdjustmentsText(document.getElementById('costMonthlyRevenueAdjustments')?.value || ''),
+      changeNote: document.getElementById('costChangeNote')?.value?.trim() || '',
+      updatedBy: auth.currentUser?.email || 'local',
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  async function saveCostSettings() {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const nextSettings=readCostSettingsForm();
+    const nextVersion=makeCostRuleVersion(nextSettings);
+    const ruleHistory=(Array.isArray(costSettings.ruleHistory)?costSettings.ruleHistory:[])
+      .filter(item=>normalizeDateInput(item.effectiveDate)!==nextVersion.effectiveDate)
+      .concat(nextVersion).sort((a,b)=>String(a.effectiveDate||'').localeCompare(String(b.effectiveDate||'')));
+    const next=mergeCostSettings({...nextSettings,ruleHistory});
+    if(!Number.isFinite(Number(next.monthlyRevenueGoal))||Number(next.monthlyRevenueGoal)<0)return showMessage('Enter a nonnegative monthly revenue goal.','error');
+    setText('costSettingsStatus','Saving shared settings…');
+    const button=document.getElementById('btnSaveCostSettings');if(button)button.disabled=true;
+    try{
+      await setDoc(costSettingsRef(),next,{merge:true});
+      costSettings=next;localStorage.setItem(COST_SETTINGS_STORAGE_KEY,JSON.stringify(costSettings));
+      populateCostSettingsForm();
+      setText('costSettingsStatus',`Shared cost settings saved by ${costSettings.updatedBy}. Monthly goal ${formatMoney(costSettings.monthlyRevenueGoal)}.`);
+      showMessage('Shared cost settings saved.');
+      renderDashboardAnalytics(dashboardReports);
+    }catch(error){
+      setText('costSettingsStatus',`Shared settings were not saved: ${error.message}. Your edits remain in the form; retry after checking access.`);
+      showMessage('Shared settings were not saved. Check the settings message before retrying.','error');
+    }finally{if(button)button.disabled=false;}
+  }
+
+  function syncVisibleCostSettingsForm() {
+    if (!document.getElementById('costMonthlyRevenueAdjustments')) return;
+    costSettings = readCostSettingsForm();
+    localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
+  }
+
+  function resetCostSettings() {
+    costSettings = mergeCostSettings({ ...DEFAULT_COST_SETTINGS, effectiveDate: getTodayKey(), updatedBy: auth.currentUser?.email || '', updatedAt: new Date().toISOString(), changeNote: 'Reset to defaults', ruleHistory: [] });
+    localStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(costSettings));
+    populateCostSettingsForm();
+    renderDashboardAnalytics(dashboardReports);
+    setText('costSettingsStatus', 'Defaults restored locally. Click Save Cost Settings to share.');
+  }
+
+  function countNamedTechnicians(report) {
+    return ['helper1', 'helper2', 'helper3', 'helper4']
+      .map(key => String(report[key] || '').trim())
+      .filter(Boolean).length;
+  }
+
+  function hasExplicitCrewCount(value) {
+    return value !== '' && value !== null && typeof value !== 'undefined' && Number.isFinite(Number(value));
+  }
+
+  function getCrewCountsForManagerEdit(report) {
+    const submittedSuperintendentCount = String(report.crewLead || '').trim() ? 1 : '';
+    const submittedTechnicianCount = countNamedTechnicians(report);
+    return {
+      superintendentCount: hasExplicitCrewCount(report.superintendentCount) ? Number(report.superintendentCount) : submittedSuperintendentCount,
+      technicianCount: hasExplicitCrewCount(report.technicianCount) ? Number(report.technicianCount) : (submittedTechnicianCount || '')
+    };
+  }
+
+  function getReportCrewCounts(report, settings = costSettings) {
+    const superintendentRaw = report.superintendentCount;
+    const technicianRaw = report.technicianCount;
+    const superintendent = Number(superintendentRaw);
+    const technician = Number(technicianRaw);
+    const inferredTechnicians = countNamedTechnicians(report);
+    const hasActualSuperintendent = hasExplicitCrewCount(superintendentRaw) && superintendent >= 0;
+    const hasActualTechnician = hasExplicitCrewCount(technicianRaw) && technician >= 0;
+    const hasSubmittedSuperintendent = Boolean(String(report.crewLead || '').trim());
+    const hasSubmittedTechnicians = inferredTechnicians > 0;
+    const superintendentCount = hasActualSuperintendent ? superintendent : (hasSubmittedSuperintendent ? 1 : Number(settings.defaultSuperintendentCount || 0));
+    const technicianCount = hasActualTechnician ? technician : (inferredTechnicians || Number(settings.defaultTechnicianCount || 0));
+    let quality = 'Manager-reviewed crew';
+    if (!hasActualSuperintendent || !hasActualTechnician) {
+      quality = hasSubmittedSuperintendent || hasSubmittedTechnicians ? 'Submitted crew' : 'Default crew used';
+    }
+    return { superintendentCount, technicianCount, quality };
+  }
+
+  function getSameUnitDayReports(report, docs = []) {
+    const date = report.date || '';
+    const truck = getNormalizedTruck(report);
+    const group = (docs || []).filter(item => (item.date || '') === date && getNormalizedTruck(item) === truck && item.deleted !== true);
+    return group.length ? group : [report];
+  }
+
+  function getJobShareOfDay(report, group) {
+    const totalHours = group.reduce((sum, item) => sum + getReportHours(item), 0);
+    if (totalHours > 0) return getReportHours(report) / totalHours;
+    return 1 / Math.max(1, group.length);
+  }
+
+  function parseUnitList(value) {
+    return String(value || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  function getDefaultMpgForReport(report, settings = costSettings) {
+    const truck = getNormalizedTruck(report);
+    if (parseUnitList(settings.bigRigUnits).includes(truck)) return Number(settings.bigRigMpg || settings.defaultMpg || 0);
+    if (parseUnitList(settings.smallTruckUnits).includes(truck)) return Number(settings.smallTruckMpg || settings.defaultMpg || 0);
+    return Number(settings.defaultMpg || 0);
+  }
+
+  function getReportRouteMiles(report) {
+    const overrideMiles = Number(report.routeMiles || 0);
+    if (Number.isFinite(overrideMiles) && overrideMiles > 0) return overrideMiles;
+    const generatedMiles = Number(report.routeMilesGenerated || report.appRouteMiles || 0);
+    if (Number.isFinite(generatedMiles) && generatedMiles > 0) return generatedMiles;
+    const gpsMiles = Number(report.gpsMiles ?? report.gpsDistanceMiles ?? 0);
+    return Number.isFinite(gpsMiles) && gpsMiles > 0 ? gpsMiles : 0;
+  }
+
+  function getLatLngParts(location) {
+    if (!location) return null;
+    const lat = typeof location.lat === 'function' ? location.lat() : Number(location.lat);
+    const lng = typeof location.lng === 'function' ? location.lng() : Number(location.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }
+
+  function calculateStraightLineMiles(fromLocation, toLocation) {
+    const from = getLatLngParts(fromLocation);
+    const to = getLatLngParts(toLocation);
+    if (!from || !to) return 0;
+    const radians = degrees => degrees * Math.PI / 180;
+    const earthRadiusMiles = 3958.8;
+    const dLat = radians(to.lat - from.lat);
+    const dLng = radians(to.lng - from.lng);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(radians(from.lat)) * Math.cos(radians(to.lat)) * Math.sin(dLng / 2) ** 2;
+    return earthRadiusMiles * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function geocodeAddress(address) {
+    const text = String(address || '').trim();
+    if (!text || !window.google?.maps?.Geocoder) return Promise.resolve(null);
+    const geocoder = new google.maps.Geocoder();
+    return new Promise(resolve => {
+      geocoder.geocode({ address: text, componentRestrictions: { country: 'US' } }, (results, status) => {
+        if (status !== 'OK' || !results?.[0]?.geometry?.location) {
+          resolve({ status, location: null });
+          return;
+        }
+        resolve({ status, location: results[0].geometry.location, formattedAddress: results[0].formatted_address || text });
+      });
+    });
+  }
+
+  function estimateRoundTripFromStraightLine(fromLocation, toLocation) {
+    const straightLineMiles = calculateStraightLineMiles(fromLocation, toLocation);
+    if (straightLineMiles <= 0) return 0;
+    return Number((straightLineMiles * 2 * 1.25).toFixed(1));
+  }
+
+  function getShopCoordinates(settings = costSettings) {
+    return {
+      lat: Number(settings.shopLatitude || DEFAULT_COST_SETTINGS.shopLatitude || 0),
+      lng: Number(settings.shopLongitude || DEFAULT_COST_SETTINGS.shopLongitude || 0)
+    };
+  }
+
+  async function calculateRoundTripRouteMilesDetails(jobAddress, settings = costSettings, jobCoordinates = null) {
+    const destination = String(jobAddress || '').trim();
+    const shopAddress = String(settings.shopAddress || DEFAULT_COST_SETTINGS.shopAddress || '').trim();
+    if (!destination || !shopAddress) return { miles: null, source: 'Not calculated', status: 'Missing destination or shop address' };
+
+    const gpsEstimatedMiles = estimateRoundTripFromStraightLine(getShopCoordinates(settings), jobCoordinates);
+
+    if (!window.google?.maps) {
+      if (gpsEstimatedMiles > 0) {
+        return {
+          miles: gpsEstimatedMiles,
+          source: 'Estimated route: saved GPS straight-line x1.25',
+          status: 'Google Maps not loaded; used saved job GPS'
+        };
+      }
+      return { miles: null, source: 'Not calculated', status: 'Google Maps not loaded and no job GPS available' };
+    }
+
+    if (window.google?.maps?.importLibrary) {
+      try {
+        const { Route } = await google.maps.importLibrary("routes");
+        const { routes } = await Route.computeRoutes({
+          origin: shopAddress,
+          destination: shopAddress,
+          intermediates: [{ location: destination }],
+          travelMode: "DRIVING",
+          optimizeWaypointOrder: false,
+          fields: ["distanceMeters"]
+        });
+        const meters = Number(routes?.[0]?.distanceMeters || 0);
+        const miles = meters / 1609.344;
+        if (Number.isFinite(miles) && miles > 0) {
+          return {
+            miles: Number(miles.toFixed(1)),
+            source: 'Google route: shop-job-shop',
+            status: 'OK'
+          };
+        }
+        console.warn('Route mileage calculation returned no distance.');
+      } catch (error) {
+        console.warn('Route mileage calculation failed:', error);
+      }
+    }
+
+    const shopGeo = await geocodeAddress(shopAddress);
+    const destinationGeo = await geocodeAddress(destination);
+    const estimatedRoundTripMiles = estimateRoundTripFromStraightLine(shopGeo?.location, destinationGeo?.location);
+    if (estimatedRoundTripMiles > 0) {
+      return {
+        miles: estimatedRoundTripMiles,
+        source: 'Estimated route: geocoded straight-line x1.25',
+        status: `Directions unavailable; geocode ${shopGeo?.status || '-'} / ${destinationGeo?.status || '-'}`
+      };
+    }
+
+    if (gpsEstimatedMiles > 0) {
+      return {
+        miles: gpsEstimatedMiles,
+        source: 'Estimated route: saved GPS straight-line x1.25',
+        status: `Google route/geocode unavailable (${destinationGeo?.status || shopGeo?.status || 'no result'}); used saved job GPS`
+      };
+    }
+
+    return { miles: null, source: 'Not calculated', status: destinationGeo?.status || shopGeo?.status || 'No route/geocode result' };
+  }
+
+  async function calculateRoundTripRouteMiles(jobAddress, settings = costSettings, jobCoordinates = null) {
+    lastRouteMilesResult = await calculateRoundTripRouteMilesDetails(jobAddress, settings, jobCoordinates);
+    return lastRouteMilesResult.miles;
+  }
+
+  function parseRunTimeHours(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text) return 0;
+    const colon = text.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+    if (colon) return Number(colon[1]) + (Number(colon[2]) / 60);
+    const number = Number((text.match(/-?\d+(\.\d+)?/) || [])[0]);
+    if (!Number.isFinite(number) || number <= 0) return 0;
+    if (text.includes('min')) return number / 60;
+    return number;
+  }
+
+  function getJointGrindingLinearFeet(report) {
+    const feet = Number(report.jointGrindingLinearFeet || 0);
+    return Number.isFinite(feet) && feet > 0 ? feet : 0;
+  }
+
+  function calculateReportRevenue(report, settings = costSettings) {
+    const billableLbs = Number(report.billableLbs);
+    const billingRate = Number(report.billingRate);
+    const hasBillableLbRevenue = Number.isFinite(billableLbs) && billableLbs > 0 && Number.isFinite(billingRate) && billingRate > 0;
+    const billableLbRevenue = hasBillableLbRevenue ? billableLbs * billingRate : 0;
+    const jointGrindingLinearFeet = getJointGrindingLinearFeet(report);
+    const jointGrindingRate = Number(report.jointGrindingRatePerLinearFoot || settings.jointGrindingRatePerLinearFoot || 0);
+    const hasJointGrindingRevenue = jointGrindingLinearFeet > 0 && Number.isFinite(jointGrindingRate) && jointGrindingRate > 0;
+    const jointGrindingRevenue = hasJointGrindingRevenue ? jointGrindingLinearFeet * jointGrindingRate : 0;
+    return {
+      // Revenue stays manager-controlled: it exists only after both billable
+      // pounds and the billing rate have been entered on the report.
+      revenue: billableLbRevenue,
+      billableLbs: Number.isFinite(billableLbs) ? billableLbs : 0,
+      billingRate: Number.isFinite(billingRate) ? billingRate : 0,
+      billableLbRevenue,
+      hasBillableLbRevenue,
+      jointGrindingLinearFeet,
+      jointGrindingRate: Number.isFinite(jointGrindingRate) ? jointGrindingRate : 0,
+      jointGrindingRevenue,
+      hasJointGrindingRevenue
+    };
+  }
+
+  function normalizeJobGroupPart(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80);
+  }
+
+  function getSuggestedJobGroupId(report) {
+    const city = normalizeJobGroupPart(getNormalizedCity(report));
+    const address = normalizeJobGroupPart(report.address || 'no-address');
+    return [city, address].filter(Boolean).join('-') || 'job-group';
+  }
+
+  function getExplicitJobGroupId(report) {
+    return String(report?.jobGroupId || '').trim();
+  }
+
+  function getRevenueAllocationMethod(report, group = []) {
+    const allowed = ['laborHours', 'pumpedLbs', 'evenly', 'allOnThisReport'];
+    const ownMethod = String(report?.revenueAllocationMethod || '').trim();
+    if (allowed.includes(ownMethod)) return ownMethod;
+    const groupMethod = (group || []).map(item => String(item.revenueAllocationMethod || '').trim()).find(method => allowed.includes(method));
+    return groupMethod || 'laborHours';
+  }
+
+  function getRevenueJobGroup(report, docs = []) {
+    const groupId = getExplicitJobGroupId(report);
+    if (!groupId) return [report];
+    const group = (docs || []).filter(item => item.deleted !== true && getExplicitJobGroupId(item) === groupId);
+    return group.length ? group : [report];
+  }
+
+  function getAllocationBasis(report, method) {
+    if (method === 'pumpedLbs') return getReportPounds(report);
+    if (method === 'evenly') return 1;
+    return getReportHours(report);
+  }
+
+  function formatRevenueAllocationMethod(method) {
+    const labels = {
+      laborHours: 'by labor hours',
+      pumpedLbs: 'by pumped lbs',
+      evenly: 'evenly by report',
+      allOnThisReport: 'all on this report'
+    };
+    return labels[method] || labels.laborHours;
+  }
+
+  function getAllocatedRevenueParts(report, docs = allReports, settings = costSettings) {
+    const direct = calculateReportRevenue(report, settings);
+    const group = getRevenueJobGroup(report, docs);
+    const method = getRevenueAllocationMethod(report, group);
+    const groupId = getExplicitJobGroupId(report);
+    const groupRevenue = group.reduce((sum, item) => sum + calculateReportRevenue(item, settings).revenue, 0);
+    const totalBasis = group.reduce((sum, item) => sum + getAllocationBasis(item, method), 0);
+    const basis = getAllocationBasis(report, method);
+    const share = method === 'allOnThisReport'
+      ? (direct.revenue > 0 ? 1 : 0)
+      : (totalBasis > 0 ? basis / totalBasis : 1 / Math.max(1, group.length));
+    // Preserve the manager-entered group total and allocate it across linked
+    // reports using labor hours by default.
+    const allocatedRevenue = groupId && group.length > 1 && method !== 'allOnThisReport'
+      ? groupRevenue * share
+      : direct.revenue;
+
+    return {
+      ...direct,
+      revenue: allocatedRevenue,
+      directRevenue: direct.revenue,
+      allocatedRevenue,
+      groupRevenue,
+      groupId,
+      groupSize: group.length,
+      groupIndex: group.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).findIndex(item => item.id === report.id) + 1,
+      allocationMethod: method,
+      allocationShare: share,
+      isGroupedRevenue: Boolean(groupId && group.length > 1),
+      revenueSourceCount: group.filter(item => calculateReportRevenue(item, settings).revenue > 0).length
+    };
+  }
+
+  function calculateReportPnl(report, docs = allReports, settings = costSettings) {
+    const activeSettings = getEffectiveCostSettingsForReport(report, settings);
+    const group = getSameUnitDayReports(report, docs);
+    const share = getJobShareOfDay(report, group);
+    const crewCounts = getReportCrewCounts(report, activeSettings);
+    const dailyLabor = (crewCounts.superintendentCount * Number(activeSettings.superintendentDayRate || 0)) +
+      (crewCounts.technicianCount * Number(activeSettings.technicianDayRate || 0));
+    const laborCost = dailyLabor * share;
+    const pumpedLbs = getReportFlowMeterPounds(report) || getReportPounds(report);
+    const chemicalLbs = getReportPounds(report);
+    const revenueParts = getAllocatedRevenueParts(report, docs, activeSettings);
+    const revenue = revenueParts.revenue;
+    const hasRevenue = revenue > 0;
+    const freeChemicalUsed = Boolean(report.freeChemicalUsed);
+    const foamCostRule = getFoamCostRuleForReport(report);
+    const chemicalRate = Number(foamCostRule.costPerLb || 0);
+    const chemicalCost = freeChemicalUsed ? 0 : chemicalLbs * chemicalRate;
+    const disposablesCost = pumpedLbs * Number(activeSettings.disposablesCostPerLb || 0);
+    const routeMiles = getReportRouteMiles(report);
+    const mpg = Number(report.unitMpg || getDefaultMpgForReport(report, activeSettings) || 0);
+    const fuelPrice = Number(report.fuelPricePerGallon || activeSettings.fuelPricePerGallon || 0);
+    const vehicleFuelGallons = routeMiles > 0 && mpg > 0 ? routeMiles / mpg : 0;
+    const smallEngineHours = Number(report.smallEngineHours || 0);
+    const smallEngineGallons = Number.isFinite(smallEngineHours) && smallEngineHours > 0 ? smallEngineHours * Number(activeSettings.smallEngineGalPerHour || 0) : 0;
+    const generatorHours = parseRunTimeHours(report.generatorRunTime);
+    const generatorGallons = generatorHours > 0 ? generatorHours * Number(activeSettings.dieselGeneratorGalPerHour || 0) : 0;
+    const fuelGallons = vehicleFuelGallons + smallEngineGallons + generatorGallons;
+    const fuelCost = fuelGallons > 0 && fuelPrice > 0 ? fuelGallons * fuelPrice : 0;
+    const overheadCost = revenue * (Number(activeSettings.overheadPercentOfRevenue || 0) / 100);
+    const directCost = laborCost + chemicalCost + fuelCost + disposablesCost;
+    const totalCost = directCost + overheadCost;
+    const profit = revenue - totalCost;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const quality = {
+      revenue: hasRevenue ? (revenueParts.isGroupedRevenue ? 'Revenue: Manager reviewed | Allocated from linked job group' : (revenueParts.hasJointGrindingRevenue ? 'Revenue: Includes joint grinding' : 'Revenue: Manager reviewed')) : (revenueParts.jointGrindingLinearFeet > 0 ? 'Revenue: Missing joint grinding rate' : (revenueParts.billableLbs <= 0 ? 'Revenue: Missing billable lbs' : 'Revenue: Missing rate')),
+      labor: `Labor: ${crewCounts.quality}`,
+      fuel: fuelCost > 0 ? `Fuel: ${routeMiles > 0 ? 'Route miles' : 'Engine/generator runtime'}` : 'Fuel: Needs miles/MPG',
+      material: freeChemicalUsed ? 'Materials: Free chemical used' : 'Materials: Chemical from clicks',
+      overhead: `Overhead: ${fmtNumber(activeSettings.overheadPercentOfRevenue, 1)}% of revenue`
+    };
+    const warningCount = Object.values(quality).filter(label => /Missing|Needs|Default|Partial/.test(label)).length;
+    const confidence = !hasRevenue ? 'Needs review' : warningCount === 0 ? 'High confidence' : warningCount <= 2 ? 'Medium confidence' : 'Low confidence';
+    return {
+      revenue,
+      directRevenue: revenueParts.directRevenue,
+      groupRevenue: revenueParts.groupRevenue,
+      allocatedRevenue: revenueParts.allocatedRevenue,
+      groupId: revenueParts.groupId,
+      groupSize: revenueParts.groupSize,
+      groupIndex: revenueParts.groupIndex,
+      allocationMethod: revenueParts.allocationMethod,
+      allocationShare: revenueParts.allocationShare,
+      isGroupedRevenue: revenueParts.isGroupedRevenue,
+      revenueSourceCount: revenueParts.revenueSourceCount,
+      billableLbs: revenueParts.billableLbs,
+      billingRate: revenueParts.billingRate,
+      billableLbRevenue: revenueParts.billableLbRevenue,
+      jointGrindingLinearFeet: revenueParts.jointGrindingLinearFeet,
+      jointGrindingRate: revenueParts.jointGrindingRate,
+      jointGrindingRevenue: revenueParts.jointGrindingRevenue,
+      freeChemicalUsed,
+      chemicalRate: freeChemicalUsed ? 0 : chemicalRate,
+      foamCostBasePerLb: foamCostRule.baseCostPerLb,
+      foamTaxRate: foamCostRule.taxRate,
+      foamCostLabel: foamCostRule.label,
+      laborCost,
+      chemicalCost,
+      chemicalLbs,
+      fuelCost,
+      disposablesCost,
+      overheadCost,
+      directCost,
+      totalCost,
+      profit,
+      margin,
+      quality,
+      confidence,
+      routeMiles: Number.isFinite(routeMiles) ? routeMiles : 0,
+      fuelGallons,
+      vehicleFuelGallons,
+      smallEngineGallons,
+      generatorGallons,
+      mpg,
+      costRuleEffectiveDate: activeSettings.effectiveDate || '',
+      share,
+      dailyLabor
+    };
+  }
+
+  function summarizePnl(docs, settings = costSettings) {
+    return (docs || []).reduce((summary, report) => {
+      const pnl = calculateReportPnl(report, docs, settings);
+      summary.revenue += pnl.revenue;
+      summary.laborCost += pnl.laborCost;
+      summary.chemicalCost += pnl.chemicalCost;
+      summary.fuelCost += pnl.fuelCost;
+      summary.disposablesCost += pnl.disposablesCost;
+      summary.overheadCost += pnl.overheadCost;
+      summary.directCost += pnl.directCost;
+      summary.totalCost += pnl.totalCost;
+      summary.profit += pnl.profit;
+      summary.jointGrindingLinearFeet += pnl.jointGrindingLinearFeet;
+      summary.jointGrindingRevenue += pnl.jointGrindingRevenue;
+      if (pnl.revenue <= 0) summary.missingRevenue += 1;
+      if (/Needs/.test(pnl.quality.fuel)) summary.missingFuel += 1;
+      if (/Default|Partial/.test(pnl.quality.labor)) summary.estimatedLabor += 1;
+      return summary;
+    }, {
+      revenue: 0,
+      laborCost: 0,
+      chemicalCost: 0,
+      fuelCost: 0,
+      disposablesCost: 0,
+      overheadCost: 0,
+      directCost: 0,
+      totalCost: 0,
+      profit: 0,
+      jointGrindingLinearFeet: 0,
+      jointGrindingRevenue: 0,
+      missingRevenue: 0,
+      missingFuel: 0,
+      estimatedLabor: 0
+    });
+  }
+
+  function getFullMonthKeyFromRange(range) {
+    if (!range?.start || !range?.end || range.key === 'all') return '';
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    if (start.getDate() !== 1) return '';
+    const expectedEnd = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    if (
+      end.getFullYear() !== expectedEnd.getFullYear() ||
+      end.getMonth() !== expectedEnd.getMonth() ||
+      end.getDate() !== expectedEnd.getDate()
+    ) return '';
+    return `${start.getFullYear()}-${pad2(start.getMonth() + 1)}`;
+  }
+
+  function getMonthlyRevenueAdjustmentForRange(range, settings = costSettings) {
+    const monthKey = getFullMonthKeyFromRange(range);
+    if (!monthKey) return null;
+    const adjustments = normalizeMonthlyRevenueAdjustments(settings.monthlyRevenueAdjustments);
+    return adjustments.find(item => item.month === monthKey) || null;
+  }
+
+  function getMonthlyRevenueAdjustmentByKey(monthKey, settings = costSettings) {
+    if (!/^\d{4}-\d{2}$/.test(String(monthKey || ''))) return null;
+    const adjustments = normalizeMonthlyRevenueAdjustments(settings.monthlyRevenueAdjustments);
+    return adjustments.find(item => item.month === monthKey) || null;
+  }
+
+  function applyManualMonthlyRevenueAdjustment(summary, range, settings = costSettings) {
+    const adjustment = getMonthlyRevenueAdjustmentForRange(range, settings);
+    if (!adjustment) return summary;
+    const currentRevenue = Number(summary.revenue || 0);
+    const delta = adjustment.mode === 'add' ? adjustment.amount : adjustment.amount - currentRevenue;
+    const overheadDelta = delta * (Number(settings.overheadPercentOfRevenue || 0) / 100);
+    summary.revenue += delta;
+    summary.overheadCost = Number(summary.overheadCost || 0) + overheadDelta;
+    summary.totalCost = Number(summary.totalCost || 0) + overheadDelta;
+    summary.profit = Number(summary.profit || 0) + delta - overheadDelta;
+    summary.margin = summary.revenue > 0 ? (summary.profit / summary.revenue) * 100 : 0;
+    summary.revenuePerLaborHour = summary.hours > 0 ? summary.revenue / summary.hours : 0;
+    summary.revenuePerLb = summary.pounds > 0 ? summary.revenue / summary.pounds : 0;
+    summary.manualRevenueAdjustment = delta;
+    summary.manualRevenueAdjustmentMode = adjustment.mode;
+    summary.manualRevenueAdjustmentAmount = adjustment.amount;
+    summary.manualRevenueAdjustmentNote = adjustment.note || '';
+    return summary;
+  }
+
+  function formatMoney(value) {
+    const number = Number(value || 0);
+    return number.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  }
+
+  function renderQualityPills(pnl) {
+    return Object.values(pnl.quality).map(label => `<span class="status-pill ${/Missing|Needs/.test(label) ? 'status-rejected' : /Default|Partial/.test(label) ? 'status-revision' : 'status-approved'}">${escapeHtml(label)}</span>`).join('');
+  }
+
+  function getColor(name, colorMap) {
+    if (colorMap[name]) return colorMap[name];
+    let total = 0;
+    String(name || '').split('').forEach(char => total += char.charCodeAt(0));
+    return FALLBACK_COLORS[total % FALLBACK_COLORS.length];
+  }
+
+  function isSameDate(dateValue, compareDate) {
+    if (!dateValue) return false;
+    const d = new Date(`${dateValue}T00:00:00`);
+    return d.getFullYear() === compareDate.getFullYear() &&
+      d.getMonth() === compareDate.getMonth() &&
+      d.getDate() === compareDate.getDate();
+  }
+
+  function isThisWeek(dateValue) {
+    if (!dateValue) return false;
+    const now = new Date();
+    const date = new Date(`${dateValue}T00:00:00`);
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    return date >= start && date < end;
+  }
+
+
+  function parseReportDate(dateValue) {
+    if (!dateValue) return null;
+    const date = new Date(`${dateValue}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getPeriodRanges(now = new Date()) {
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(todayStart.getDate() - 1);
+
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(todayStart.getDate() + 1);
+
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(todayStart.getDate() - todayStart.getDay());
+
+    const nextWeekStart = new Date(weekStart);
+    nextWeekStart.setDate(weekStart.getDate() + 7);
+
+    const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+    const nextMonthStart = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 1);
+
+    return {
+      today: { start: todayStart, end: tomorrowStart },
+      yesterday: { start: yesterdayStart, end: todayStart },
+      week: { start: weekStart, end: nextWeekStart },
+      month: { start: monthStart, end: nextMonthStart }
+    };
+  }
+
+  function isDateInRange(dateValue, range) {
+    const date = parseReportDate(dateValue);
+    if (!date || !range) return false;
+    return date >= range.start && date < range.end;
+  }
+
+  function getPeriodMetrics(docs, range) {
+    const metrics = {
+      pounds: 0,
+      hours: 0,
+      reports: 0,
+      byTruck: {}
+    };
+
+    docs.forEach(report => {
+      if (!isDateInRange(report.date, range)) return;
+
+      const pounds = getReportPounds(report);
+      const hours = getReportHours(report);
+      const truck = getNormalizedTruck(report);
+
+      metrics.pounds += pounds;
+      metrics.hours += hours;
+      metrics.reports += 1;
+
+      if (!metrics.byTruck[truck]) metrics.byTruck[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      metrics.byTruck[truck].pounds += pounds;
+      metrics.byTruck[truck].hours += hours;
+      metrics.byTruck[truck].reports += 1;
+    });
+
+    metrics.poundsPerHour = metrics.hours > 0 ? metrics.pounds / metrics.hours : 0;
+    metrics.bestTruck = Object.values(metrics.byTruck)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour)[0] || null;
+
+    return metrics;
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function updatePeriodMetricCards(docs) {
+    const ranges = getPeriodRanges(new Date());
+    const periods = {
+      Today: getPeriodMetrics(docs, ranges.today),
+      Yesterday: getPeriodMetrics(docs, ranges.yesterday),
+      Week: getPeriodMetrics(docs, ranges.week),
+      Month: getPeriodMetrics(docs, ranges.month)
+    };
+
+    Object.entries(periods).forEach(([name, metrics]) => {
+      setText(`dash${name}Pounds`, fmtNumber(metrics.pounds, 0));
+      setText(`dash${name}Hours`, fmtNumber(metrics.hours, 2));
+      setText(`dash${name}LbsPerHour`, fmtNumber(metrics.poundsPerHour, 0));
+      setText(`dash${name}Reports`, fmtNumber(metrics.reports, 0));
+      setText(`dash${name}BestTruck`, metrics.bestTruck ? `${metrics.bestTruck.name}` : '—');
+    });
+
+    setText('dashMonthPoundsLarge', fmtNumber(periods.Month.pounds, 0));
+    setText('dashMonthReportsLarge', fmtNumber(periods.Month.reports, 0));
+  }
+
+  function renderNewServiceCities(docs) {
+    const active = activeReportsOnly(docs || []);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const byCity = {};
+    active.forEach(report => {
+      const city = getDashboardCity(report);
+      if (!city || city === 'Other' || city === 'Unknown City') return;
+      const date = parseReportDate(report.date);
+      if (!date) return;
+      if (!byCity[city]) {
+        byCity[city] = {
+          city,
+          allDates: [],
+          monthReports: 0,
+          monthPounds: 0,
+          firstThisMonth: null,
+          latestThisMonth: null,
+          latestTruck: '',
+          latestCrew: ''
+        };
+      }
+
+      const item = byCity[city];
+      item.allDates.push(date);
+
+      if (date >= monthStart && date < nextMonthStart) {
+        item.monthReports += 1;
+        item.monthPounds += getReportPounds(report);
+        if (!item.firstThisMonth || date < item.firstThisMonth) item.firstThisMonth = date;
+        if (!item.latestThisMonth || date >= item.latestThisMonth) {
+          item.latestThisMonth = date;
+          item.latestTruck = getNormalizedTruck(report);
+          item.latestCrew = getNormalizedCrew(report);
+        }
+      }
+    });
+
+    const newCities = Object.values(byCity).map(item => {
+      if (!item.firstThisMonth) return null;
+      const priorDates = item.allDates
+        .filter(date => date < item.firstThisMonth)
+        .sort((a, b) => b - a);
+      const lastPriorDate = priorDates[0] || null;
+      const inactiveDays = lastPriorDate
+        ? Math.floor((item.firstThisMonth.getTime() - lastPriorDate.getTime()) / 86400000)
+        : null;
+
+      return {
+        ...item,
+        lastPriorDate,
+        inactiveDays,
+        isNew: !lastPriorDate || inactiveDays > 60
+      };
+    })
+      .filter(item => item && item.isNew)
+      .sort((a, b) => b.firstThisMonth - a.firstThisMonth || b.monthPounds - a.monthPounds)
+      .slice(0, 8);
+
+    if (!newCities.length) {
+      return `<div class="empty-state">No cities started or restarted this month after a 60+ day gap.</div>`;
+    }
+
+    return `<div class="new-city-grid">${newCities.map(item => {
+      const statusText = item.lastPriorDate
+        ? `Restarted after ${fmtNumber(item.inactiveDays, 0)} days idle`
+        : 'First recorded job';
+      return `
+      <div class="new-city-card">
+        <div class="new-city-top">
+          <div class="new-city-name">${escapeHtml(item.city)}</div>
+          <span class="new-city-badge">New</span>
+        </div>
+        <div class="new-city-meta">${escapeHtml(statusText)}</div>
+        <div class="new-city-meta">Started: ${escapeHtml(formatDateForDashboard(item.firstThisMonth))}</div>
+        <div class="new-city-meta">${fmtNumber(item.monthReports, 0)} report${item.monthReports === 1 ? '' : 's'} | ${fmtNumber(item.monthPounds, 0)} lbs this month</div>
+        <div class="new-city-meta">Latest: Truck ${escapeHtml(item.latestTruck)} | ${escapeHtml(item.latestCrew)}</div>
+      </div>
+    `;
+    }).join('')}</div>`;
+  }
+
+
+  function pad2(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function formatMonthInputValue(date) {
+    const d = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  }
+
+  function formatDateInputValue(date) {
+    const d = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  function getMonthRange(year, monthIndex) {
+    return {
+      start: new Date(year, monthIndex, 1),
+      end: new Date(year, monthIndex + 1, 1)
+    };
+  }
+
+  function getPreviousMonthRange(range) {
+    if (!range?.start) return getMonthRange(new Date().getFullYear(), new Date().getMonth() - 1);
+    return getMonthRange(range.start.getFullYear(), range.start.getMonth() - 1);
+  }
+
+  function formatMonthLabel(date) {
+    if (!date) return 'Selected Month';
+    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  function getSelectedCustomMonthRange() {
+    const picker = document.getElementById('dashboardMonthPicker');
+    const value = picker?.value || formatMonthInputValue(new Date());
+    const [year, month] = String(value).split('-').map(Number);
+
+    if (!Number.isFinite(year) || !Number.isFinite(month)) {
+      const now = new Date();
+      return { key: 'customMonth', label: formatMonthLabel(now), ...getMonthRange(now.getFullYear(), now.getMonth()) };
+    }
+
+    const range = getMonthRange(year, month - 1);
+    return { key: 'customMonth', label: formatMonthLabel(range.start), ...range };
+  }
+
+  function toggleDashboardDateRangePicker() {
+    const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
+    const isCustom = selected === 'customRange';
+    document.getElementById('dashboardRangeStartWrap')?.classList.toggle('active', isCustom);
+    document.getElementById('dashboardRangeEndWrap')?.classList.toggle('active', isCustom);
+  }
+
+  function addDays(date, days) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
+  function getElapsedDaysInRange(range, today = new Date()) {
+    const end = range?.end instanceof Date ? range.end : null;
+    const start = range?.start instanceof Date ? range.start : null;
+    if (!start || !end) return 0;
+
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = addDays(todayStart, 1);
+    const proportionalEnd = tomorrowStart < end ? tomorrowStart : end;
+    return Math.max(1, Math.round((proportionalEnd - start) / 86400000));
+  }
+
+  function getMonthOverMonthRanges() {
+    const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
+
+    if (['lastMonth', 'customRange', 'lastWeek', 'week', 'today', 'yesterday'].includes(selected)) {
+      const currentRange = getDashboardPeriodRange();
+      const previousRange = getPreviousComparableRange(currentRange);
+      if (currentRange?.start && previousRange?.start) {
+        return {
+          mode: 'selected-period',
+          currentRange,
+          previousRange,
+          currentLabel: currentRange.label,
+          previousLabel: previousRange.label,
+          note: 'Selected dashboard date range compared to the previous comparable range.'
+        };
+      }
+    }
+
+    if (selected === 'customMonth') {
+      const currentRange = getSelectedCustomMonthRange();
+      const previousRange = getPreviousMonthRange(currentRange);
+      return {
+        mode: 'full-month',
+        currentRange,
+        previousRange,
+        currentLabel: formatMonthLabel(currentRange.start),
+        previousLabel: formatMonthLabel(previousRange.start),
+        note: 'Full selected month compared to the full previous month.'
+      };
+    }
+
+    const now = new Date();
+    const currentMonth = getMonthRange(now.getFullYear(), now.getMonth());
+    const elapsedDays = getElapsedDaysInRange(currentMonth, now);
+    const currentRange = {
+      key: 'month-to-date',
+      label: `${formatMonthLabel(currentMonth.start)} month-to-date`,
+      start: currentMonth.start,
+      end: addDays(currentMonth.start, elapsedDays)
+    };
+
+    const previousFullMonth = getPreviousMonthRange(currentMonth);
+    const previousRange = {
+      key: 'previous-month-proportional',
+      label: `${formatMonthLabel(previousFullMonth.start)} same ${elapsedDays} day${elapsedDays === 1 ? '' : 's'}`,
+      start: previousFullMonth.start,
+      end: addDays(previousFullMonth.start, elapsedDays)
+    };
+
+    return {
+      mode: 'month-to-date',
+      currentRange,
+      previousRange,
+      currentLabel: currentRange.label,
+      previousLabel: previousRange.label,
+      note: `Proportional comparison: first ${elapsedDays} day${elapsedDays === 1 ? '' : 's'} of each month.`
+    };
+  }
+
+  function percentChange(current, previous) {
+    const c = Number(current) || 0;
+    const p = Number(previous) || 0;
+    if (p === 0 && c === 0) return 0;
+    if (p === 0) return 100;
+    return ((c - p) / p) * 100;
+  }
+
+  function signedPercent(value) {
+    const n = Number(value) || 0;
+    if (Math.abs(n) < 0.05) return '0.0%';
+    return `${n > 0 ? '+' : ''}${fmtNumber(n, 1)}%`;
+  }
+
+  function setChangeClass(id, value, lowerIsBetter = false) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const n = Number(value) || 0;
+    el.classList.remove('mom-positive', 'mom-negative', 'mom-neutral');
+    if (Math.abs(n) < 0.05) {
+      el.classList.add('mom-neutral');
+    } else if (lowerIsBetter ? n < 0 : n > 0) {
+      el.classList.add('mom-positive');
+    } else {
+      el.classList.add('mom-negative');
+    }
+  }
+
+  function summarizeReportsForMonthComparison(docs, range) {
+    const metrics = {
+      clicks: 0,
+      estimatedPounds: 0,
+      flowMeterPounds: 0,
+      differencePounds: 0,
+      hours: 0,
+      reports: 0,
+      byTruck: {}
+    };
+
+    (docs || []).forEach(report => {
+      if (!isDateInRange(report.date, range)) return;
+
+      const comparison = getPoundComparison(report);
+      const hours = getReportHours(report);
+      const truck = getNormalizedTruck(report);
+
+      metrics.clicks += comparison.clicks;
+      metrics.estimatedPounds += comparison.estimatedPounds;
+      metrics.flowMeterPounds += comparison.flowMeterPounds;
+      metrics.differencePounds += comparison.differencePounds;
+      metrics.hours += hours;
+      metrics.reports += 1;
+
+      if (!metrics.byTruck[truck]) metrics.byTruck[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      metrics.byTruck[truck].pounds += comparison.estimatedPounds;
+      metrics.byTruck[truck].hours += hours;
+      metrics.byTruck[truck].reports += 1;
+    });
+
+    metrics.lbsPerHour = metrics.hours > 0 ? metrics.estimatedPounds / metrics.hours : 0;
+    metrics.differencePercent = metrics.estimatedPounds > 0 ? (metrics.differencePounds / metrics.estimatedPounds) * 100 : 0;
+    metrics.bestTruck = Object.values(metrics.byTruck)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour)[0] || null;
+
+    return metrics;
+  }
+
+  function updateMonthOverMonthCard(rawDocs) {
+    const activeDocs = activeReportsOnly(rawDocs || []);
+    const comparisonRanges = getMonthOverMonthRanges();
+    const currentRange = comparisonRanges.currentRange;
+    const previousRange = comparisonRanges.previousRange;
+    const current = summarizeReportsForMonthComparison(activeDocs, currentRange);
+    const previous = summarizeReportsForMonthComparison(activeDocs, previousRange);
+    const currentLabel = comparisonRanges.currentLabel;
+    const previousLabel = comparisonRanges.previousLabel;
+
+    setText('momComparisonLabel', `${currentLabel} compared to ${previousLabel}. ${comparisonRanges.note}`);
+
+    const poundsChange = percentChange(current.estimatedPounds, previous.estimatedPounds);
+    const reportsChange = current.reports - previous.reports;
+    const hoursChange = percentChange(current.hours, previous.hours);
+    const efficiencyChange = percentChange(current.lbsPerHour, previous.lbsPerHour);
+    const clicksChange = percentChange(current.clicks, previous.clicks);
+    const flowChange = percentChange(current.flowMeterPounds, previous.flowMeterPounds);
+    const differenceChange = current.differencePercent - previous.differencePercent;
+
+    setText('momPoundsChange', signedPercent(poundsChange));
+    setText('momPoundsDetail', `${fmtNumber(current.estimatedPounds, 0)} lbs vs ${fmtNumber(previous.estimatedPounds, 0)} lbs`);
+    setChangeClass('momPoundsChange', poundsChange);
+
+    setText('momReportsChange', `${reportsChange > 0 ? '+' : ''}${fmtNumber(reportsChange, 0)}`);
+    setText('momReportsDetail', `${fmtNumber(current.reports, 0)} reports vs ${fmtNumber(previous.reports, 0)} reports`);
+    setChangeClass('momReportsChange', reportsChange);
+
+    setText('momHoursChange', signedPercent(hoursChange));
+    setText('momHoursDetail', `${fmtNumber(current.hours, 2)} hrs vs ${fmtNumber(previous.hours, 2)} hrs`);
+    setChangeClass('momHoursChange', hoursChange);
+
+    setText('momEfficiencyChange', signedPercent(efficiencyChange));
+    setText('momEfficiencyDetail', `${fmtNumber(current.lbsPerHour, 0)} lbs/hr vs ${fmtNumber(previous.lbsPerHour, 0)} lbs/hr`);
+    setChangeClass('momEfficiencyChange', efficiencyChange);
+
+    setText('momClicksChange', signedPercent(clicksChange));
+    setText('momClicksDetail', `${fmtNumber(current.clicks, 0)} clicks vs ${fmtNumber(previous.clicks, 0)} clicks`);
+    setChangeClass('momClicksChange', clicksChange);
+
+    setText('momFlowChange', signedPercent(flowChange));
+    setText('momFlowDetail', `${fmtNumber(current.flowMeterPounds, 0)} lbs vs ${fmtNumber(previous.flowMeterPounds, 0)} lbs`);
+    setChangeClass('momFlowChange', flowChange);
+
+    setText('momDifferenceChange', `${differenceChange > 0 ? '+' : ''}${fmtNumber(differenceChange, 1)} pts`);
+    setText('momDifferenceDetail', `${fmtNumber(current.differencePercent, 1)}% vs ${fmtNumber(previous.differencePercent, 1)}%`);
+    setChangeClass('momDifferenceChange', differenceChange, true);
+
+    setText('momBestTruck', current.bestTruck ? current.bestTruck.name : '—');
+    setText('momBestTruckDetail', current.bestTruck
+      ? `${fmtNumber(current.bestTruck.poundsPerHour, 0)} lbs/hr | ${fmtNumber(current.bestTruck.pounds, 0)} lbs`
+      : 'No truck data for selected month'
+    );
+  }
+
+
+  function getDashboardPeriodRange() {
+    const selected = document.getElementById('dashboardPeriodFilter')?.value || 'month';
+    const ranges = getPeriodRanges(new Date());
+
+    if (selected === 'today') return { key: selected, label: 'Today', ...ranges.today };
+    if (selected === 'yesterday') return { key: selected, label: 'Yesterday', ...ranges.yesterday };
+    if (selected === 'week') return { key: selected, label: 'This Week', ...ranges.week };
+    if (selected === 'lastWeek') return { key: selected, label: 'Last Week', start: addDays(ranges.week.start, -7), end: ranges.week.start };
+    if (selected === 'month') return { key: selected, label: 'This Month', ...ranges.month };
+    if (selected === 'lastMonth') {
+      const previous = getPreviousMonthRange(ranges.month);
+      return { key: selected, label: 'Last Month', ...previous };
+    }
+    if (selected === 'customRange') {
+      const today = new Date();
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const startValue = document.getElementById('dashboardRangeStartDate')?.value || formatDateInputValue(monthStart);
+      const endValue = document.getElementById('dashboardRangeEndDate')?.value || formatDateInputValue(today);
+      const start = parseReportDate(startValue) || monthStart;
+      const selectedEnd = parseReportDate(endValue) || today;
+      const end = addDays(selectedEnd < start ? start : selectedEnd, 1);
+      return { key: selected, label: 'Custom Range', start, end };
+    }
+
+    return { key: 'all', label: 'All Time', start: null, end: null };
+  }
+
+  function formatDateForDashboard(date) {
+    if (!date) return '';
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function filterReportsForDashboardPeriod(docs) {
+    const range = getDashboardPeriodRange();
+
+    if (range.key === 'all') {
+      setText('dashboardPeriodRangeLabel', 'All submitted active reports');
+      return docs;
+    }
+
+    setText(
+      'dashboardPeriodRangeLabel',
+      `${range.label}: ${formatDateForDashboard(range.start)} - ${formatDateForDashboard(new Date(range.end.getTime() - 1))}`
+    );
+
+    return docs.filter(report => isDateInRange(report.date, range));
+  }
+
+  function filterReportsForDashboardTables(docs) {
+    return filterReportsForDashboardPeriod(docs);
+  }
+
+  function buildDashboardTableStats(docs) {
+    const byCity = {};
+    const byTruck = {};
+    const byArea = {};
+    const truckStats = {};
+    const crewStats = {};
+
+    (docs || []).forEach(report => {
+      const pounds = getReportPounds(report);
+      const hours = getReportHours(report);
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      const revenue = Number(pnl.revenue || 0);
+      const missingRevenue = revenue <= 0 ? 1 : 0;
+      const city = getDashboardCity(report);
+      const truck = getNormalizedTruck(report);
+      const crew = getNormalizedCrew(report);
+      const workArea = getWorkAreaDisplay(report);
+
+      const addFinancialStats = (group, name) => {
+        if (!group[name]) group[name] = { name, pounds: 0, revenue: 0, missingRevenue: 0, reports: 0 };
+        group[name].pounds += pounds;
+        group[name].revenue += revenue;
+        group[name].missingRevenue += missingRevenue;
+        group[name].reports += 1;
+      };
+
+      addFinancialStats(byCity, city);
+      addFinancialStats(byTruck, truck);
+      addFinancialStats(byArea, workArea);
+
+      if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0, revenue: 0, missingRevenue: 0 };
+      truckStats[truck].pounds += pounds;
+      truckStats[truck].hours += hours;
+      truckStats[truck].reports += 1;
+      truckStats[truck].revenue += revenue;
+      truckStats[truck].missingRevenue += missingRevenue;
+
+      if (isActiveTruckBoss(crew)) {
+        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0, revenue: 0, missingRevenue: 0 };
+        crewStats[crew].pounds += pounds;
+        crewStats[crew].hours += hours;
+        crewStats[crew].reports += 1;
+        crewStats[crew].revenue += revenue;
+        crewStats[crew].missingRevenue += missingRevenue;
+      }
+    });
+
+    const truckEntries = Object.values(truckStats)
+      .map(item => ({
+        ...item,
+        poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0,
+        revenuePerLb: item.pounds > 0 ? item.revenue / item.pounds : 0
+      }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    const crewEntries = Object.values(crewStats)
+      .map(item => ({
+        ...item,
+        poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0,
+        revenuePerLb: item.pounds > 0 ? item.revenue / item.pounds : 0
+      }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    return { byCity, byTruck, byArea, truckEntries, crewEntries };
+  }
+
+  function getDashboardOutliers(docs) {
+    const flags = [];
+
+    (docs || []).forEach(report => {
+      const comparison = getPoundComparison(report);
+      const hours = getReportHours(report);
+      const pounds = comparison.estimatedPounds;
+      const reportName = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${getNormalizedCrew(report)}`;
+
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
+      if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
+      if (comparison.clicks <= 0) flags.push(`${reportName}: missing or zero clicks.`);
+      if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
+      if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
+      if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
+      if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high estimated pounds per hour.`);
+    });
+
+    return flags;
+  }
+
+  function summarizeExecutiveReports(docs) {
+    const summary = {
+      reports: 0,
+      clicks: 0,
+      pounds: 0,
+      flowMeterPounds: 0,
+      differencePounds: 0,
+      hours: 0,
+      methodReports: 0,
+      methodPounds: 0,
+      methodHours: 0,
+      diReports: 0,
+      diPounds: 0,
+      diHours: 0,
+      unknownReports: 0,
+      unknownPounds: 0,
+      unknownHours: 0,
+      revenue: 0,
+      laborCost: 0,
+      chemicalCost: 0,
+      fuelCost: 0,
+      disposablesCost: 0,
+      overheadCost: 0,
+      directCost: 0,
+      totalCost: 0,
+      profit: 0,
+      jointGrindingLinearFeet: 0,
+      jointGrindingRevenue: 0,
+      missingRevenueReports: 0,
+      missingFuelReports: 0,
+      estimatedLaborReports: 0,
+      byDate: {},
+      byCity: {},
+      byTruck: {},
+      byCrew: {},
+      byArea: {}
+    };
+
+    (docs || []).forEach(report => {
+      const comparison = getPoundComparison(report);
+      const pounds = comparison.estimatedPounds;
+      const hours = getReportHours(report);
+      const date = report.date || 'No Date';
+      const city = getDashboardCity(report);
+      const truck = getNormalizedTruck(report);
+      const crew = getNormalizedCrew(report);
+      const area = getWorkAreaDisplay(report);
+      const injectionKey = getInjectionInfo(report).key;
+      const pnl = calculateReportPnl(report, docs, costSettings);
+
+      summary.reports += 1;
+      summary.clicks += comparison.clicks;
+      summary.pounds += pounds;
+      summary.flowMeterPounds += comparison.flowMeterPounds;
+      summary.differencePounds += comparison.differencePounds;
+      summary.hours += hours;
+      summary.revenue += pnl.revenue;
+      summary.laborCost += pnl.laborCost;
+      summary.chemicalCost += pnl.chemicalCost;
+      summary.fuelCost += pnl.fuelCost;
+      summary.disposablesCost += pnl.disposablesCost;
+      summary.overheadCost += pnl.overheadCost;
+      summary.directCost += pnl.directCost;
+      summary.totalCost += pnl.totalCost;
+      summary.profit += pnl.profit;
+      summary.jointGrindingLinearFeet += pnl.jointGrindingLinearFeet;
+      summary.jointGrindingRevenue += pnl.jointGrindingRevenue;
+      if (pnl.revenue <= 0) summary.missingRevenueReports += 1;
+      if (/Needs/.test(pnl.quality.fuel)) summary.missingFuelReports += 1;
+      if (/Default|Partial/.test(pnl.quality.labor)) summary.estimatedLaborReports += 1;
+
+      if (injectionKey === 'method') {
+        summary.methodReports += 1;
+        summary.methodPounds += pounds;
+        summary.methodHours += hours;
+      } else if (injectionKey === 'di') {
+        summary.diReports += 1;
+        summary.diPounds += pounds;
+        summary.diHours += hours;
+      } else {
+        summary.unknownReports += 1;
+        summary.unknownPounds += pounds;
+        summary.unknownHours += hours;
+      }
+
+      if (!summary.byDate[date]) summary.byDate[date] = { name: date, pounds: 0, reports: 0, hours: 0 };
+      summary.byDate[date].pounds += pounds;
+      summary.byDate[date].reports += 1;
+      summary.byDate[date].hours += hours;
+
+      if (!summary.byCity[city]) summary.byCity[city] = { name: city, pounds: 0, reports: 0 };
+      summary.byCity[city].pounds += pounds;
+      summary.byCity[city].reports += 1;
+
+      if (!summary.byTruck[truck]) summary.byTruck[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      summary.byTruck[truck].pounds += pounds;
+      summary.byTruck[truck].hours += hours;
+      summary.byTruck[truck].reports += 1;
+
+      if (isActiveTruckBoss(crew)) {
+        if (!summary.byCrew[crew]) summary.byCrew[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        summary.byCrew[crew].pounds += pounds;
+        summary.byCrew[crew].hours += hours;
+        summary.byCrew[crew].reports += 1;
+      }
+
+      if (!summary.byArea[area]) summary.byArea[area] = { name: area, pounds: 0, reports: 0 };
+      summary.byArea[area].pounds += pounds;
+      summary.byArea[area].reports += 1;
+    });
+
+    summary.lbsPerHour = summary.hours > 0 ? summary.pounds / summary.hours : 0;
+    summary.methodLbsPerHour = summary.methodHours > 0 ? summary.methodPounds / summary.methodHours : 0;
+    summary.diLbsPerHour = summary.diHours > 0 ? summary.diPounds / summary.diHours : 0;
+    summary.unknownLbsPerHour = summary.unknownHours > 0 ? summary.unknownPounds / summary.unknownHours : 0;
+    summary.differencePercent = summary.pounds > 0 ? (summary.differencePounds / summary.pounds) * 100 : 0;
+    summary.margin = summary.revenue > 0 ? (summary.profit / summary.revenue) * 100 : 0;
+    summary.revenuePerLaborHour = summary.hours > 0 ? summary.revenue / summary.hours : 0;
+    summary.revenuePerLb = summary.pounds > 0 ? summary.revenue / summary.pounds : 0;
+    return summary;
+  }
+
+  function getInjectionLaborRead(statsOrSummary) {
+    const methodHours = Number(statsOrSummary?.methodHours ?? statsOrSummary?.method?.hours ?? 0);
+    const methodPounds = Number(statsOrSummary?.methodPounds ?? statsOrSummary?.method?.pounds ?? 0);
+    const methodReports = Number(statsOrSummary?.methodReports ?? statsOrSummary?.method?.reports ?? 0);
+    const diHours = Number(statsOrSummary?.diHours ?? statsOrSummary?.di?.hours ?? 0);
+    const diPounds = Number(statsOrSummary?.diPounds ?? statsOrSummary?.di?.pounds ?? 0);
+    const diReports = Number(statsOrSummary?.diReports ?? statsOrSummary?.di?.reports ?? 0);
+    const methodRate = methodHours > 0 ? methodPounds / methodHours : 0;
+    const diRate = diHours > 0 ? diPounds / diHours : 0;
+
+    if (!methodReports && !diReports) return 'No Method or DI labor data is available for this period.';
+    if (!methodReports) return `DI recorded ${fmtNumber(diHours, 2)} labor hours at ${fmtNumber(diRate, 0)} lbs/hr. No Method jobs were recorded for comparison.`;
+    if (!diReports) return `Method recorded ${fmtNumber(methodHours, 2)} labor hours at ${fmtNumber(methodRate, 0)} lbs/hr. No DI jobs were recorded for comparison.`;
+
+    const gap = diRate - methodRate;
+    const direction = gap >= 0 ? 'higher' : 'lower';
+    const percent = methodRate > 0 ? Math.abs((gap / methodRate) * 100) : 0;
+    return `DI used ${fmtNumber(diHours, 2)} hours across ${fmtNumber(diReports, 0)} reports at ${fmtNumber(diRate, 0)} lbs/hr. Method used ${fmtNumber(methodHours, 2)} hours across ${fmtNumber(methodReports, 0)} reports at ${fmtNumber(methodRate, 0)} lbs/hr. DI labor efficiency is ${fmtNumber(percent, 1)}% ${direction} than Method for this period.`;
+  }
+
+  function executiveEntries(group, valueKey = 'pounds') {
+    return Object.values(group || {})
+      .map(item => {
+        const poundsPerHour = Number(item.hours) > 0 ? Number(item.pounds || 0) / Number(item.hours || 0) : 0;
+        const value = valueKey === 'poundsPerHour' ? poundsPerHour : Number(item[valueKey]) || 0;
+        return { ...item, value, poundsPerHour };
+      })
+      .sort((a, b) => b.value - a.value);
+  }
+
+  function renderExecutiveMetricGrid(items) {
+    return `<div class="exec-metric-grid">${items.map(item => `
+      <div class="exec-metric">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        ${item.sub ? `<em>${escapeHtml(item.sub)}</em>` : ''}
+      </div>
+    `).join('')}</div>`;
+  }
+
+  function renderExecutiveBarTable(entries, valueFormatter, limit = 8) {
+    const rows = (entries || []).slice(0, limit);
+    const max = Math.max(...rows.map(item => Number(item.value) || 0), 1);
+    if (!rows.length) return '<p>No data available for this section.</p>';
+
+    return `<div class="exec-bars">${rows.map(item => {
+      const width = Math.max(3, ((Number(item.value) || 0) / max) * 100);
+      return `
+        <div class="exec-bar-row">
+          <div class="exec-bar-name">${escapeHtml(item.name)}</div>
+          <div class="exec-bar-track"><div style="width:${width}%;"></div></div>
+          <div class="exec-bar-value">${escapeHtml(valueFormatter(item))}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function renderExecutiveTable(headers, rows, tone = '') {
+    if (!rows.length) return '<p>No data available.</p>';
+    const toneClass = tone ? ` exec-table-${tone}` : '';
+    return `
+      <table class="exec-table${toneClass}">
+        <thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>
+    `;
+  }
+
+  function getExecutiveStatus(actual, goal, direction = 'higher') {
+    const value = Number(actual) || 0;
+    const target = Number(goal) || 0;
+    const pass = direction === 'higher' ? value >= target : value <= target;
+    const warn = direction === 'higher' ? value >= target * 0.9 : value <= target * 1.1;
+    return pass ? 'Green' : warn ? 'Yellow' : 'Red';
+  }
+
+  function renderScorecard(rows) {
+    if (!rows.length) return '<p>No scorecard data available.</p>';
+    return `
+      <table class="exec-table exec-scorecard-table">
+        <thead><tr><th>Metric</th><th>Goal</th><th>Actual</th><th>Trend</th></tr></thead>
+        <tbody>${rows.map(row => `
+          <tr class="exec-scorecard-${String(row.status || '').toLowerCase()}">
+            <td>${escapeHtml(row.metric)}</td>
+            <td>${escapeHtml(row.goal)}</td>
+            <td>${escapeHtml(row.actual)}</td>
+            <td>${escapeHtml(row.trend || '-')}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
+  }
+
+  function trendText(current, previous, suffix = '', lowerIsBetter = false) {
+    if (!previous || !Number.isFinite(previous) || previous === 0) return '-';
+    const change = ((Number(current) - Number(previous)) / Math.abs(Number(previous))) * 100;
+    const arrow = Math.abs(change) < 0.5 ? '-' : change > 0 ? 'up' : 'down';
+    const good = lowerIsBetter ? change < 0 : change > 0;
+    const marker = arrow === '-' ? '-' : good ? '+' : '!';
+    return `${marker} ${arrow} ${fmtNumber(Math.abs(change), 1)}%${suffix}`;
+  }
+
+  function getCapacityAnalysis(summary, targetLbsPerHour = 125) {
+    const potential = summary.hours * targetLbsPerHour;
+    return {
+      targetLbsPerHour,
+      potential,
+      gap: Math.max(0, potential - summary.pounds)
+    };
+  }
+
+  function getRecoverableProduction(summary, transitionStats, smallJobDrag, dataQuality) {
+    const targetLbsPerHour = 125;
+    const smallJobLost = Math.max(0, (smallJobDrag.hours * targetLbsPerHour) - smallJobDrag.pounds);
+    const transitionLostMinutes = Math.max(0, transitionStats.avgMinutes - 25) * Number(transitionStats.count || 0);
+    const transitionLost = (transitionLostMinutes / 60) * Math.max(0, summary.lbsPerHour);
+    const dataLost = (Number(dataQuality.zeroClicks || 0) + Number(dataQuality.missingHours || 0)) * 95;
+    return {
+      smallJobLost,
+      transitionLost,
+      dataLost,
+      total: smallJobLost + transitionLost + dataLost
+    };
+  }
+
+  function getForecast(dailyAverage, dataQuality, concentration) {
+    const expected = dailyAverage * 5;
+    const riskFactor = Math.min(0.18, 0.08 + (100 - dataQuality.score) / 500 + (concentration.percent >= 55 ? 0.04 : concentration.percent >= 35 ? 0.02 : 0));
+    const low = expected * (1 - riskFactor);
+    const high = expected * (1 + riskFactor);
+    const confidence = Math.max(65, Math.min(92, Math.round(92 - (100 - dataQuality.score) * 0.8 - (concentration.percent >= 55 ? 5 : concentration.percent >= 35 ? 3 : 0))));
+    return { expected, low, high, confidence };
+  }
+
+  function getExecutiveTrendRows(summary) {
+    return Object.values(summary.byDate)
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+      .slice(-10)
+      .map(item => ({
+        ...item,
+        value: item.pounds,
+        lbsPerHour: item.hours > 0 ? item.pounds / item.hours : 0
+      }));
+  }
+
+  function getPreviousComparableRange(range) {
+    if (!range?.start || !range?.end || range.key === 'all') return null;
+
+    if (range.key === 'month' || range.key === 'lastMonth') {
+      const previous = getPreviousMonthRange(range);
+      return { key: `previous-${range.key}`, label: `Previous ${range.label || 'Month'}`, ...previous };
+    }
+
+    if (range.key === 'week' || range.key === 'lastWeek') {
+      return {
+        key: 'previous-week',
+        label: 'Previous Week',
+        start: addDays(range.start, -7),
+        end: addDays(range.end, -7)
+      };
+    }
+
+    const durationMs = range.end.getTime() - range.start.getTime();
+    if (!Number.isFinite(durationMs) || durationMs <= 0) return null;
+    return {
+      key: `previous-${range.key}`,
+      label: `Previous ${range.label || 'Period'}`,
+      start: new Date(range.start.getTime() - durationMs),
+      end: new Date(range.start.getTime())
+    };
+  }
+
+  function getExecutiveFixedPeriodRanges() {
+    const ranges = getPeriodRanges(new Date());
+    const lastWeek = { key: 'lastWeek', label: 'Last Week', start: addDays(ranges.week.start, -7), end: ranges.week.start };
+    const thisWeek = { key: 'week', label: 'This Week', ...ranges.week };
+    const thisMonth = { key: 'month', label: 'This Month', ...ranges.month };
+    const lastMonthRange = getPreviousMonthRange(ranges.month);
+    const lastMonth = { key: 'lastMonth', label: 'Last Month', ...lastMonthRange };
+    return { lastWeek, thisWeek, thisMonth, lastMonth };
+  }
+
+  function summarizeExecutivePeriod(docs, range) {
+    const periodDocs = (docs || []).filter(report => isDateInRange(report.date, range));
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(periodDocs), range, costSettings);
+    const dataQuality = getDataQualityMetrics(periodDocs, range);
+    const smallJobDrag = getSmallJobDrag(periodDocs, 150);
+    const profitSignals = buildProfitSignals(periodDocs);
+    const topCity = executiveEntries(summary.byCity, 'pounds')[0];
+    const topTruck = executiveEntries(summary.byTruck, 'poundsPerHour')[0];
+    const topCrew = executiveEntries(summary.byCrew, 'poundsPerHour')[0];
+    return { range, docs: periodDocs, summary, dataQuality, smallJobDrag, profitSignals, topCity, topTruck, topCrew };
+  }
+
+  function getRevenueGoalProgress(summary, range, settings = costSettings) {
+    return revenueGoalProgress(summary,range,settings);
+  }
+
+  function formatExecChange(current, previous, formatter = value => fmtNumber(value, 0), lowerIsBetter = false) {
+    const c = Number(current) || 0;
+    const p = Number(previous) || 0;
+    const diff = c - p;
+    const pct = p !== 0 ? (diff / p) * 100 : (c !== 0 ? 100 : 0);
+    const good = lowerIsBetter ? diff <= 0 : diff >= 0;
+    const tone = Math.abs(diff) < 0.005 ? 'neutral' : good ? 'good' : 'risk';
+    return `<span class="exec-change exec-change-${tone}">${diff >= 0 ? '+' : ''}${escapeHtml(formatter(diff))} (${signedPercent(pct)})</span>`;
+  }
+
+  function getManualRevenueAdjustmentNote(...periods) {
+    const notes = periods
+      .filter(period => Number(period?.summary?.manualRevenueAdjustment || 0) !== 0)
+      .map(period => {
+        const summary = period.summary;
+        const label = period.range?.label || 'Period';
+        const mode = summary.manualRevenueAdjustmentMode === 'add' ? 'added' : 'overrode';
+        return `${label} ${mode} to ${formatMoney(summary.manualRevenueAdjustmentAmount)}${summary.manualRevenueAdjustmentNote ? ` (${escapeHtml(summary.manualRevenueAdjustmentNote)})` : ''}`;
+      });
+    return notes.length ? ` Manual monthly adjustment applied: ${notes.join('; ')}.` : '';
+  }
+
+  function renderExecutiveComparisonTable(activeDocs) {
+    const ranges = getExecutiveFixedPeriodRanges();
+    const lastWeek = summarizeExecutivePeriod(activeDocs, ranges.lastWeek);
+    const thisWeek = summarizeExecutivePeriod(activeDocs, ranges.thisWeek);
+    const thisMonth = summarizeExecutivePeriod(activeDocs, ranges.thisMonth);
+    const lastMonth = summarizeExecutivePeriod(activeDocs, ranges.lastMonth);
+    const thisMonthGoal = getRevenueGoalProgress(thisMonth.summary, ranges.thisMonth, costSettings);
+    const lastMonthGoal = getRevenueGoalProgress(lastMonth.summary, ranges.lastMonth, costSettings);
+    const money = value => formatMoney(value);
+    const pounds = value => `${fmtNumber(value, 0)} lbs`;
+    const number = value => fmtNumber(value, 0);
+    const hours = value => fmtNumber(value, 1);
+    const percent = value => `${fmtNumber(value, 1)} pts`;
+
+    const revenueNote = `Revenue-ready jobs only; incomplete revenue excluded from averages.${getManualRevenueAdjustmentNote(lastWeek, thisWeek, lastMonth, thisMonth)}`;
+    const rows = [
+      ['Revenue', money(lastWeek.summary.revenue), money(thisWeek.summary.revenue), formatExecChange(thisWeek.summary.revenue, lastWeek.summary.revenue, money), money(lastMonth.summary.revenue), money(thisMonth.summary.revenue), formatExecChange(thisMonth.summary.revenue, lastMonth.summary.revenue, money), revenueNote],
+      ['Estimated Profit', money(lastWeek.summary.profit), money(thisWeek.summary.profit), formatExecChange(thisWeek.summary.profit, lastWeek.summary.profit, money), money(lastMonth.summary.profit), money(thisMonth.summary.profit), formatExecChange(thisMonth.summary.profit, lastMonth.summary.profit, money), 'Management P&L estimate.'],
+      ['Margin', `${fmtNumber(lastWeek.summary.margin, 1)}%`, `${fmtNumber(thisWeek.summary.margin, 1)}%`, formatExecChange(thisWeek.summary.margin, lastWeek.summary.margin, percent), `${fmtNumber(lastMonth.summary.margin, 1)}%`, `${fmtNumber(thisMonth.summary.margin, 1)}%`, formatExecChange(thisMonth.summary.margin, lastMonth.summary.margin, percent), 'Profit divided by revenue.'],
+      ['Revenue / Labor Hr', money(lastWeek.summary.revenuePerLaborHour), money(thisWeek.summary.revenuePerLaborHour), formatExecChange(thisWeek.summary.revenuePerLaborHour, lastWeek.summary.revenuePerLaborHour, money), money(lastMonth.summary.revenuePerLaborHour), money(thisMonth.summary.revenuePerLaborHour), formatExecChange(thisMonth.summary.revenuePerLaborHour, lastMonth.summary.revenuePerLaborHour, money), 'Useful for labor productivity review.'],
+      ['Revenue / Lb', money(lastWeek.summary.revenuePerLb), money(thisWeek.summary.revenuePerLb), formatExecChange(thisWeek.summary.revenuePerLb, lastWeek.summary.revenuePerLb, money), money(lastMonth.summary.revenuePerLb), money(thisMonth.summary.revenuePerLb), formatExecChange(thisMonth.summary.revenuePerLb, lastMonth.summary.revenuePerLb, money), 'Shows pricing / work-mix strength.'],
+      ['Pumped Lbs', pounds(lastWeek.summary.pounds), pounds(thisWeek.summary.pounds), formatExecChange(thisWeek.summary.pounds, lastWeek.summary.pounds, pounds), pounds(lastMonth.summary.pounds), pounds(thisMonth.summary.pounds), formatExecChange(thisMonth.summary.pounds, lastMonth.summary.pounds, pounds), 'Production volume.'],
+      ['Lbs / Hour', `${fmtNumber(lastWeek.summary.lbsPerHour, 0)}`, `${fmtNumber(thisWeek.summary.lbsPerHour, 0)}`, formatExecChange(thisWeek.summary.lbsPerHour, lastWeek.summary.lbsPerHour, number), `${fmtNumber(lastMonth.summary.lbsPerHour, 0)}`, `${fmtNumber(thisMonth.summary.lbsPerHour, 0)}`, formatExecChange(thisMonth.summary.lbsPerHour, lastMonth.summary.lbsPerHour, number), 'Production efficiency.'],
+      ['Small Jobs <150 Lbs', number(lastWeek.smallJobDrag.count), number(thisWeek.smallJobDrag.count), formatExecChange(thisWeek.smallJobDrag.count, lastWeek.smallJobDrag.count, number, true), number(lastMonth.smallJobDrag.count), number(thisMonth.smallJobDrag.count), formatExecChange(thisMonth.smallJobDrag.count, lastMonth.smallJobDrag.count, number, true), 'Mobilization drag signal.'],
+      ['Jobs Missing Revenue', number(lastWeek.profitSignals.missingRevenueJobs.length), number(thisWeek.profitSignals.missingRevenueJobs.length), formatExecChange(thisWeek.profitSignals.missingRevenueJobs.length, lastWeek.profitSignals.missingRevenueJobs.length, number, true), number(lastMonth.profitSignals.missingRevenueJobs.length), number(thisMonth.profitSignals.missingRevenueJobs.length), formatExecChange(thisMonth.profitSignals.missingRevenueJobs.length, lastMonth.profitSignals.missingRevenueJobs.length, number, true), 'Incomplete revenue is not treated as a loss.'],
+      ['Revenue Goal Progress', '-', '-', '-', `${fmtNumber(lastMonthGoal.percent, 1)}%`, `${fmtNumber(thisMonthGoal.percent, 1)}%`, formatExecChange(thisMonthGoal.percent, lastMonthGoal.percent, percent), `${formatMoney(thisMonthGoal.goal)} monthly goal. This month is projected at ${formatMoney(thisMonthGoal.projected)}.`]
+    ];
+
+    return `
+      <div class="exec-comparison-wrap">
+        <table class="exec-table exec-comparison-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Last Week</th>
+              <th>This Week</th>
+              <th>WoW Change</th>
+              <th>Last Month</th>
+              <th>This Month</th>
+              <th>MoM Change</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="exec-footnote">This Month is month-to-date when the current month is still open. Last Month is the full prior calendar month.</p>
+    `;
+  }
+
+  function renderExecutiveOperatorComparisonTable(activeDocs) {
+    const ranges = getExecutiveFixedPeriodRanges();
+    const lastWeek = summarizeExecutivePeriod(activeDocs, ranges.lastWeek);
+    const thisWeek = summarizeExecutivePeriod(activeDocs, ranges.thisWeek);
+    const thisMonth = summarizeExecutivePeriod(activeDocs, ranges.thisMonth);
+    const lastMonth = summarizeExecutivePeriod(activeDocs, ranges.lastMonth);
+    const money = value => formatMoney(value);
+
+    const rows = [
+      ['Direct Fuel', money(lastWeek.summary.fuelCost), money(thisWeek.summary.fuelCost), formatExecChange(thisWeek.summary.fuelCost, lastWeek.summary.fuelCost, money, true), money(lastMonth.summary.fuelCost), money(thisMonth.summary.fuelCost), formatExecChange(thisMonth.summary.fuelCost, lastMonth.summary.fuelCost, money, true), 'Job-direct route/runtime fuel only.'],
+      ['Chemical Cost', money(lastWeek.summary.chemicalCost), money(thisWeek.summary.chemicalCost), formatExecChange(thisWeek.summary.chemicalCost, lastWeek.summary.chemicalCost, money, true), money(lastMonth.summary.chemicalCost), money(thisMonth.summary.chemicalCost), formatExecChange(thisMonth.summary.chemicalCost, lastMonth.summary.chemicalCost, money, true), 'Uses click-based chemical pounds unless marked free.'],
+      ['Top City', escapeHtml(lastWeek.topCity?.name || '-'), escapeHtml(thisWeek.topCity?.name || '-'), '-', escapeHtml(lastMonth.topCity?.name || '-'), escapeHtml(thisMonth.topCity?.name || '-'), '-', 'Shows concentration by period.'],
+      ['Top Truck', escapeHtml(lastWeek.topTruck?.name || '-'), escapeHtml(thisWeek.topTruck?.name || '-'), '-', escapeHtml(lastMonth.topTruck?.name || '-'), escapeHtml(thisMonth.topTruck?.name || '-'), '-', 'Ranked by lbs/hr.'],
+      ['Top Superintendent', escapeHtml(lastWeek.topCrew?.name || '-'), escapeHtml(thisWeek.topCrew?.name || '-'), '-', escapeHtml(lastMonth.topCrew?.name || '-'), escapeHtml(thisMonth.topCrew?.name || '-'), '-', 'Ranked by lbs/hr.']
+    ];
+
+    return `
+      <div class="exec-comparison-wrap">
+        <table class="exec-table exec-comparison-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Last Week</th>
+              <th>This Week</th>
+              <th>WoW Change</th>
+              <th>Last Month</th>
+              <th>This Month</th>
+              <th>MoM Change</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function getPartialPeriodWarning(range) {
+    if (!range?.start || !range?.end || range.key === 'all') return '';
+    const today = new Date();
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = addDays(todayStart, 1);
+    const isCurrentPeriod = range.start <= todayStart && range.end > todayStart;
+    if (!isCurrentPeriod || range.key === 'today' || range.key === 'yesterday') return '';
+
+    const elapsedDays = Math.max(1, Math.round((Math.min(tomorrowStart.getTime(), range.end.getTime()) - range.start.getTime()) / 86400000));
+    const totalDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86400000));
+    if (elapsedDays >= totalDays) return '';
+
+    return `${range.label} is a partial period: ${elapsedDays} of ${totalDays} calendar days are included. Compare directionally, not as a final full-period result.`;
+  }
+
+  function countWeekdaysInRange(range) {
+    if (!range?.start || !range?.end) return 0;
+    let count = 0;
+    for (let d = new Date(range.start); d < range.end; d = addDays(d, 1)) {
+      const day = d.getDay();
+      if (day !== 0 && day !== 6) count += 1;
+    }
+    return count;
+  }
+
+  function getActiveReportDates(docs) {
+    return new Set((docs || []).map(report => report.date).filter(Boolean));
+  }
+
+  function getZeroReportWorkingDays(docs, range) {
+    if (!range?.start || !range?.end || range.key === 'all') return 0;
+    const reportDates = getActiveReportDates(docs);
+    let count = 0;
+    for (let d = new Date(range.start); d < range.end; d = addDays(d, 1)) {
+      const day = d.getDay();
+      if (day === 0 || day === 6) continue;
+      const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      if (!reportDates.has(key)) count += 1;
+    }
+    return count;
+  }
+
+  function getDuplicateAddressCount(docs) {
+    const seen = {};
+    (docs || []).forEach(report => {
+      const key = [
+        report.date || '',
+        getDashboardCity(report),
+        String(report.address || '').trim().toLowerCase()
+      ].join('|');
+      if (!String(report.address || '').trim()) return;
+      seen[key] = (seen[key] || 0) + 1;
+    });
+    return Object.values(seen).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+  }
+
+  function getDataQualityMetrics(docs, range) {
+    const items = {
+      zeroReportWorkingDays: getZeroReportWorkingDays(docs, range),
+      missingTruckBoss: 0,
+      missingHours: 0,
+      cityOther: 0,
+      duplicateAddressEntries: getDuplicateAddressCount(docs),
+      missingGps: 0,
+      zeroClicks: 0
+    };
+
+    (docs || []).forEach(report => {
+      const crew = getNormalizedCrew(report);
+      if (!crew || crew === 'Unknown Crew') items.missingTruckBoss += 1;
+      if (getReportHours(report) <= 0) items.missingHours += 1;
+      if (getDashboardCity(report) === 'Other' || getDashboardCity(report) === 'Unknown City') items.cityOther += 1;
+      if (!report.gpsLatitude || !report.gpsLongitude) items.missingGps += 1;
+      if (getPoundComparison(report).clicks <= 0) items.zeroClicks += 1;
+    });
+
+    const issueCount = Object.values(items).reduce((sum, value) => sum + value, 0);
+    const possible = Math.max(1, (docs || []).length * 5 + (range?.key === 'all' ? 0 : countWeekdaysInRange(range)));
+    const score = Math.max(0, Math.round(100 - (issueCount / possible) * 100));
+    return { ...items, issueCount, score };
+  }
+
+  function getSmallJobDrag(docs, threshold = 150) {
+    const smallJobs = (docs || []).filter(report => getReportPounds(report) > 0 && getReportPounds(report) < threshold);
+    const pounds = smallJobs.reduce((sum, report) => sum + getReportPounds(report), 0);
+    const hours = smallJobs.reduce((sum, report) => sum + getReportHours(report), 0);
+    return {
+      threshold,
+      count: smallJobs.length,
+      pounds,
+      hours,
+      lbsPerHour: hours > 0 ? pounds / hours : 0
+    };
+  }
+
+  function getProfitSignalName(report) {
+    return `${getDashboardCity(report)} - ${report.address || 'No Address'}`;
+  }
+
+  function getProfitSignalFlags(report, pnl, averageRevenuePerLb = 0) {
+    const flags = [];
+    const revenueReady = pnl.revenue > 0;
+    const pounds = getReportPounds(report);
+    const revenuePerLb = pounds > 0 ? pnl.revenue / pounds : 0;
+    if (!revenueReady || pnl.confidence === 'Needs review') {
+      flags.push({ label: 'Revenue Incomplete', tone: 'warn' });
+      return flags;
+    }
+    if (pnl.profit < 0) flags.push({ label: 'Loss Job', tone: 'danger' });
+    if (pnl.margin < 20) flags.push({ label: 'Low Margin', tone: 'danger' });
+    else if (pnl.margin < 30) flags.push({ label: 'Watch Margin', tone: 'warn' });
+    else if (pnl.margin > 40) flags.push({ label: 'Strong Margin', tone: 'good' });
+    if (averageRevenuePerLb > 0 && revenuePerLb < averageRevenuePerLb * 0.75) flags.push({ label: 'Low Revenue/Lb', tone: 'warn' });
+    if (pnl.revenue > 0 && (pnl.laborCost / pnl.revenue) > 0.35) flags.push({ label: 'High Labor Drag', tone: 'warn' });
+    if (pnl.revenue > 0 && (pnl.fuelCost / pnl.revenue) > 0.08) flags.push({ label: 'High Fuel Drag', tone: 'warn' });
+    if (pounds > 0 && pounds < 150 && pnl.margin < 30) flags.push({ label: 'Small Job Drag', tone: 'warn' });
+    return flags;
+  }
+
+  function summarizeProfitGroup(existing = {}, report, pnl) {
+    const pounds = getReportPounds(report);
+    const hours = getReportHours(report);
+    existing.revenue = (existing.revenue || 0) + pnl.revenue;
+    existing.profit = (existing.profit || 0) + pnl.profit;
+    existing.laborCost = (existing.laborCost || 0) + pnl.laborCost;
+    existing.fuelCost = (existing.fuelCost || 0) + pnl.fuelCost;
+    existing.pounds = (existing.pounds || 0) + pounds;
+    existing.hours = (existing.hours || 0) + hours;
+    existing.reports = (existing.reports || 0) + 1;
+    existing.margin = existing.revenue > 0 ? (existing.profit / existing.revenue) * 100 : 0;
+    existing.revenuePerLb = existing.pounds > 0 ? existing.revenue / existing.pounds : 0;
+    existing.profitPerLaborHour = existing.hours > 0 ? existing.profit / existing.hours : 0;
+    return existing;
+  }
+
+  function buildProfitSignals(docs) {
+    const rows = (docs || []).map(report => {
+      const pnl = calculateReportPnl(report, docs, costSettings);
+      const pounds = getReportPounds(report);
+      return {
+        report,
+        pnl,
+        name: getProfitSignalName(report),
+        city: getDashboardCity(report),
+        truck: getNormalizedTruck(report),
+        workArea: getWorkAreaDisplay(report),
+        groupId: pnl.groupId || '',
+        pounds,
+        hours: getReportHours(report),
+        revenueReady: pnl.revenue > 0 && pnl.confidence !== 'Needs review',
+        revenuePerLb: pounds > 0 ? pnl.revenue / pounds : 0
+      };
+    });
+    const revenueReadyRows = rows.filter(row => row.revenueReady);
+    const averageRevenuePerLb = revenueReadyRows.reduce((sum, row) => sum + row.pnl.revenue, 0) /
+      Math.max(1, revenueReadyRows.reduce((sum, row) => sum + row.pounds, 0));
+
+    rows.forEach(row => {
+      row.flags = getProfitSignalFlags(row.report, row.pnl, averageRevenuePerLb);
+    });
+
+    const aggregate = (keyGetter) => {
+      const grouped = {};
+      revenueReadyRows.forEach(row => {
+        const key = keyGetter(row);
+        if (!key) return;
+        if (!grouped[key]) grouped[key] = { name: key };
+        summarizeProfitGroup(grouped[key], row.report, row.pnl);
+      });
+      return Object.values(grouped);
+    };
+
+    const groupedJobs = aggregate(row => row.groupId);
+    const cityProfit = aggregate(row => row.city);
+    const truckProfit = aggregate(row => row.truck);
+    const workAreaProfit = aggregate(row => row.workArea);
+    const watchlist = rows
+      .filter(row => !row.revenueReady || row.flags.some(flag => flag.tone === 'danger' || flag.tone === 'warn'))
+      .sort((a, b) => {
+        if (a.revenueReady !== b.revenueReady) return a.revenueReady ? -1 : 1;
+        return a.pnl.margin - b.pnl.margin;
+      });
+
+    return {
+      rows,
+      revenueReadyRows,
+      averageRevenuePerLb,
+      topProfitJobs: revenueReadyRows.slice().sort((a, b) => b.pnl.profit - a.pnl.profit).slice(0, 5),
+      topMarginJobs: revenueReadyRows.slice().sort((a, b) => b.pnl.margin - a.pnl.margin).slice(0, 5),
+      bottomMarginJobs: revenueReadyRows.slice().sort((a, b) => a.pnl.margin - b.pnl.margin).slice(0, 5),
+      lossJobs: revenueReadyRows.filter(row => row.pnl.profit < 0).sort((a, b) => a.pnl.profit - b.pnl.profit),
+      missingRevenueJobs: rows.filter(row => !row.revenueReady),
+      watchlist: watchlist.slice(0, 8),
+      cityProfit: cityProfit.sort((a, b) => b.profit - a.profit),
+      truckProfit: truckProfit.sort((a, b) => b.profitPerLaborHour - a.profitPerLaborHour),
+      workAreaProfit: workAreaProfit.sort((a, b) => b.revenuePerLb - a.revenuePerLb),
+      groupedJobs: groupedJobs.sort((a, b) => b.profit - a.profit)
+    };
+  }
+
+  function getProductionConcentrationRisk(entries, totalPounds) {
+    const top = entries?.[0];
+    if (!top || totalPounds <= 0) return { percent: 0, text: 'No concentration risk detected because there is not enough city production data.' };
+    const percent = (Number(top.pounds || top.value || 0) / totalPounds) * 100;
+    const risk = percent >= 55 ? 'High' : percent >= 35 ? 'Moderate' : 'Low';
+    return {
+      percent,
+      risk,
+      text: `${risk} concentration risk: ${top.name} produced ${fmtNumber(percent, 1)}% of selected table-range pounds.`
+    };
+  }
+
+  function getOutlierReason(flag) {
+    const text = String(flag || '').toLowerCase();
+    if (text.includes('gps') || text.includes('transition') || text.includes('travel')) return 'travel / GPS review';
+    if (text.includes('hours')) return 'missing hours / setup time';
+    if (text.includes('clicks') || text.includes('meter')) return 'equipment / meter entry';
+    if (text.includes('revision') || text.includes('approval')) return 'manager review';
+    if (text.includes('high estimated')) return 'small punch-list or data entry check';
+    return 'manual reason needed: traffic control, rain, equipment, small punch-list, DI setup, travel, or customer delay';
+  }
+
+  function getWhatChangedAndWhy(summary, previousSummary, cityEntries, truckEntries) {
+    if (!previousSummary || previousSummary.reports === 0) {
+      const topCity = cityEntries[0];
+      return topCity
+        ? `Production is led by ${topCity.name}, which carried ${fmtNumber(topCity.pounds, 0)} lbs across ${fmtNumber(topCity.reports, 0)} report${topCity.reports === 1 ? '' : 's'}. Method work contributed ${fmtNumber(summary.methodPounds, 0)} lbs while DI contributed ${fmtNumber(summary.diPounds, 0)} lbs.`
+        : 'There is not enough prior-period data to explain movement yet.';
+    }
+
+    const poundChange = summary.pounds - previousSummary.pounds;
+    const reportChange = summary.reports - previousSummary.reports;
+    const direction = poundChange >= 0 ? 'up' : 'down';
+    const topCity = cityEntries[0];
+    const topTruck = truckEntries[0];
+    const drivers = [];
+    if (topCity) drivers.push(`${topCity.name} carried ${fmtNumber(topCity.pounds, 0)} lbs across ${fmtNumber(topCity.reports, 0)} report${topCity.reports === 1 ? '' : 's'}`);
+    if (topTruck) drivers.push(`Truck ${topTruck.name} led efficiency at ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr`);
+    drivers.push(`DI was ${summary.diPounds > previousSummary.diPounds ? 'heavier' : 'lighter'} than the prior comparison period`);
+    return `Production is ${direction} ${fmtNumber(Math.abs(poundChange), 0)} lbs versus the prior comparable period, with report count ${reportChange >= 0 ? 'up' : 'down'} ${fmtNumber(Math.abs(reportChange), 0)}. Primary drivers: ${drivers.join('; ')}.`;
+  }
+
+  function getTopWinsAndConcerns(summary, tableSummary, transitionStats, cityEntries, truckEntries, crewEntries, outliers, smallJobDrag, concentration) {
+    const wins = [];
+    const concerns = [];
+    if (summary.pounds > 0) wins.push(`${fmtNumber(summary.pounds, 0)} lbs produced in the selected dashboard period.`);
+    if (cityEntries[0]) wins.push(`${cityEntries[0].name} led city production with ${fmtNumber(cityEntries[0].pounds, 0)} lbs.`);
+    if (truckEntries[0]) wins.push(`Truck ${truckEntries[0].name} set the truck benchmark at ${fmtNumber(truckEntries[0].poundsPerHour, 0)} lbs/hr.`);
+    if (crewEntries[0]) wins.push(`${crewEntries[0].name} led crew efficiency at ${fmtNumber(crewEntries[0].poundsPerHour, 0)} lbs/hr.`);
+
+    if (outliers.length) concerns.push(`${fmtNumber(outliers.length, 0)} outlier/data quality items need review.`);
+    if (smallJobDrag.count) concerns.push(`${fmtNumber(smallJobDrag.count, 0)} small jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs may be dragging mobilization efficiency.`);
+    if (concentration.percent >= 35) concerns.push(concentration.text);
+    if (transitionStats.avgMinutes >= 90) concerns.push(`Average transition time is high at ${fmtNumber(transitionStats.avgMinutes, 0)} minutes.`);
+    if (!concerns.length) concerns.push('No major operational concern surfaced from the selected period.');
+
+    return { wins: wins.slice(0, 3), concerns: concerns.slice(0, 3) };
+  }
+
+  function getActionItems(truckEntries, smallJobDrag, concentration, dataQuality, outliers) {
+    const lowestTruck = truckEntries.slice().reverse().find(item => item.hours > 0 && item.reports > 0);
+    const items = [];
+    if (lowestTruck) items.push(`Logan: review Truck ${lowestTruck.name} low lbs/hr context before comparing it directly against higher-volume trucks.`);
+    if (smallJobDrag.count) items.push('Walter: group small service calls geographically where possible to reduce mobilization drag.');
+    if (concentration.percent >= 35) items.push(`Walter: review schedule exposure in ${concentration.text.split(': ')[1]?.split(' produced ')[0] || 'the top city'} so the week is not dependent on one city/project.`);
+    if (dataQuality.issueCount) items.push(`Logan: clean ${fmtNumber(dataQuality.issueCount, 0)} data quality issue${dataQuality.issueCount === 1 ? '' : 's'} before month-end reporting.`);
+    if (outliers.length) items.push(`Manager team: assign outlier reasons for ${fmtNumber(outliers.length, 0)} flagged item${outliers.length === 1 ? '' : 's'}.`);
+    return items.slice(0, 5);
+  }
+
+  function dedupeActionItems(items, limit = 5) {
+    const seen = new Set();
+    return (items || []).filter(item => {
+      const key = String(item || '')
+        .toLowerCase()
+        .replace(/truck\s+\d+/g, 'truck')
+        .replace(/\d+(\.\d+)?/g, '#')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, limit);
+  }
+
+  function csvCell(value) {
+    const text = String(value ?? '');
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function getWebsitePhotoJobName(report) {
+    return String(
+      report.jobName ||
+      report.projectName ||
+      [getDashboardCity(report), report.address].filter(Boolean).join(' - ') ||
+      'Unnamed Job'
+    ).trim();
+  }
+
+  function getWebsitePhotoScope(report) {
+    const injection = getInjectionInfo(report);
+    const dimensions = Number(report.liftAreaSqFt || 0) > 0
+      ? `${report.liftAreaLength || ''} ft x ${report.liftAreaWidth || ''} ft (${fmtNumber(report.liftAreaSqFt, 2)} sq ft)`
+      : '';
+    return [
+      getWorkAreaDisplay(report),
+      injection.fullLabel ? `${injection.fullLabel} injection` : '',
+      dimensions,
+      report.liftAreaNotes || ''
+    ].filter(Boolean).join(' | ');
+  }
+
+  function getWebsitePhotoResultSummary(report) {
+    const hasOriginal = report.originalSettlement !== '' && report.originalSettlement !== null && report.originalSettlement !== undefined;
+    const hasFinal = report.finalSettlement !== '' && report.finalSettlement !== null && report.finalSettlement !== undefined;
+    const original = Number(report.originalSettlement);
+    const final = Number(report.finalSettlement);
+    const measuredLift = hasOriginal && hasFinal && Number.isFinite(original) && Number.isFinite(final)
+      ? Math.max(0, original - final)
+      : null;
+    return [
+      measuredLift !== null ? `${fmtNumber(measuredLift, 2)} in measured improvement` : '',
+      report.targetLiftAchieved ? `Target lift: ${report.targetLiftAchieved}` : '',
+      report.completionStatus ? `Status: ${report.completionStatus}` : '',
+      report.conditionObserved ? `Conditions: ${report.conditionObserved}` : '',
+      report.conditionObservedOther || ''
+    ].filter(Boolean).join(' | ');
+  }
+
+  function getWebsitePhotoSuggestedName(report, photo, photoIndex) {
+    const originalName = getPhotoName(photo, `photo-${photoIndex + 1}.jpg`);
+    const extensionMatch = String(originalName).match(/\.[a-z0-9]{2,5}$/i);
+    const extension = extensionMatch ? extensionMatch[0].toLowerCase() : '.jpg';
+    const category = String(photo?.category || 'Job').replace(/[^a-z0-9]+/gi, '-');
+    const job = getWebsitePhotoJobName(report).replace(/[^a-z0-9]+/gi, '-');
+    const reportKey = String(report.id || 'report').slice(0, 8);
+    return safeFileName(`${report.date || 'no-date'}_${job}_${reportKey}_${category}_${photoIndex + 1}${extension}`);
+  }
+
+  function getPhotoExportReports() {
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const docs = filterReportsForDashboardPeriod(activeDocs);
+    const historyFiltersActive = Boolean(
+      String(document.getElementById('historySearch')?.value || '').trim() ||
+      document.getElementById('historyCityFilter')?.value ||
+      document.getElementById('historyTruckFilter')?.value ||
+      document.getElementById('historyDateFilter')?.value ||
+      document.getElementById('historyInjectionFilter')?.value ||
+      document.getElementById('historyStatusFilter')?.value ||
+      historyMissingRevenueOnly ||
+      historyReturnTripsOnly
+    );
+    if (!historyFiltersActive) return docs;
+    const allowedIds = new Set(getFilteredReports().map(report => report.id));
+    return docs.filter(report => allowedIds.has(report.id));
+  }
+
+  function getPhotoZipCategory(photo) {
+    const category = String(photo?.category || '').toLowerCase();
+    if (/before|site|pre[- ]?work/.test(category)) return 'Before';
+    if (/during|progress|work|injection|install/.test(category)) return 'During';
+    if (/after|result|complete|finish|post[- ]?work/.test(category)) return 'After';
+    return 'Uncategorized';
+  }
+
+  function safeZipFolderName(value, fallback = 'Unnamed Job') {
+    const cleaned = String(value || fallback)
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+      .replace(/[. ]+$/g, '')
+      .trim()
+      .slice(0, 100);
+    return cleaned || fallback;
+  }
+
+  const websitePhotoManifestHeaders = [
+      'Suggested Photo Filename', 'Job Name', 'Job Date', 'City', 'Address', 'Scope Summary',
+      'Work Area', 'Injection Type', 'Length Ft', 'Width Ft', 'Area Sq Ft',
+      'Pumped Lbs', 'Chemical Lbs From Clicks', 'Original Settlement In', 'Final Settlement In',
+      'Target Lift Achieved', 'Results Summary', 'Completion Status', 'Condition Observed',
+      'Other Condition Details', 'Job Notes', 'Photo Category', 'Original Photo Name', 'Photo URL',
+      'ZIP Path', 'Download Status', 'Download Error', 'Report ID'
+  ];
+
+  function buildPhotoZipExportPlan() {
+    const items = [];
+    getPhotoExportReports().forEach(report => {
+      const projectFolder = safeZipFolderName(getWebsitePhotoJobName(report));
+      const photos = Array.isArray(report.photos) ? report.photos : [];
+      photos.forEach((photo, photoIndex) => {
+        const categoryFolder = getPhotoZipCategory(photo);
+        const fileName = getWebsitePhotoSuggestedName(report, photo, photoIndex);
+        const zipPath = `${projectFolder}/${categoryFolder}/${fileName}`;
+        items.push({
+          report,
+          photo,
+          photoIndex,
+          photoUrl: getPhotoUrl(photo),
+          categoryFolder,
+          fileName,
+          zipPath,
+          status: 'Pending',
+          error: ''
+        });
+      });
+    });
+    return items;
+  }
+
+  function getPhotoManifestRow(item) {
+    const { report, photo, photoIndex } = item;
+    return [
+      item.fileName,
+      getWebsitePhotoJobName(report),
+      report.date || '',
+      getDashboardCity(report),
+      report.address || '',
+      getWebsitePhotoScope(report),
+      getWorkAreaDisplay(report),
+      getInjectionInfo(report).fullLabel || '',
+      report.liftAreaLength || '',
+      report.liftAreaWidth || '',
+      report.liftAreaSqFt || '',
+      fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
+      fmtNumber(getReportPounds(report), 2),
+      report.originalSettlement || '',
+      report.finalSettlement || '',
+      report.targetLiftAchieved || '',
+      getWebsitePhotoResultSummary(report),
+      report.completionStatus || '',
+      report.conditionObserved || '',
+      report.conditionObservedOther || '',
+      report.notes || '',
+      item.categoryFolder,
+      getPhotoName(photo, `Photo ${photoIndex + 1}`),
+      item.photoUrl || '',
+      item.zipPath,
+      item.status,
+      item.error,
+      report.id || ''
+    ];
+  }
+
+  function updatePhotoZipProgress(percent, text) {
+    const box = document.getElementById('photoZipExportStatus');
+    const progress = document.getElementById('photoZipExportProgress');
+    const label = document.getElementById('photoZipExportText');
+    if (box) box.style.display = 'block';
+    if (progress) progress.value = Math.max(0, Math.min(100, Number(percent || 0)));
+    if (label) label.textContent = text;
+  }
+
+  function yieldPhotoExportToBrowser() {
+    return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  }
+
+  function withPhotoExportTimeout(promise, timeoutMs, label) {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`)), timeoutMs);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+  }
+
+  async function downloadPhotoBlobForZip(item) {
+    const errors = [];
+    const storedPath = item.photo && typeof item.photo === 'object' ? item.photo.path : '';
+
+    if (item.photoUrl) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const response = await fetch(item.photoUrl, {
+          cache: 'no-store',
+          credentials: 'omit',
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
+        const blob = await response.blob();
+        if (blob?.size) return blob;
+        errors.push('Direct URL download returned an empty file.');
+      } catch (error) {
+        const detail = error?.name === 'AbortError' ? 'timed out after 12 seconds' : (error?.message || error);
+        errors.push(`Direct URL download: ${detail}`);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    if (storedPath) {
+      try {
+        const blob = await withPhotoExportTimeout(
+          getBlob(storageRef(storage, storedPath)),
+          10000,
+          'Firebase SDK path download'
+        );
+        if (blob?.size) return blob;
+        errors.push('Firebase SDK path download returned an empty file.');
+      } catch (error) {
+        errors.push(`Firebase SDK path download: ${error?.code || error?.message || error}`);
+      }
+    }
+
+    if (item.photoUrl && !storedPath) {
+      try {
+        const blob = await withPhotoExportTimeout(
+          getBlob(storageRef(storage, item.photoUrl)),
+          10000,
+          'Firebase SDK URL download'
+        );
+        if (blob?.size) return blob;
+        errors.push('Firebase SDK URL download returned an empty file.');
+      } catch (error) {
+        errors.push(`Firebase SDK URL download: ${error?.code || error?.message || error}`);
+      }
+    }
+
+    if (!storedPath && !item.photoUrl) errors.push('The report has no Storage path or photo URL.');
+    throw new Error(errors.join(' | '));
+  }
+
+  async function exportPhotosAsZip() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for photo ZIP export.', 'error');
+    if (!window.JSZip) return showMessage('ZIP support did not load. Check the internet connection and refresh the app.', 'error');
+
+    const button = document.getElementById('btnExportPhotosZip');
+    const items = buildPhotoZipExportPlan();
+    if (!items.length) return showMessage('No job photos were found for the active date, city, project, and report filters.', 'error');
+
+    button.disabled = true;
+    button.textContent = 'Exporting Photos...';
+    const zip = new window.JSZip();
+    const missing = [];
+    let downloadedBytes = 0;
+
+    try {
+      updatePhotoZipProgress(0, `Preparing ${items.length} full-resolution photo${items.length === 1 ? '' : 's'}...`);
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const fetchPercent = Math.round((index / items.length) * 80);
+        updatePhotoZipProgress(fetchPercent, `Downloading photo ${index + 1} of ${items.length} — ${item.fileName}`);
+
+        try {
+          const photoBlob = await downloadPhotoBlobForZip(item);
+          downloadedBytes += photoBlob.size;
+          zip.file(item.zipPath, photoBlob, { binary: true, compression: 'STORE' });
+          item.status = 'Included';
+        } catch (error) {
+          item.status = 'Missing';
+          item.error = String(error?.message || error || 'Unknown download error');
+          missing.push(`${item.zipPath} | ${item.photoUrl || 'No URL'} | ${item.error}`);
+          console.warn('Photo ZIP export skipped a file:', item.zipPath, error);
+        }
+
+        if (index >= 2 && items.slice(0, index + 1).every(photoItem => photoItem.status === 'Missing')) {
+          throw new Error('The first three photos were all blocked. This indicates a Firebase Storage CORS or access configuration problem, so the export was stopped instead of waiting on every photo.');
+        }
+
+        if ((index + 1) % 3 === 0 || index === items.length - 1) await yieldPhotoExportToBrowser();
+      }
+
+      const manifestRows = items.map(getPhotoManifestRow);
+      const manifestCsv = [websitePhotoManifestHeaders, ...manifestRows]
+        .map(row => row.map(csvCell).join(','))
+        .join('\n');
+      zip.file('photo-manifest.csv', `\uFEFF${manifestCsv}`);
+      if (missing.length) {
+        zip.file('missing-photos.txt', [
+          'KKE Photo ZIP Export — Missing Photos',
+          `Generated: ${new Date().toISOString()}`,
+          `Missing: ${missing.length} of ${items.length}`,
+          '',
+          ...missing
+        ].join('\n'));
+      }
+
+      const includedCount = items.filter(item => item.status === 'Included').length;
+      if (!includedCount) throw new Error('None of the selected photos could be downloaded. Check Firebase Storage access or CORS settings.');
+
+      updatePhotoZipProgress(80, `Building ZIP with ${includedCount} photo${includedCount === 1 ? '' : 's'} (${fmtNumber(downloadedBytes / 1048576, 1)} MB)...`);
+      const zipBlob = await zip.generateAsync(
+        { type: 'blob', compression: 'STORE', streamFiles: true, platform: 'DOS' },
+        metadata => updatePhotoZipProgress(80 + Math.round(metadata.percent * 0.2), `Building ZIP — ${Math.round(metadata.percent)}%`)
+      );
+
+      const range = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'dashboard-range';
+      const cleanRange = safeFileName(range.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'dashboard-range';
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `kke-photos-${cleanRange}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+
+      updatePhotoZipProgress(100, `Complete — ${includedCount} photos exported${missing.length ? `; ${missing.length} missing photo${missing.length === 1 ? '' : 's'} listed inside the ZIP` : ''}.`);
+      showMessage(`Photo ZIP downloaded with ${includedCount} original photo${includedCount === 1 ? '' : 's'} and the CSV manifest.${missing.length ? ` ${missing.length} missing photo${missing.length === 1 ? ' was' : 's were'} skipped and documented.` : ''}`);
+    } catch (error) {
+      console.error('Photo ZIP export failed:', error);
+      updatePhotoZipProgress(0, `Export failed: ${error?.message || error}`);
+      showMessage(`Photo ZIP export failed: ${error?.message || error}`, 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Export Photos (ZIP)';
+    }
+  }
+
+  function downloadPnlCsv() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for CSV export.', 'error');
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const docs = filterReportsForDashboardPeriod(activeDocs);
+    const headers = [
+      'Date', 'City', 'Address', 'Truck', 'Superintendent', 'Job Group ID', 'Group Day', 'Group Report Count', 'Allocation Method', 'Allocation Share %', 'Grouped Job Revenue', 'Allocated Revenue', 'Direct Report Revenue', 'Pumped Lbs', 'Billable Lbs', 'Billing Rate',
+      'Billable Lb Revenue', 'Joint Grinding LF', 'Grind Depth', 'Joint Grinding Rate', 'Joint Grinding Revenue',
+      'Revenue', 'Labor', 'Chemical Lbs From Clicks', 'Free Chemical Used', 'Chemical Rate', 'Chemical', 'Fuel', 'Disposables', 'Direct Costs', 'Overhead', 'Estimated Profit',
+      'Margin %', 'Fuel Gallons', 'Vehicle Fuel Gallons', 'Small Engine Gallons', 'Generator Gallons', 'MPG Used', 'Route Miles Used', 'Generated Route Miles', 'Route Miles Source', 'Small Engine Hours', 'Generator Runtime',
+      'Cost Rule Effective Date', 'P&L Confidence', 'Revenue Quality', 'Labor Quality', 'Fuel Quality', 'Material Quality', 'Overhead Rule',
+      'Job Notes', 'Return Trip Required', 'Return Trip Reason', 'Preventable Delay', 'Completion Status',
+      'Original Settlement', 'Final Settlement', 'Target Lift Achieved', 'Condition Observed', 'Other Condition',
+      'Before/Site Photo Count', 'After Photo Count', 'Completion Record Status'
+    ];
+    const rows = docs.map(report => {
+      const pnl = calculateReportPnl(report, docs, costSettings);
+      return [
+        report.date || '',
+        getDashboardCity(report),
+        report.address || '',
+        getNormalizedTruck(report),
+        getNormalizedCrew(report),
+        pnl.groupId || '',
+        pnl.isGroupedRevenue ? fmtNumber(pnl.groupIndex || 1, 0) : '',
+        pnl.isGroupedRevenue ? fmtNumber(pnl.groupSize || 1, 0) : '',
+        formatRevenueAllocationMethod(pnl.allocationMethod),
+        fmtNumber((pnl.allocationShare || 0) * 100, 2),
+        fmtNumber(pnl.groupRevenue, 2),
+        fmtNumber(pnl.allocatedRevenue, 2),
+        fmtNumber(pnl.directRevenue, 2),
+        fmtNumber(getReportFlowMeterPounds(report) || getReportPounds(report), 2),
+        fmtNumber(pnl.billableLbs, 2),
+        fmtNumber(pnl.billingRate, 2),
+        fmtNumber(pnl.billableLbRevenue, 2),
+        fmtNumber(pnl.jointGrindingLinearFeet, 2),
+        report.jointGrindingDepth || '',
+        fmtNumber(pnl.jointGrindingRate, 2),
+        fmtNumber(pnl.jointGrindingRevenue, 2),
+        fmtNumber(pnl.revenue, 2),
+        fmtNumber(pnl.laborCost, 2),
+        fmtNumber(pnl.chemicalLbs, 2),
+        pnl.freeChemicalUsed ? 'Yes' : 'No',
+        fmtNumber(pnl.chemicalRate, 2),
+        fmtNumber(pnl.chemicalCost, 2),
+        fmtNumber(pnl.fuelCost, 2),
+        fmtNumber(pnl.disposablesCost, 2),
+        fmtNumber(pnl.directCost, 2),
+        fmtNumber(pnl.overheadCost, 2),
+        fmtNumber(pnl.profit, 2),
+        fmtNumber(pnl.margin, 2),
+        fmtNumber(pnl.fuelGallons, 2),
+        fmtNumber(pnl.vehicleFuelGallons, 2),
+        fmtNumber(pnl.smallEngineGallons, 2),
+        fmtNumber(pnl.generatorGallons, 2),
+        fmtNumber(pnl.mpg, 1),
+        fmtNumber(pnl.routeMiles, 1),
+        fmtNumber(report.routeMilesGenerated || 0, 1),
+        report.routeMilesSource || '',
+        fmtNumber(report.smallEngineHours || 0, 2),
+        report.generatorRunTime || '',
+        pnl.costRuleEffectiveDate || '',
+        pnl.confidence,
+        pnl.quality.revenue,
+        pnl.quality.labor,
+        pnl.quality.fuel,
+        pnl.quality.material,
+        pnl.quality.overhead,
+        report.notes || '',
+        report.returnTripRequired || '',
+        report.returnTripReason || '',
+        report.preventableDelay || '',
+        report.completionStatus || '',
+        report.originalSettlement || '',
+        report.finalSettlement || '',
+        report.targetLiftAchieved || '',
+        report.conditionObserved || '',
+        report.conditionObservedOther || '',
+        report.beforePhotoCount ?? '',
+        report.afterPhotoCount ?? '',
+        getCompletionRecordStatus(report)
+      ];
+    });
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const range = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'dashboard-range';
+    link.href = URL.createObjectURL(blob);
+    link.download = `kke-pnl-${range.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'export'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  function buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew) {
+    const productionTone = summary.reports
+      ? `The selected dashboard period contains ${fmtNumber(summary.reports, 0)} production report${summary.reports === 1 ? '' : 's'} totaling ${fmtNumber(summary.pounds, 0)} estimated pounds across ${fmtNumber(summary.hours, 2)} hours.`
+      : 'The selected dashboard period does not currently contain production reports.';
+    const efficiencyTone = summary.hours > 0
+      ? `Overall production efficiency is ${fmtNumber(summary.lbsPerHour, 0)} lbs/hr.`
+      : 'Efficiency cannot be calculated until labor hours are entered.';
+    const cityTone = topCity
+      ? `${topCity.name} is the leading service city in the selected table range with ${fmtNumber(topCity.pounds, 0)} lbs across ${fmtNumber(topCity.reports, 0)} report${topCity.reports === 1 ? '' : 's'}.`
+      : 'No city concentration is available for the selected table range.';
+    const dispatchTone = transitions.length
+      ? `Dispatch activity includes ${fmtNumber(transitions.length, 0)} same-day truck transitions, averaging ${fmtNumber(transitionStats.avgMinutes, 0)} minutes and ${fmtNumber(transitionStats.avgMiles, 1)} GPS miles where distance is available.`
+      : 'No same-day truck transitions were detected for the selected dashboard period.';
+
+    const recommendations = [];
+    if (outliers.length) recommendations.push(`Clean up ${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} so KPI reporting can be trusted without manual review.`);
+    if (transitionStats.avgMinutes >= 90) recommendations.push('Review scheduling, loading, and routing on long transition days; the average transition time is high enough to create visible idle time.');
+    if (topTruck) recommendations.push(`Use Truck ${topTruck.name} as the operating benchmark and compare lower-performing trucks against its ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr profile.`);
+    if (topCrew) recommendations.push(`Use ${topCrew.name}'s production pattern as a crew-efficiency benchmark at ${fmtNumber(topCrew.poundsPerHour, 0)} lbs/hr.`);
+    if (topCity) recommendations.push(`Maintain close schedule visibility in ${topCity.name}; it is carrying the largest city share in the selected table range.`);
+    if (summary.differencePercent < -10) recommendations.push('Investigate flow-meter variance because recorded flow meter pounds are materially below click-based estimated pounds.');
+    if (!recommendations.length) recommendations.push('No major management exceptions surfaced. Continue monitoring production rhythm, route timing, and report completeness.');
+
+    return { productionTone, efficiencyTone, cityTone, dispatchTone, recommendations };
+  }
+
+  function buildActualExecutiveReport({ activeDocs, dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, dashboardRangeObj, tableRangeObj, previousDocs, reportDate }) {
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(dashboardDocs), dashboardRangeObj, costSettings);
+    const previousSummary = previousDocs ? summarizeExecutiveReports(previousDocs) : null;
+    const tableSummary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(tableDocs), tableRangeObj, costSettings);
+    const transitionStats = buildTransitionStats(transitions);
+    const cityEntries = executiveEntries(tableSummary.byCity, 'pounds');
+    const truckEntries = executiveEntries(tableSummary.byTruck, 'poundsPerHour');
+    const crewEntries = executiveEntries(tableSummary.byCrew, 'poundsPerHour');
+    const areaEntries = executiveEntries(tableSummary.byArea, 'pounds');
+    const trendRows = getExecutiveTrendRows(summary);
+    const topCity = cityEntries[0];
+    const topTruck = truckEntries[0];
+    const topCrew = crewEntries[0];
+    const narrative = buildExecutiveNarrative(summary, tableSummary, transitionStats, transitions, outliers, topCity, topTruck, topCrew);
+    const partialWarning = getPartialPeriodWarning(dashboardRangeObj);
+    const tablePartialWarning = getPartialPeriodWarning(tableRangeObj);
+    const dataQuality = getDataQualityMetrics(dashboardDocs, dashboardRangeObj);
+    const smallJobDrag = getSmallJobDrag(dashboardDocs, 150);
+    const concentration = getProductionConcentrationRisk(cityEntries, tableSummary.pounds);
+    const whatChanged = getWhatChangedAndWhy(summary, previousSummary, cityEntries, truckEntries);
+    const workingDays = dashboardRangeObj?.key === 'all' ? null : countWeekdaysInRange(dashboardRangeObj);
+    const dailyAverage = workingDays ? summary.pounds / Math.max(1, workingDays) : summary.reports ? summary.pounds / Math.max(1, Object.keys(summary.byDate).length) : 0;
+    const nextWeekForecast = dailyAverage * 5;
+    const capacity = getCapacityAnalysis(summary, 125);
+    const recoverable = getRecoverableProduction(summary, transitionStats, smallJobDrag, dataQuality);
+    const forecast = getForecast(dailyAverage, dataQuality, concentration);
+    const profitSignals = buildProfitSignals(dashboardDocs);
+    const revenueGoal = getRevenueGoalProgress(summary, dashboardRangeObj, costSettings);
+    const goalPaceText = revenueGoal.goal
+      ? revenueGoal.pacingVariance >= 0
+        ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
+        : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
+      : 'No monthly revenue goal is currently set.';
+    const revenueGoalOnPace = revenueGoal.goal > 0 && revenueGoal.projected >= revenueGoal.goal;
+    const revenueGoalTone = revenueGoal.goal ? (revenueGoalOnPace ? 'on-pace' : 'behind-pace') : 'neutral';
+    const executiveAttentionItems = [];
+    if (revenueGoal.goal) {
+      executiveAttentionItems.push(revenueGoal.pacingVariance >= 0
+        ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of month-to-date pace for the ${formatMoney(revenueGoal.goal)} monthly goal.`
+        : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind month-to-date pace for the ${formatMoney(revenueGoal.goal)} monthly goal.`);
+    }
+    if (profitSignals.lossJobs.length || profitSignals.bottomMarginJobs.length) {
+      const lossText = `${fmtNumber(profitSignals.lossJobs.length, 0)} loss job${profitSignals.lossJobs.length === 1 ? '' : 's'}`;
+      const marginText = `${fmtNumber(profitSignals.bottomMarginJobs.length, 0)} low-margin job${profitSignals.bottomMarginJobs.length === 1 ? '' : 's'}`;
+      executiveAttentionItems.push(`Margin risk is concentrated in ${lossText} and ${marginText} that need management review.`);
+    }
+    if (smallJobDrag.count) {
+      executiveAttentionItems.push(`${fmtNumber(smallJobDrag.count, 0)} small jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs are pressuring production efficiency.`);
+    }
+    if (!executiveAttentionItems.length) {
+      executiveAttentionItems.push('No executive attention item is currently triggered by this report period.');
+    }
+    const previousTransitionStats = previousDocs ? buildTransitionStats(calculateTransitions(previousDocs)) : null;
+    const previousOutliers = previousDocs ? getDashboardOutliers(previousDocs) : [];
+    const previousDataQuality = previousDocs ? getDataQualityMetrics(previousDocs, getPreviousComparableRange(dashboardRangeObj)) : null;
+    const previousSmallJobDrag = previousDocs ? getSmallJobDrag(previousDocs, 150) : null;
+    const poundChangePct = previousSummary?.pounds ? percentChange(summary.pounds, previousSummary.pounds) : 0;
+    const todayLabel = formatDateForDashboard(new Date());
+    const isCurrentPartialPeriod = Boolean(partialWarning);
+    const periodSubject = isCurrentPartialPeriod
+      ? `${dashboardRangeObj?.label || 'The selected period'} to date through ${todayLabel}`
+      : `${dashboardRangeObj?.label || 'The selected period'}`;
+    const periodVerb = isCurrentPartialPeriod ? 'shows' : 'closed with';
+    const movementText = previousSummary?.reports
+      ? `, a ${summary.pounds >= previousSummary.pounds ? 'gain' : 'decline'} of ${fmtNumber(Math.abs(summary.pounds - previousSummary.pounds), 0)} lbs (${signedPercent(poundChangePct)}) versus the previous comparison period`
+      : '';
+    const concentrationText = topCity
+      ? `${topCity.name} led the city mix, accounting for ${fmtNumber(concentration.percent, 1)}% of selected production`
+      : 'production was spread across the active service cities';
+    const executiveStory = summary.reports
+      ? `${periodSubject} ${periodVerb} ${fmtNumber(summary.pounds, 0)} lbs across ${fmtNumber(summary.reports, 0)} reports${movementText}. ${concentrationText}. ${topTruck ? `Truck ${topTruck.name} and ${topCrew ? topCrew.name : 'the leading crew'} set the operating benchmark at ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr because the unit carried ${fmtNumber(topTruck.pounds, 0)} lbs across ${fmtNumber(topTruck.reports, 0)} reports while maintaining the strongest efficiency profile.` : ''} Dispatch ${transitionStats.avgMinutes <= 25 ? 'remained under target' : 'ran above target'} at ${fmtNumber(transitionStats.avgMinutes, 0)} minutes average transition time. The clearest operating opportunity is reducing mobilization drag from ${fmtNumber(smallJobDrag.count, 0)} small jobs that averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr.`
+      : 'No production reports are available for the selected executive report period.';
+    const managementNarrative = [
+      `${periodSubject} is ${previousSummary && summary.pounds < previousSummary.pounds ? 'softer than the comparison period' : 'performing strongly'}, led by ${topCity ? topCity.name : 'the top active city'} and ${topTruck ? `Truck ${topTruck.name}` : 'the leading truck'}.`,
+      `${summary.methodPounds >= summary.diPounds ? 'Method work drove most production' : 'DI work was a major contributor'}, while ${summary.diPounds > 0 ? `DI added ${fmtNumber(summary.diPounds, 0)} lbs across ${fmtNumber(summary.diReports, 0)} reports` : 'DI activity was limited'}.`,
+      `${transitions.length ? `Dispatch averaged ${fmtNumber(transitionStats.avgMinutes, 0)} minutes between same-day truck moves` : 'Dispatch transition activity was limited in this period'}.`,
+      `Management should focus on ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} small jobs creating mobilization drag` : 'small-job mix'} and ${concentration.percent >= 35 ? 'production concentration in one city/project' : 'continued monitoring of city mix and truck fairness'}.`
+    ].join(' ');
+
+    const kpis = renderExecutiveMetricGrid([
+      { label: 'Estimated Pounds', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.clicks, 0)} clicks` },
+      { label: 'Flow Meter Pounds', value: `${fmtNumber(summary.flowMeterPounds, 0)} lbs`, sub: `Flux ${fmtNumber(summary.differencePercent, 1)}%` },
+      { label: 'Reports', value: fmtNumber(summary.reports, 0), sub: `${fmtNumber(summary.hours, 2)} hours` },
+      { label: 'Production Rate', value: `${fmtNumber(summary.lbsPerHour, 0)} lbs/hr`, sub: 'Active reports in selected period' },
+      { label: 'Method Work', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports` },
+      { label: 'DI Work', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports` },
+      { label: 'Truck Benchmark', value: topTruck ? `${topTruck.name}` : 'No truck data', sub: topTruck ? `${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr` : '' },
+      { label: 'Crew Benchmark', value: topCrew ? `${topCrew.name}` : 'No crew data', sub: topCrew ? `${fmtNumber(topCrew.poundsPerHour, 0)} lbs/hr` : '' }
+    ]);
+
+    const transitionRows = transitions
+      .slice()
+      .sort((a, b) => b.minutes - a.minutes)
+      .slice(0, 8)
+      .map(item => [
+        item.date || '',
+        `Truck ${item.truck}`,
+        `${item.fromCity} to ${item.toCity}`,
+        `${fmtNumber(item.minutes, 0)} min`,
+        item.hasGps ? `${fmtNumber(item.miles, 1)} mi` : 'No GPS'
+      ]);
+
+    const scorecardRows = [
+      {
+        metric: 'Lbs / Hr',
+        goal: '125',
+        actual: fmtNumber(summary.lbsPerHour, 0),
+        trend: previousSummary ? trendText(summary.lbsPerHour, previousSummary.lbsPerHour) : '-',
+        status: getExecutiveStatus(summary.lbsPerHour, 125, 'higher')
+      },
+      {
+        metric: 'Dispatch Transition',
+        goal: '<25 min',
+        actual: `${fmtNumber(transitionStats.avgMinutes, 0)} min`,
+        trend: previousTransitionStats ? trendText(transitionStats.avgMinutes, previousTransitionStats.avgMinutes, '', true) : '-',
+        status: getExecutiveStatus(transitionStats.avgMinutes, 25, 'lower')
+      },
+      {
+        metric: 'Data Quality',
+        goal: '>98%',
+        actual: `${fmtNumber(dataQuality.score, 0)}%`,
+        trend: previousDataQuality ? trendText(dataQuality.score, previousDataQuality.score) : '-',
+        status: getExecutiveStatus(dataQuality.score, 98, 'higher')
+      },
+      {
+        metric: 'Small Job Drag',
+        goal: '<10 jobs',
+        actual: fmtNumber(smallJobDrag.count, 0),
+        trend: previousSmallJobDrag ? `${smallJobDrag.count - previousSmallJobDrag.count >= 0 ? '+' : ''}${fmtNumber(smallJobDrag.count - previousSmallJobDrag.count, 0)} jobs` : '-',
+        status: getExecutiveStatus(smallJobDrag.count, 10, 'lower')
+      }
+    ];
+    const bestMoneyJob = profitSignals.topProfitJobs[0];
+    const lowestMarginJob = profitSignals.bottomMarginJobs[0];
+    const lowestTruckProfit = profitSignals.truckProfit.slice().reverse().find(item => item.reports > 0);
+    const profitDriverText = bestMoneyJob
+      ? `Best money-making work in this period came from ${bestMoneyJob.name}, producing ${formatMoney(bestMoneyJob.pnl.profit)} profit at ${fmtNumber(bestMoneyJob.pnl.margin, 1)}% margin.`
+      : 'No revenue-ready jobs are available yet for profit-driver analysis.';
+    const marginRiskText = lowestMarginJob
+      ? `Margin risk is concentrated in ${lowestMarginJob.name}, with ${fmtNumber(lowestMarginJob.pnl.margin, 1)}% margin and ${formatMoney(lowestMarginJob.pnl.profit)} estimated profit.`
+      : 'No low-margin jobs are available yet.';
+    const truckRiskText = lowestTruckProfit
+      ? `Truck ${lowestTruckProfit.name} produced lower profit per labor hour at ${formatMoney(lowestTruckProfit.profitPerLaborHour)} profit/hr across ${fmtNumber(lowestTruckProfit.reports, 0)} report(s).`
+      : 'No truck profit ranking is available yet.';
+
+    return `
+      <section class="exec-section exec-narrative">
+        <h2>Management Narrative</h2>
+        <p><strong>${escapeHtml(managementNarrative)}</strong></p>
+        <p>${escapeHtml(whatChanged)}</p>
+        ${partialWarning || tablePartialWarning ? `<div class="exec-warning">${escapeHtml(partialWarning || tablePartialWarning)}</div>` : ''}
+      </section>
+
+      <section class="exec-section">
+        <h2>Executive Period Comparison</h2>
+        <p>This scorecard compares the periods executives review most often: week-over-week and month-to-month. Current month values should be read as month-to-date until the month is closed.</p>
+        ${renderExecutiveComparisonTable(activeDocs)}
+      </section>
+
+      <section class="exec-section exec-summary">
+        <h2>Executive Summary</h2>
+        <p>${escapeHtml(executiveStory)}</p>
+        ${kpis}
+      </section>
+
+      <section class="exec-section">
+        <h2>Revenue and Margin Read</h2>
+        <p>This section uses manager-entered billable pounds and billing rate, then subtracts labor, chemical, fuel, disposables, and overhead at ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue. It is a management estimate, not final accounting.</p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Revenue', value: formatMoney(summary.revenue), sub: `${fmtNumber(summary.missingRevenueReports, 0)} report(s) missing billable lbs/rate` },
+          { label: 'Estimated Profit', value: formatMoney(summary.profit), sub: `Margin ${fmtNumber(summary.margin, 1)}%` },
+          { label: 'Direct Costs', value: formatMoney(summary.directCost), sub: `Labor ${formatMoney(summary.laborCost)} | Materials ${formatMoney(summary.chemicalCost + summary.disposablesCost)}` },
+          { label: 'Overhead', value: formatMoney(summary.overheadCost), sub: `${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue` },
+          { label: 'Revenue / Labor Hour', value: formatMoney(summary.revenuePerLaborHour), sub: `${fmtNumber(summary.hours, 2)} total hours` },
+          { label: 'Revenue / Lb', value: formatMoney(summary.revenuePerLb), sub: `${fmtNumber(summary.pounds, 0)} estimated lbs` },
+          { label: 'Fuel Quality', value: `${fmtNumber(summary.missingFuelReports, 0)} need review`, sub: 'Missing route miles, MPG, or fuel price' },
+          { label: 'Labor Quality', value: `${fmtNumber(summary.estimatedLaborReports, 0)} estimated`, sub: 'Partial/default crew data' }
+        ])}
+      </section>
+
+      <section class="exec-section exec-goal exec-goal-${revenueGoalTone}">
+        <h2>Revenue Goal Progress</h2>
+        <p><strong>${escapeHtml(goalPaceText)}</strong></p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Monthly Goal', value: formatMoney(revenueGoal.goal), sub: 'Executive target' },
+          { label: 'Revenue To Date', value: formatMoney(revenueGoal.revenue), sub: `${fmtNumber(revenueGoal.percent, 1)}% of monthly goal` },
+          { label: 'Expected To Date', value: formatMoney(revenueGoal.expectedToDate), sub: `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays; includes today in full. Mon–Fri, holidays included.` },
+          { label: 'Projected Month', value: formatMoney(revenueGoal.projected), sub: revenueGoalOnPace ? 'Pacing above goal' : 'Pacing below goal' },
+          { label: 'Remaining Revenue', value: formatMoney(revenueGoal.remaining), sub: 'Needed to hit goal' },
+          { label: 'Needed / Workday', value: revenueGoal.supported&&revenueGoal.requiredPerWorkday!==null?formatMoney(revenueGoal.requiredPerWorkday):'—', sub: revenueGoal.ended?'Month ended':revenueGoal.supported?`${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining`:'Monthly view required' },
+          { label: 'Pace Variance', value: `${revenueGoal.pacingVariance >= 0 ? '+' : '-'}${formatMoney(Math.abs(revenueGoal.pacingVariance))}`, sub: 'Against expected month-to-date pace' },
+          { label: 'Goal Status', value: revenueGoalOnPace ? 'On Pace' : 'Behind Pace', sub: 'Based on revenue-ready reports' }
+        ])}
+      </section>
+
+      <section class="exec-section exec-attention">
+        <h2>Executive Attention</h2>
+        <ul>
+          ${executiveAttentionItems.slice(0, 3).map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+        </ul>
+      </section>
+
+      <section class="exec-section">
+        <h2>Profit Drivers and Margin Risks</h2>
+        <p>${escapeHtml(`${profitDriverText} ${marginRiskText} ${truckRiskText}`)}</p>
+        ${renderExecutiveMetricGrid([
+          { label: 'Revenue-Ready Jobs', value: `${fmtNumber(profitSignals.revenueReadyRows.length, 0)} / ${fmtNumber(profitSignals.rows.length, 0)}`, sub: 'Incomplete revenue excluded from averages' },
+          { label: 'Jobs Missing Revenue', value: fmtNumber(profitSignals.missingRevenueJobs.length, 0), sub: 'Flagged as Revenue Incomplete' },
+          { label: 'Loss Jobs', value: fmtNumber(profitSignals.lossJobs.length, 0), sub: 'Profit below $0' },
+          { label: 'Avg Revenue / Lb', value: formatMoney(profitSignals.averageRevenuePerLb), sub: 'Revenue-ready jobs only' }
+        ])}
+        <div class="exec-two-col">
+          <div>
+            <h3>Top 5 Jobs by Profit</h3>
+            ${renderExecutiveTable(
+              ['Job', 'Profit', 'Margin', 'Revenue/Lb'],
+              profitSignals.topProfitJobs.map(row => [row.name, formatMoney(row.pnl.profit), `${fmtNumber(row.pnl.margin, 1)}%`, formatMoney(row.revenuePerLb)]),
+              'good'
+            )}
+          </div>
+          <div>
+            <h3>Bottom 5 Margin Jobs</h3>
+            ${renderExecutiveTable(
+              ['Job', 'Profit', 'Margin', 'Flags'],
+              profitSignals.bottomMarginJobs.map(row => [row.name, formatMoney(row.pnl.profit), `${fmtNumber(row.pnl.margin, 1)}%`, row.flags.map(flag => flag.label).join(', ') || 'Review']),
+              'risk'
+            )}
+          </div>
+        </div>
+        <div class="exec-two-col">
+          <div>
+            <h3>Top Cities by Profit</h3>
+            ${renderExecutiveTable(
+              ['City', 'Profit', 'Margin', 'Revenue/Lb'],
+              profitSignals.cityProfit.slice(0, 5).map(item => [item.name, formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`, formatMoney(item.revenuePerLb)]),
+              'good'
+            )}
+          </div>
+          <div>
+            <h3>Truck Profit Ranking</h3>
+            ${renderExecutiveTable(
+              ['Truck', 'Profit/Hr', 'Profit', 'Reports'],
+              profitSignals.truckProfit.slice(0, 5).map(item => [item.name, formatMoney(item.profitPerLaborHour), formatMoney(item.profit), fmtNumber(item.reports, 0)]),
+              'good'
+            )}
+          </div>
+        </div>
+        <div class="exec-two-col">
+          <div>
+            <h3>Work Type by Revenue / Lb</h3>
+            ${renderExecutiveTable(
+              ['Work Area', 'Revenue/Lb', 'Profit', 'Margin'],
+              profitSignals.workAreaProfit.slice(0, 5).map(item => [item.name, formatMoney(item.revenuePerLb), formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`]),
+              'good'
+            )}
+          </div>
+          <div>
+            <h3>Best Multi-Day / Grouped Jobs</h3>
+            ${renderExecutiveTable(
+              ['Job Group', 'Profit', 'Margin', 'Reports'],
+              profitSignals.groupedJobs.slice(0, 5).map(item => [item.name, formatMoney(item.profit), `${fmtNumber(item.margin, 1)}%`, fmtNumber(item.reports, 0)]),
+              'good'
+            )}
+          </div>
+        </div>
+        <h3>Margin Watchlist</h3>
+        ${renderExecutiveTable(
+          ['Job', 'Profit', 'Margin', 'Flag Reasons'],
+          profitSignals.watchlist.slice(0, 8).map(row => [
+            row.name,
+            row.revenueReady ? formatMoney(row.pnl.profit) : 'Revenue Incomplete',
+            row.revenueReady ? `${fmtNumber(row.pnl.margin, 1)}%` : '-',
+            row.flags.map(flag => flag.label).join(', ') || 'Review'
+          ]),
+          'risk'
+        )}
+      </section>
+
+      <section class="exec-section">
+        <h2>Operating Scorecard</h2>
+        <p>The scorecard separates operating results that are on target from items needing management attention.</p>
+        ${renderScorecard(scorecardRows)}
+      </section>
+
+      <section class="exec-section">
+        <h2>What Changed and Why</h2>
+        <p>${escapeHtml(whatChanged)}</p>
+        ${previousSummary ? renderExecutiveMetricGrid([
+          { label: 'Current Pounds', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: dashboardRange },
+          { label: 'Prior Comparable', value: `${fmtNumber(previousSummary.pounds, 0)} lbs`, sub: 'Previous period' },
+          { label: 'Change', value: `${summary.pounds - previousSummary.pounds >= 0 ? '+' : ''}${fmtNumber(summary.pounds - previousSummary.pounds, 0)} lbs`, sub: `${summary.reports - previousSummary.reports >= 0 ? '+' : ''}${fmtNumber(summary.reports - previousSummary.reports, 0)} reports` },
+          { label: 'Working Days', value: workingDays === null ? 'All Time' : fmtNumber(workingDays, 0), sub: partialWarning ? 'Partial-period view' : 'Selected period' }
+        ]) : '<p>No prior comparable period is available for this selected view.</p>'}
+      </section>
+
+      <details class="exec-operator-details">
+        <summary>Show Operator Details</summary>
+        <div class="exec-operator-body">
+          <section class="exec-section">
+            <h2>Operator Comparison Detail</h2>
+            <p>Fuel, chemical, and top performer comparisons are kept here for follow-up review.</p>
+            ${renderExecutiveOperatorComparisonTable(activeDocs)}
+          </section>
+
+          <section class="exec-section">
+            <h2>Root Cause Analysis</h2>
+            <p><strong>Small-job drag:</strong> ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} labor hours while producing ${fmtNumber(smallJobDrag.pounds, 0)} lbs. That work averaged ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr, which points to mobilization, travel, warranty, punch-list, or isolated service-call friction rather than crew production capacity alone.` : 'Small-job drag did not appear materially in this period.'}</p>
+            <p><strong>Benchmark truck context:</strong> ${topTruck ? `Truck ${topTruck.name} is the benchmark because it combined volume, repeated report count, and efficiency: ${fmtNumber(topTruck.pounds, 0)} lbs, ${fmtNumber(topTruck.reports, 0)} reports, and ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr.` : 'No benchmark truck is available for this period.'}</p>
+            <p><strong>Concentration:</strong> ${escapeHtml(concentration.text)} This is positive when scheduling is controlled, but risky if one city/project carries too much of the period.</p>
+          </section>
+
+          <section class="exec-section">
+            <h2>Production Performance</h2>
+            <p>The production view is based on <strong>${escapeHtml(dashboardRange)}</strong>. City and table detail are based on <strong>${escapeHtml(tableRange)}</strong>.</p>
+            <div class="exec-two-col">
+              <div>
+                <h3>Recent Production Trend</h3>
+                ${renderExecutiveBarTable(trendRows.map(item => ({ ...item, name: item.name, value: item.pounds })), item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+              </div>
+              <div>
+                <h3>Work Type Mix</h3>
+                ${renderExecutiveMetricGrid([
+                  { label: 'Method', value: `${fmtNumber(summary.methodPounds, 0)} lbs`, sub: `${fmtNumber(summary.methodReports, 0)} reports | ${fmtNumber(summary.methodHours, 2)} hrs` },
+                  { label: 'DI', value: `${fmtNumber(summary.diPounds, 0)} lbs`, sub: `${fmtNumber(summary.diReports, 0)} reports | ${fmtNumber(summary.diHours, 2)} hrs` },
+                  { label: 'Missing Type', value: `${fmtNumber(summary.unknownPounds, 0)} lbs`, sub: `${fmtNumber(summary.unknownReports, 0)} reports | ${fmtNumber(summary.unknownHours, 2)} hrs` },
+                  { label: 'Flux', value: `${fmtNumber(summary.differencePercent, 1)}%`, sub: `${fmtNumber(summary.differencePounds, 0)} lbs variance` }
+                ])}
+              </div>
+            </div>
+          </section>
+
+          <section class="exec-section">
+            <h2>DI vs Method Labor Comparison</h2>
+            <p>${escapeHtml(getInjectionLaborRead(summary))}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Method Hours', value: fmtNumber(summary.methodHours, 2), sub: `${fmtNumber(summary.methodReports, 0)} reports` },
+              { label: 'Method Lbs / Hr', value: fmtNumber(summary.methodLbsPerHour, 0), sub: `${fmtNumber(summary.methodPounds, 0)} lbs` },
+              { label: 'DI Hours', value: fmtNumber(summary.diHours, 2), sub: `${fmtNumber(summary.diReports, 0)} reports` },
+              { label: 'DI Lbs / Hr', value: fmtNumber(summary.diLbsPerHour, 0), sub: `${fmtNumber(summary.diPounds, 0)} lbs` }
+            ])}
+          </section>
+
+          <section class="exec-section">
+            <h2>Market and City Performance</h2>
+            <p>City performance shows where production is concentrated and where management should watch scheduling capacity, travel time, and customer follow-up.</p>
+            ${renderExecutiveBarTable(cityEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 10)}
+            <div class="exec-warning">${escapeHtml(concentration.text)}</div>
+            <h3>Work Area Mix</h3>
+            ${renderExecutiveBarTable(areaEntries, item => `${fmtNumber(item.pounds, 0)} lbs`, 8)}
+          </section>
+
+          <section class="exec-section">
+            <h2>Truck and Crew Performance</h2>
+            <p>Truck and crew efficiency are ranked by pounds per hour, using active truck bosses only for the crew leaderboard. ${topTruck ? `Truck ${topTruck.name} is the benchmark not only because it ranked first, but because it carried ${fmtNumber(topTruck.pounds, 0)} lbs across ${fmtNumber(topTruck.reports, 0)} reports while maintaining ${fmtNumber(topTruck.poundsPerHour, 0)} lbs/hr. That combination of volume, repeated work, and efficiency is the operating profile other trucks should be compared against.` : ''}</p>
+            <div class="exec-two-col">
+              <div>
+                <h3>Truck Efficiency</h3>
+                ${renderExecutiveTable(
+                  ['Truck', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
+                  truckEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
+                )}
+              </div>
+              <div>
+                <h3>Crew Efficiency</h3>
+                ${renderExecutiveTable(
+                  ['Crew', 'Lbs/Hr', 'Pounds', 'Hours', 'Reports'],
+                  crewEntries.slice(0, 10).map(item => [item.name, fmtNumber(item.poundsPerHour, 0), fmtNumber(item.pounds, 0), fmtNumber(item.hours, 2), fmtNumber(item.reports, 0)])
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section class="exec-section">
+            <h2>Dispatch and Transition Read</h2>
+            <p>${escapeHtml(narrative.dispatchTone)}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Same-Day Transitions', value: fmtNumber(transitions.length, 0), sub: 'Truck job-to-job moves' },
+              { label: 'Average Transition', value: `${fmtNumber(transitionStats.avgMinutes, 0)} min`, sub: 'Between same-day jobs' },
+              { label: 'Average GPS Miles', value: `${fmtNumber(transitionStats.avgMiles, 1)} mi`, sub: 'Where GPS distance exists' },
+              { label: 'Longest Gap', value: `${fmtNumber(transitionStats.longest, 0)} min`, sub: 'Largest transition' }
+            ])}
+            ${renderExecutiveTable(['Date', 'Truck', 'Route', 'Time', 'GPS Distance'], transitionRows)}
+          </section>
+
+          <section class="exec-section">
+            <h2>Exceptions, Outliers, and Data Quality</h2>
+            <p>${outliers.length ? `${fmtNumber(outliers.length, 0)} exception${outliers.length === 1 ? '' : 's'} need review.` : 'No exceptions were detected for the selected dashboard period.'}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Data Quality Score', value: `${fmtNumber(dataQuality.score, 0)}%`, sub: `${fmtNumber(dataQuality.issueCount, 0)} issues counted` },
+              { label: 'Zero-Report Workdays', value: fmtNumber(dataQuality.zeroReportWorkingDays, 0), sub: 'Mon-Fri days with no report' },
+              { label: 'Missing Hours', value: fmtNumber(dataQuality.missingHours, 0), sub: 'Reports needing time cleanup' },
+              { label: 'City Other / Unknown', value: fmtNumber(dataQuality.cityOther, 0), sub: 'Needs city normalization' },
+              { label: 'Duplicate Addresses', value: fmtNumber(dataQuality.duplicateAddressEntries, 0), sub: 'Same date/city/address repeats' },
+              { label: 'Missing GPS', value: fmtNumber(dataQuality.missingGps, 0), sub: 'Reports without location' },
+              { label: 'Zero Clicks', value: fmtNumber(dataQuality.zeroClicks, 0), sub: 'Production entry issue' },
+              { label: 'Missing Truck Boss', value: fmtNumber(dataQuality.missingTruckBoss, 0), sub: 'Crew lead missing' }
+            ])}
+          </section>
+
+          <section class="exec-section">
+            <h2>Small-Job Drag and Forecast</h2>
+            <p>Small jobs matter because they consume setup, travel, and crew time without producing enough pounds to offset mobilization. ${smallJobDrag.count ? `${fmtNumber(smallJobDrag.count, 0)} jobs under ${fmtNumber(smallJobDrag.threshold, 0)} lbs consumed ${fmtNumber(smallJobDrag.hours, 2)} hours while producing only ${fmtNumber(smallJobDrag.pounds, 0)} lbs, averaging ${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr.` : 'No small-job drag was detected in this period.'}</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Small Jobs', value: fmtNumber(smallJobDrag.count, 0), sub: `Under ${fmtNumber(smallJobDrag.threshold, 0)} lbs` },
+              { label: 'Small-Job Pounds', value: `${fmtNumber(smallJobDrag.pounds, 0)} lbs`, sub: `${fmtNumber(smallJobDrag.hours, 2)} hours` },
+              { label: 'Small-Job Efficiency', value: `${fmtNumber(smallJobDrag.lbsPerHour, 0)} lbs/hr`, sub: 'Mobilization drag signal' },
+              { label: 'Next-Week Forecast', value: `${fmtNumber(forecast.expected, 0)} lbs`, sub: `Likely range ${fmtNumber(forecast.low, 0)}-${fmtNumber(forecast.high, 0)} lbs | ${fmtNumber(forecast.confidence, 0)}% confidence` }
+            ])}
+          </section>
+
+          <section class="exec-section">
+            <h2>Capacity and Production Opportunity</h2>
+            <p>At the current labor level, the simplest opportunity is raising average production rate toward the 125 lbs/hr operating target.</p>
+            ${renderExecutiveMetricGrid([
+              { label: 'Current Capacity', value: `${fmtNumber(summary.pounds, 0)} lbs`, sub: `${fmtNumber(summary.hours, 1)} labor hours` },
+              { label: 'Current Average', value: `${fmtNumber(summary.lbsPerHour, 0)} lbs/hr`, sub: 'Actual period rate' },
+              { label: 'At 125 Lbs/Hr', value: `${fmtNumber(capacity.potential, 0)} lbs`, sub: 'Potential production' },
+              { label: 'Opportunity Gap', value: `${fmtNumber(capacity.gap, 0)} lbs`, sub: 'Production left on table' }
+            ])}
+            <h3>Estimated Recoverable Production</h3>
+            ${renderExecutiveMetricGrid([
+              { label: 'Small Job Drag', value: `${fmtNumber(recoverable.smallJobLost, 0)} lbs`, sub: 'Against 125 lbs/hr target' },
+              { label: 'Dispatch Delays', value: `${fmtNumber(recoverable.transitionLost, 0)} lbs`, sub: 'Above 25-minute transition target' },
+              { label: 'Data Issues', value: `${fmtNumber(recoverable.dataLost, 0)} lbs`, sub: 'Zero-click or missing-hour records' },
+              { label: 'Recoverable Total', value: `${fmtNumber(recoverable.total, 0)} lbs`, sub: 'Estimated opportunity' }
+            ])}
+          </section>
+        </div>
+      </details>
+
+    `;
+  }
+
+  function generateExecutiveReport() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for executive reports.', 'error');
+
+    syncVisibleCostSettingsForm();
+    renderDashboardAnalytics(dashboardReports);
+
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const dashboardRangeObj = getDashboardPeriodRange();
+    const tableRangeObj = dashboardRangeObj;
+    const previousRangeObj = getPreviousComparableRange(dashboardRangeObj);
+    const dashboardDocs = filterReportsForDashboardPeriod(activeDocs);
+    const tableDocs = filterReportsForDashboardTables(activeDocs);
+    const tableStats = buildDashboardTableStats(tableDocs);
+    const transitions = calculateTransitions(dashboardDocs);
+    const outliers = getDashboardOutliers(dashboardDocs);
+    const previousDocs = previousRangeObj ? activeDocs.filter(report => isDateInRange(report.date, previousRangeObj)) : null;
+    const reportDate = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const dashboardRange = document.getElementById('dashboardPeriodRangeLabel')?.textContent || 'Current dashboard period';
+    const tableRange = dashboardRange;
+    const reportBody = buildActualExecutiveReport({ activeDocs, dashboardDocs, tableDocs, transitions, outliers, dashboardRange, tableRange, dashboardRangeObj, tableRangeObj, previousDocs, reportDate });
+
+    const popup = window.open('', '_blank');
+    if (!popup) return showMessage('Popup blocked. Allow popups to generate the executive report.', 'error');
+
+    popup.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>KKE Executive Production Report</title>
+        <style>
+          :root { --kke-blue:#0057a8; --kke-dark-blue:#003f7d; --border:#dbeafe; --gray:#6b7280; }
+          * { box-sizing:border-box; }
+          body { background:#ffffff; color:#111827; font-family: Arial, sans-serif; margin:0; padding:28px; line-height:1.45; }
+          .exec-cover { border-bottom:5px solid #0057a8; padding-bottom:18px; margin-bottom:22px; display:grid; grid-template-columns:180px 1fr; gap:20px; align-items:center; }
+          .exec-logo { width:180px; max-height:110px; object-fit:contain; }
+          .exec-title h1 { color:#003f7d; font-size:28px; margin:0 0 8px; }
+          .exec-title p { margin:4px 0; color:#4b5563; font-weight:700; }
+          .exec-section { break-inside:avoid; page-break-inside:avoid; margin:0 0 20px; }
+          .exec-section h2 { color:#003f7d; border-left:5px solid #0057a8; padding-left:10px; margin:0 0 10px; }
+          .exec-section h3 { color:#003f7d; margin:14px 0 8px; font-size:15px; }
+          .exec-section p { margin:0 0 10px; }
+          .exec-narrative { background:#f8fbff; border:1px solid #bfdbfe; border-radius:12px; padding:14px; }
+          .exec-goal { border-radius:12px; padding:14px; }
+          .exec-goal-on-pace { background:#f0fdf4; border:1px solid #bbf7d0; }
+          .exec-goal-on-pace h2 { border-left-color:#16a34a; }
+          .exec-goal-behind-pace { background:#fee2e2; border:1px solid #fecaca; }
+          .exec-goal-behind-pace h2 { border-left-color:#dc2626; color:#991b1b; }
+          .exec-goal-behind-pace .exec-metric { background:#fff7ed; border-color:#fed7aa; }
+          .exec-goal-behind-pace .exec-metric strong { color:#991b1b; }
+          .exec-goal-neutral { background:#f8fafc; border:1px solid #cbd5e1; }
+          .exec-goal-neutral h2 { border-left-color:#64748b; }
+          .exec-attention { background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:14px; }
+          .exec-attention h2 { border-left-color:#f97316; color:#9a3412; }
+          .exec-attention ul { margin:0; padding-left:20px; }
+          .exec-attention li { margin:6px 0; font-weight:800; color:#7c2d12; }
+          .exec-operator-details { border:1px solid #bfdbfe; background:#f8fbff; border-radius:14px; padding:12px; margin:24px 0; }
+          .exec-operator-details summary { cursor:pointer; display:inline-flex; align-items:center; background:#0057a8; color:#fff; border-radius:999px; padding:10px 16px; font-weight:900; list-style:none; }
+          .exec-operator-details summary::-webkit-details-marker { display:none; }
+          .exec-operator-details summary::after { content:'+'; display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:10px; border-radius:50%; background:rgba(255,255,255,.22); }
+          .exec-operator-details[open] summary::after { content:'-'; }
+          .exec-operator-body { margin-top:16px; }
+          .exec-warning { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:10px 12px; margin:10px 0; font-weight:700; }
+          .exec-metric-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:12px 0; }
+          .exec-metric { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:11px; min-height:76px; }
+          .exec-metric span { display:block; color:#6b7280; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.3px; }
+          .exec-metric strong { display:block; color:#003f7d; margin-top:4px; font-size:17px; }
+          .exec-metric em { display:block; color:#4b5563; font-style:normal; font-size:11px; margin-top:2px; }
+          .exec-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+          .exec-bars { display:grid; gap:7px; }
+          .exec-bar-row { display:grid; grid-template-columns:140px 1fr 92px; gap:9px; align-items:center; font-size:11px; }
+          .exec-bar-name { font-weight:800; color:#003f7d; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .exec-bar-track { height:12px; background:#e5eefb; border-radius:99px; overflow:hidden; }
+          .exec-bar-track div { height:100%; background:#0057a8; border-radius:99px; }
+          .exec-bar-value { text-align:right; font-weight:800; }
+          .exec-table { width:100%; border-collapse:collapse; font-size:11px; margin-top:6px; }
+          .exec-table th { background:#eff6ff; color:#003f7d; text-align:left; padding:7px; border:1px solid #dbeafe; }
+          .exec-table td { padding:7px; border:1px solid #e5e7eb; }
+          .exec-table-good { border-left:5px solid #16a34a; }
+          .exec-table-good th { background:#dcfce7; color:#14532d; border-color:#bbf7d0; }
+          .exec-table-good td:nth-child(2),
+          .exec-table-good td:nth-child(3),
+          .exec-table-good td:nth-child(4) { color:#15803d; font-weight:800; }
+          .exec-table-risk { border-left:5px solid #dc2626; }
+          .exec-table-risk th { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
+          .exec-table-risk tr:nth-child(even) td { background:#fff7ed; }
+          .exec-table-risk td:nth-child(2),
+          .exec-table-risk td:nth-child(3) { color:#b91c1c; font-weight:800; }
+          .exec-table-risk td:last-child { color:#b45309; font-weight:700; }
+          .exec-scorecard-table tr.exec-scorecard-green td { background:#dcfce7; color:#14532d; border-color:#bbf7d0; font-weight:800; }
+          .exec-scorecard-table tr.exec-scorecard-yellow td { background:#fef3c7; color:#92400e; border-color:#fde68a; font-weight:800; }
+          .exec-scorecard-table tr.exec-scorecard-red td { background:#fee2e2; color:#991b1b; border-color:#fecaca; font-weight:800; }
+          .exec-comparison-wrap { overflow-x:auto; margin-top:8px; }
+          .exec-comparison-table { font-size:11.5px; min-width:0; table-layout:fixed; line-height:1.3; }
+          .exec-comparison-table th { background:#e0f2fe; color:#0c4a6e; padding:6px 5px; }
+          .exec-comparison-table td { padding:6px 5px; vertical-align:top; }
+          .exec-comparison-table td:first-child { font-weight:900; color:#003f7d; }
+          .exec-comparison-table td:nth-child(3),
+          .exec-comparison-table td:nth-child(6) { font-weight:800; }
+          .exec-comparison-table th:first-child,
+          .exec-comparison-table td:first-child { width:14%; }
+          .exec-comparison-table th:last-child,
+          .exec-comparison-table td:last-child { width:18%; font-size:10.5px; line-height:1.25; }
+          .exec-comparison-table th:nth-child(4),
+          .exec-comparison-table td:nth-child(4),
+          .exec-comparison-table th:nth-child(7),
+          .exec-comparison-table td:nth-child(7) { width:13%; }
+          .exec-change { display:inline-block; font-weight:900; border-radius:999px; padding:2px 5px; }
+          .exec-change-good { background:#dcfce7; color:#166534; }
+          .exec-change-risk { background:#fee2e2; color:#991b1b; }
+          .exec-change-neutral { background:#f1f5f9; color:#475569; }
+          .exec-footnote { color:#6b7280; font-size:11px; font-weight:700; margin-top:6px; }
+          .exec-outliers { columns:2; column-gap:24px; }
+          @page { size: letter; margin: 0.45in; }
+          @media print {
+            body { padding:0; }
+            .exec-section { break-inside: avoid; }
+            .exec-operator-details { display:block; }
+            .exec-operator-details summary { background:#eff6ff; color:#003f7d; border:1px solid #bfdbfe; }
+          }
+          @media (max-width: 800px) {
+            .exec-cover, .exec-two-col { grid-template-columns:1fr; }
+            .exec-metric-grid { grid-template-columns:1fr 1fr; }
+            .exec-bar-row { grid-template-columns:1fr; }
+            .exec-bar-value { text-align:left; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="exec-cover">
+          <img src="logo.png" class="exec-logo" onerror="this.src='logo.jpg'">
+          <div class="exec-title">
+            <h1>KKE Executive Production Report</h1>
+            <p>Generated: ${escapeHtml(reportDate)}</p>
+            <p>Dashboard period: ${escapeHtml(dashboardRange)}</p>
+            <p>Table period: ${escapeHtml(tableRange)}</p>
+          </div>
+        </div>
+        ${reportBody}
+        <script>
+          window.onload = () => setTimeout(() => window.print(), 500);
+        <\/script>
+      </body>
+      </html>
+    `);
+    popup.document.close();
+  }
+
+  function buildMeetingSignals(summary, dashboardRangeLabel, revenueGoal, profitSignals) {
+    const truckProfit = profitSignals.truckProfit || [];
+    const topTruck = truckProfit[0];
+    const lowestTruck = truckProfit.slice().reverse().find(item => item.revenue > 0);
+    const cityProfit = profitSignals.cityProfit || [];
+    const topCity = cityProfit[0];
+    const highRevenuePerLbCities = cityProfit
+      .filter(item => item.pounds > 0 && item.revenue > 0)
+      .sort((a, b) => b.revenuePerLb - a.revenuePerLb)
+      .slice(0, 4)
+      .map(item => item.name)
+      .filter(Boolean);
+    const label = String(dashboardRangeLabel || 'selected period').toLowerCase();
+    const signals = [];
+    signals.push(`We are revenue-ready on ${fmtNumber(summary.reports - summary.missingRevenueReports, 0)} of ${fmtNumber(summary.reports, 0)} ${label} reports; ${fmtNumber(summary.missingRevenueReports, 0)} reports need revenue cleanup.`);
+    if (topTruck) {
+      signals.push(`Truck ${topTruck.name} is the profit leader at ${formatMoney(topTruck.profit)} profit${lowestTruck && lowestTruck.name !== topTruck.name ? `; Truck ${lowestTruck.name} needs margin review before we compare it directly to higher-volume work` : ''}.`);
+    }
+    if (topCity) {
+      signals.push(`${topCity.name} is the largest profit driver${highRevenuePerLbCities.length ? `; ${highRevenuePerLbCities.join(', ')} show stronger revenue per lb` : ''}.`);
+    }
+    signals.push(`Chemical is the largest direct-cost pressure in revenue-ready work; fuel is ${summary.revenue > 0 && summary.fuelCost / summary.revenue > 0.08 ? 'high enough to review' : 'not currently the main cost driver'}.`);
+    if (revenueGoal.goal) {
+      signals.push(revenueGoal.pacingVariance >= 0
+        ? `We are ${formatMoney(revenueGoal.pacingVariance)} ahead of expected pace for the ${formatMoney(revenueGoal.goal)} monthly revenue goal.`
+        : `We are ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind expected pace for the ${formatMoney(revenueGoal.goal)} monthly revenue goal.`);
+    }
+    signals.push('Revenue tracking started in July 2026, so May and June should be treated mainly as production periods unless accounting overrides are applied.');
+    return signals;
+  }
+
+  function buildMeetingAgendaPacketHtml({ summary, dashboardRangeLabel, generatedAt, revenueGoal, signals }) {
+    const forecast = revenueGoal.projected || summary.revenue;
+    const goalGap = revenueGoal.goal ? Math.abs(revenueGoal.pacingVariance || 0) : 0;
+    const scoreCards = [
+      ['Revenue', formatMoney(summary.revenue)],
+      ['Forecast', formatMoney(forecast)],
+      ['Margin', `${fmtNumber(summary.margin, 1)}%`],
+      ['Goal Gap', revenueGoal.goal ? formatMoney(goalGap) : '-'],
+      ['Pumped Lbs', fmtNumber(summary.pounds, 0)],
+      ['Rev/Lb', formatMoney(summary.revenuePerLb)],
+      ['Reports', fmtNumber(summary.reports, 0)],
+      ['Need Rev.', fmtNumber(summary.missingRevenueReports, 0)]
+    ];
+    const agendaRows = [
+      ['9:00-9:10', 'Executive Dashboard', 'Financial, operations, sales, safety/quality scorecard.'],
+      ['9:10-9:25', 'Review Last Week', 'COO, CFO, GM, and President updates.'],
+      ['9:25-9:40', 'Executive Intelligence Discussion', 'Surprises, causes, trends, signal vs. noise, missed opportunities.'],
+      ['9:40-10:00', 'Plan Next Week', 'Jobs, staffing, trucks, materials, locates, traffic control, weather, risks.'],
+      ['10:00-10:10', 'Executive Decisions', 'Equipment, hiring, pricing, customers, technology, policy, capital.'],
+      ['10:10-10:15', 'Commitments & Action Items', 'Top three priorities, owner, due date, expected outcome.']
+    ];
+    const standingQuestions = [
+      'Did we make money last week?',
+      'Did we execute safely?',
+      'What is our biggest operational risk next week?',
+      'What is our biggest growth opportunity next week?',
+      'What decision cannot wait until next Monday?',
+      'Is everyone clear on responsibilities before leaving?'
+    ];
+    const actionRows = Array.from({ length: 7 }, () => ['&nbsp;', '&nbsp;', '&nbsp;', '&nbsp;', '&nbsp;']);
+    const executiveRead = revenueGoal.goal
+      ? revenueGoal.pacingVariance >= 0
+        ? `Executive read: ${dashboardRangeLabel} shows ${formatMoney(summary.revenue)} in revenue-ready work at a ${fmtNumber(summary.margin, 1)}% margin. We are ${formatMoney(revenueGoal.pacingVariance)} ahead of expected pace for the ${formatMoney(revenueGoal.goal)} monthly goal, with a projected month of ${formatMoney(revenueGoal.projected)}.`
+        : `Executive read: ${dashboardRangeLabel} shows ${formatMoney(summary.revenue)} in revenue-ready work at a ${fmtNumber(summary.margin, 1)}% margin. We are ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind expected pace for the ${formatMoney(revenueGoal.goal)} monthly goal, with a projected month of ${formatMoney(revenueGoal.projected)}.`
+      : `Executive read: ${dashboardRangeLabel} shows ${formatMoney(summary.revenue)} in revenue-ready work at a ${fmtNumber(summary.margin, 1)}% margin.`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>KKE Executive Leadership Meeting Packet</title>
+        <style>
+          * { box-sizing:border-box; }
+          body { font-family: Arial, sans-serif; color:#111827; background:#fff; margin:0; padding:26px 32px; }
+          .packet { max-width:980px; margin:0 auto; }
+          h1 { color:#003f7d; text-align:center; font-size:28px; margin:0 0 2px; line-height:1.1; }
+          .subtitle { text-align:center; color:#475569; font-size:14px; margin:0 0 10px; }
+          .score { width:100%; border-collapse:collapse; table-layout:fixed; margin:0 0 10px; }
+          .score th { background:#e8f1fb; color:#003f7d; font-weight:900; font-size:12px; padding:9px 6px; border:1px solid #cbd5e1; }
+          .score td { text-align:center; font-weight:900; font-size:13px; padding:10px 6px; border:1px solid #cbd5e1; }
+          .read { background:#eaf6ee; border:1px solid #bbf7d0; color:#065f46; font-weight:900; font-size:15px; line-height:1.35; padding:12px 14px; margin:0 0 10px; }
+          h2 { color:#003f7d; font-size:19px; margin:9px 0 5px; line-height:1.1; }
+          table { width:100%; border-collapse:collapse; }
+          .agenda th, .agenda td, .questions td, .actions th, .actions td { border:1px solid #cbd5e1; padding:8px; font-size:13px; vertical-align:middle; }
+          .agenda th, .actions th { background:#e8f1fb; color:#003f7d; text-align:left; font-weight:900; }
+          .agenda td:nth-child(2) { font-weight:900; }
+          .signals { margin:0 0 6px 0; padding:0; list-style:none; }
+          .signals li { font-size:14px; line-height:1.32; margin:3px 0; }
+          .signals li::before { content:'- '; font-weight:900; }
+          .questions td { font-size:13px; padding:7px 10px; }
+          .actions td { height:34px; }
+          .footer { font-size:11px; margin-top:4px; color:#111827; }
+          .toolbar { display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; }
+          .toolbar button { border:1px solid #0057a8; background:#0057a8; color:#fff; border-radius:7px; padding:8px 12px; font-weight:900; cursor:pointer; }
+          @page { size: letter; margin:0.35in; }
+          @media print {
+            body { padding:0; }
+            .packet { max-width:none; }
+            .toolbar { display:none; }
+            h1 { font-size:27px; }
+            .agenda th, .agenda td, .questions td, .actions th, .actions td { font-size:12px; padding:6px 8px; }
+            .signals li { font-size:13px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="packet">
+          <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
+          <h1>KKE Weekly Executive Leadership Meeting</h1>
+          <p class="subtitle">President - COO - CFO - GM | Weekly Meeting Packet | ${escapeHtml(generatedAt)} | 9:00 AM - 10:15 AM</p>
+          <table class="score">
+            <thead><tr>${scoreCards.map(card => `<th>${escapeHtml(card[0])}</th>`).join('')}</tr></thead>
+            <tbody><tr>${scoreCards.map(card => `<td>${escapeHtml(card[1])}</td>`).join('')}</tr></tbody>
+          </table>
+          <div class="read">${escapeHtml(executiveRead)}</div>
+
+          <h2>Timed Agenda</h2>
+          <table class="agenda">
+            <thead><tr><th style="width:12%;">Time</th><th style="width:31%;">Section</th><th>Focus</th></tr></thead>
+            <tbody>${agendaRows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+
+          <h2>Meeting Signals To Discuss</h2>
+          <ul class="signals">${signals.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+
+          <h2>Standing Questions</h2>
+          <table class="questions"><tbody>${standingQuestions.map(question => `<tr><td>${escapeHtml(question)}</td></tr>`).join('')}</tbody></table>
+
+          <h2>Decision &amp; Action Capture</h2>
+          <table class="actions">
+            <thead><tr><th>Topic</th><th>Decision</th><th>Owner</th><th>Due Date</th><th>Expected Outcome</th></tr></thead>
+            <tbody>${actionRows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+          <div class="footer">Prepared from KKE Production App data. P&amp;L is a management estimate, not final accounting.</div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  function generateMeetingAgendaPacket() {
+    if (!isCurrentUserManager) return showMessage('Manager access is required for meeting packets.', 'error');
+    syncVisibleCostSettingsForm();
+    renderDashboardAnalytics(dashboardReports);
+    const activeDocs = activeReportsOnly(dashboardReports || []);
+    const dashboardRangeObj = getDashboardPeriodRange();
+    const dashboardDocs = filterReportsForDashboardPeriod(activeDocs);
+    const dashboardRangeLabel = document.getElementById('dashboardPeriodRangeLabel')?.textContent || dashboardRangeObj?.label || 'Current dashboard period';
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(dashboardDocs), dashboardRangeObj, costSettings);
+    const revenueGoal = getRevenueGoalProgress(summary, dashboardRangeObj, costSettings);
+    const profitSignals = buildProfitSignals(dashboardDocs);
+    const signals = buildMeetingSignals(summary, dashboardRangeLabel, revenueGoal, profitSignals);
+    const generatedAt = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const popup = window.open('', '_blank');
+    if (!popup) return showMessage('Popup blocked. Allow popups to generate the meeting agenda.', 'error');
+    popup.document.write(buildMeetingAgendaPacketHtml({ summary, dashboardRangeLabel, generatedAt, revenueGoal, signals }));
+    popup.document.close();
+  }
+
+  function renderDashboardRevenueGoal(docs, range) {
+    const summary = applyManualMonthlyRevenueAdjustment(summarizeExecutiveReports(docs || []), range, costSettings);
+    const revenueGoal = getRevenueGoalProgress(summary, range, costSettings);
+    renderCalculationRoadmap({goal:revenueGoal,summary,settings:costSettings,periodLabel:range?.label||"Selected period"});
+    const hasGoal = revenueGoal.supported;
+    const onPace = hasGoal && revenueGoal.projected >= revenueGoal.goal;
+    const card = document.getElementById('dashboardRevenueGoalCard');
+    if (card) {
+      card.classList.remove('dashboard-goal-on-pace', 'dashboard-goal-behind-pace', 'dashboard-goal-neutral');
+      card.classList.add(hasGoal ? (onPace ? 'dashboard-goal-on-pace' : 'dashboard-goal-behind-pace') : 'dashboard-goal-neutral');
+    }
+
+    const goalStatus=!hasGoal?'Monthly view required':revenueGoal.ended?(revenueGoal.remaining>0?'Goal missed':'Goal achieved'):!revenueGoal.started?'Not started':revenueGoal.elapsedWorkdays===0?'Waiting for first workday':(onPace?'On Pace':'Behind Pace');
+    const message = !hasGoal
+      ? 'Select a monthly dashboard period and set a monthly revenue goal to track pacing.'
+      : revenueGoal.ended
+        ? (revenueGoal.remaining>0?`Month ended — short by ${formatMoney(revenueGoal.remaining)}.`:'Month ended — goal achieved.')
+      : revenueGoal.pacingVariance >= 0
+        ? `Revenue is ${formatMoney(revenueGoal.pacingVariance)} ahead of the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`
+        : `Revenue is ${formatMoney(Math.abs(revenueGoal.pacingVariance))} behind the month-to-date pace required for the ${formatMoney(revenueGoal.goal)} monthly goal.`;
+    const manualNote = Number(summary.manualRevenueAdjustment || 0) !== 0
+      ? ` Manual monthly ${summary.manualRevenueAdjustmentMode === 'add' ? 'addition' : 'override'} applied.`
+      : '';
+
+    setText('dashboardRevenueGoalMessage', `${message}${manualNote}`);
+    setText('dashboardRevenueGoalStatus',goalStatus);
+    setText('dashGoalMonthly', formatMoney(revenueGoal.goal));
+    setText('dashGoalRevenue', formatMoney(revenueGoal.revenue));
+    setText('dashGoalRevenueSub', `${fmtNumber(revenueGoal.percent, 1)}% of monthly goal`);
+    setText('dashGoalExpected', formatMoney(revenueGoal.expectedToDate));
+    setText('dashGoalExpectedSub', `${fmtNumber(revenueGoal.elapsedWorkdays || 0, 0)} of ${fmtNumber(revenueGoal.totalWorkdays || 0, 0)} workdays; includes today in full. Mon–Fri, holidays included.`);
+    setText('dashGoalProjected', formatMoney(revenueGoal.projected));
+    setText('dashGoalProjectedSub', hasGoal ? (onPace ? 'Pacing above goal' : 'Pacing below goal') : 'Waiting for goal');
+    setText('dashGoalRemaining', formatMoney(revenueGoal.remaining));
+    setText('dashGoalNeededPerDay',revenueGoal.requiredPerWorkday===null?'—':formatMoney(revenueGoal.requiredPerWorkday));
+    setText('dashGoalNeededPerDaySub', `${fmtNumber(revenueGoal.remainingWorkdays || 0, 0)} workdays remaining`);
+    setText('dashGoalVariance', `${revenueGoal.pacingVariance >= 0 ? '+' : '-'}${formatMoney(Math.abs(revenueGoal.pacingVariance))}`);
+    setText('dashGoalStatusValue',goalStatus);
+    if(!hasGoal){
+      ['dashGoalExpected','dashGoalProjected','dashGoalRemaining','dashGoalNeededPerDay','dashGoalVariance'].forEach(id=>setText(id,'—'));
+      setText('dashGoalRevenueSub','Revenue for selected period; not a monthly-goal comparison');
+      setText('dashGoalExpectedSub','Choose This Month, Last Month, or a complete calendar month');
+      setText('dashGoalProjectedSub','Monthly projection unavailable for this date range');
+      setText('dashGoalNeededPerDaySub','Monthly view required');
+    }else if(revenueGoal.ended){setText('dashGoalProjectedSub','Final reported month total');setText('dashGoalNeededPerDaySub','Month ended');}
+
+  }
+
+  function renderDashboardAnalytics(rawDocs) {
+    toggleDashboardDateRangePicker();
+    updateMonthOverMonthCard(rawDocs || []);
+    const newServiceCitiesBox = document.getElementById('newServiceCitiesMetrics');
+    if (newServiceCitiesBox) newServiceCitiesBox.innerHTML = renderNewServiceCities(rawDocs || []);
+    const activeDocs = activeReportsOnly(rawDocs || []);
+    const docs = filterReportsForDashboardPeriod(activeDocs);
+    const tableDocs = filterReportsForDashboardTables(activeDocs);
+    renderDashboardRevenueGoal(docs, getDashboardPeriodRange());
+    const tableStats = buildDashboardTableStats(tableDocs);
+    const transitions = calculateTransitions(docs);
+    const transitionStats = buildTransitionStats(transitions);
+    const pnlSummary = applyManualMonthlyRevenueAdjustment(summarizePnl(docs, costSettings), getDashboardPeriodRange(), costSettings);
+
+    let totalClicks = 0;
+    let totalPounds = 0;
+    let totalFlowMeterPounds = 0;
+    let totalDifferencePounds = 0;
+    const byCity = {};
+    const byTruck = {};
+    const byArea = {};
+    const truckStats = {};
+    const crewStats = {};
+    const injectionStats = {
+      method: { reports: 0, pounds: 0, hours: 0 },
+      di: { reports: 0, pounds: 0, hours: 0 },
+      unknown: { reports: 0, pounds: 0, hours: 0 }
+    };
+    const flags = [];
+
+    docs.forEach(report => {
+      const comparison = getPoundComparison(report);
+      const pounds = comparison.estimatedPounds;
+      const hours = getReportHours(report);
+      const city = getDashboardCity(report);
+      const truck = getNormalizedTruck(report);
+      const crew = getNormalizedCrew(report);
+      const injectionKey = getInjectionInfo(report).key;
+
+      if (injectionStats[injectionKey]) {
+        injectionStats[injectionKey].reports += 1;
+        injectionStats[injectionKey].pounds += pounds;
+        injectionStats[injectionKey].hours += hours;
+      }
+
+      totalClicks += comparison.clicks;
+      totalPounds += pounds;
+      totalFlowMeterPounds += comparison.flowMeterPounds;
+      totalDifferencePounds += comparison.differencePounds;
+
+      byCity[city] = (byCity[city] || 0) + pounds;
+      byTruck[truck] = (byTruck[truck] || 0) + pounds;
+
+      const workArea = getWorkAreaDisplay(report);
+      byArea[workArea] = (byArea[workArea] || 0) + pounds;
+
+      if (!truckStats[truck]) truckStats[truck] = { name: truck, pounds: 0, hours: 0, reports: 0 };
+      truckStats[truck].pounds += pounds;
+      truckStats[truck].hours += hours;
+      truckStats[truck].reports += 1;
+
+      if (isActiveTruckBoss(crew)) {
+        if (!crewStats[crew]) crewStats[crew] = { name: crew, pounds: 0, hours: 0, reports: 0 };
+        crewStats[crew].pounds += pounds;
+        crewStats[crew].hours += hours;
+        crewStats[crew].reports += 1;
+      }
+
+      const reportName = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${getNormalizedCrew(report)}`;
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Review') flags.push(`${reportName}: waiting for manager approval.`);
+      if ((report.approvalStatus || 'Needs Review') === 'Needs Revision') flags.push(`${reportName}: returned to crew / needs revision.`);
+      if (hours <= 0) flags.push(`${reportName}: missing or zero hours.`);
+      if (comparison.clicks <= 0) flags.push(`${reportName}: missing or zero clicks.`);
+      if (Number(report.aMeterFinish || 0) < Number(report.aMeterStart || 0)) flags.push(`${reportName}: A finish is lower than A start.`);
+      if (Number(report.bMeterFinish || 0) < Number(report.bMeterStart || 0)) flags.push(`${reportName}: B finish is lower than B start.`);
+      if (!report.gpsLatitude || !report.gpsLongitude) flags.push(`${reportName}: missing GPS data.`);
+      if (hours > 0 && pounds / hours > 10000) flags.push(`${reportName}: unusually high estimated pounds per hour.`);
+    });
+
+    const truckEntries = Object.values(truckStats)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    const crewEntries = Object.values(crewStats)
+      .map(item => ({ ...item, poundsPerHour: item.hours > 0 ? item.pounds / item.hours : 0 }))
+      .sort((a, b) => b.poundsPerHour - a.poundsPerHour);
+
+    const bestTruck = truckEntries[0];
+    const bestCrew = crewEntries[0];
+
+    updatePeriodMetricCards(rawDocs || []);
+
+    const totalDifferencePercent = totalPounds > 0 ? (totalDifferencePounds / totalPounds) * 100 : 0;
+    setText('dashTotalClicks', fmtNumber(totalClicks, 0));
+    setText('dashEstimatedLbs', fmtNumber(totalPounds, 0));
+    setText('dashFlowMeterLbs', fmtNumber(totalFlowMeterPounds, 0));
+    setText('dashDifferencePercent', `${fmtNumber(totalDifferencePercent, 1)}%`);
+    setText('dashDifferenceLbs', fmtNumber(totalDifferencePounds, 0));
+    setText('dashRevenue', formatMoney(pnlSummary.revenue));
+    setText('dashDirectCosts', formatMoney(pnlSummary.directCost));
+    setText('dashOverhead', formatMoney(pnlSummary.overheadCost));
+    setText('dashProfit', formatMoney(pnlSummary.profit));
+    setText('dashMargin', `${fmtNumber(pnlSummary.revenue > 0 ? (pnlSummary.profit / pnlSummary.revenue) * 100 : 0, 1)}%`);
+    setText(
+      'dashCostQualityRead',
+      `Estimated Job P&L uses ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue for overhead. Missing revenue: ${fmtNumber(pnlSummary.missingRevenue, 0)} report(s). Fuel needs miles/MPG: ${fmtNumber(pnlSummary.missingFuel, 0)} report(s). Labor estimated/partial: ${fmtNumber(pnlSummary.estimatedLabor, 0)} report(s).${Number(pnlSummary.manualRevenueAdjustment || 0) !== 0 ? ' Manual monthly revenue adjustment is included in totals only, not job cards.' : ''}`
+    );
+    setText('dashMethodJobs', fmtNumber(injectionStats.method.reports, 0));
+    setText('dashMethodLbs', fmtNumber(injectionStats.method.pounds, 0));
+    setText('dashMethodHours', fmtNumber(injectionStats.method.hours, 2));
+    setText('dashMethodLbsPerHour', fmtNumber(injectionStats.method.hours > 0 ? injectionStats.method.pounds / injectionStats.method.hours : 0, 0));
+    setText('dashDiJobs', fmtNumber(injectionStats.di.reports, 0));
+    setText('dashDiLbs', fmtNumber(injectionStats.di.pounds, 0));
+    setText('dashDiHours', fmtNumber(injectionStats.di.hours, 2));
+    setText('dashDiLbsPerHour', fmtNumber(injectionStats.di.hours > 0 ? injectionStats.di.pounds / injectionStats.di.hours : 0, 0));
+    setText('dashInjectionLaborRead', getInjectionLaborRead(injectionStats));
+    setText('dashBestTruck', bestTruck ? `${bestTruck.name}: ${fmtNumber(bestTruck.poundsPerHour, 0)}` : '—');
+    setText('dashBestCrew', bestCrew ? `${bestCrew.name}: ${fmtNumber(bestCrew.poundsPerHour, 0)}` : '—');
+    setText('dashMonthPoundsLarge', fmtNumber(getPeriodMetrics(rawDocs || [], getPeriodRanges(new Date()).month).pounds, 0));
+    setText('dashMonthReportsLarge', fmtNumber(getPeriodMetrics(rawDocs || [], getPeriodRanges(new Date()).month).reports, 0));
+
+    const transitionTruckStats = groupTransitionByTruck(transitions);
+    const avgTransitionText = `${fmtNumber(transitionStats.avgMinutes, 0)} min`;
+    const longestTransitionText = `${fmtNumber(transitionStats.longest, 0)} min`;
+
+    setText('dashAvgTransition', avgTransitionText);
+    setText('dashAvgTransitionMiles', fmtNumber(transitionStats.avgMiles, 1));
+    setText('dashAvgTravelMph', fmtNumber(transitionStats.avgMph, 0));
+    setText('dashLongestTransition', longestTransitionText);
+    setText('dashAvgTransitionHero', avgTransitionText);
+    setText('dashAvgTransitionMilesHero', fmtNumber(transitionStats.avgMiles, 1));
+    setText('dashAvgTravelMphHero', fmtNumber(transitionStats.avgMph, 0));
+    setText('dashLongestTransitionHero', longestTransitionText);
+    setText('dashTransitionSummaryText', transitions.length
+      ? `${fmtNumber(transitions.length, 0)} same-day job-to-job transitions found for the selected dashboard period. Lower minutes means tighter dispatch and less downtime.`
+      : 'Waiting for at least two same-day jobs from the same truck in the selected dashboard period.'
+    );
+
+    const transitionAlert = document.getElementById('transitionAlert');
+    if (transitionAlert) {
+      if (transitionStats.avgMinutes >= 90) {
+        transitionAlert.style.display = 'block';
+        transitionAlert.textContent = `Dispatch warning: average transition time is ${avgTransitionText}. Review routing, job sequencing, or load-out delays.`;
+      } else if (transitions.length) {
+        transitionAlert.style.display = 'block';
+        transitionAlert.textContent = `Dispatch read: average transition time is ${avgTransitionText}. Use the truck chart below to spot which crew/truck is losing the most time between jobs.`;
+      } else {
+        transitionAlert.style.display = 'none';
+        transitionAlert.textContent = '';
+      }
+    }
+
+    document.getElementById('transitionTruckChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMinutes', 'min', TRUCK_COLORS, 0);
+    document.getElementById('transitionMilesChart').innerHTML = renderMetricBars(transitionTruckStats, 'avgMiles', 'mi', TRUCK_COLORS, 1);
+    document.getElementById('transitionLongestList').innerHTML = renderLongestTransitions(transitions);
+    document.getElementById('transitionRecentRoutes').innerHTML = renderRecentTransitionRoutes(transitions);
+    document.getElementById('transitionMetrics').innerHTML = renderTransitionTable(transitions);
+
+    document.getElementById('cityMetrics').innerHTML = renderPoundsRevenueChart(tableStats.byCity, CITY_COLORS);
+    document.getElementById('truckMetrics').innerHTML = renderPoundsRevenueChart(tableStats.byTruck, TRUCK_COLORS);
+
+    const workAreaBox = document.getElementById('workAreaMetrics');
+    if (workAreaBox) workAreaBox.innerHTML = renderPoundsRevenueChart(tableStats.byArea, {});
+
+    const truckEfficiencyObject = {};
+    tableStats.truckEntries.forEach(item => { truckEfficiencyObject[item.name] = item; });
+    document.getElementById('truckEfficiencyMetrics').innerHTML = renderPoundsRevenueChart(truckEfficiencyObject, TRUCK_COLORS, 'poundsPerHour', 'lbs/hr');
+
+    document.getElementById('crewMetrics').innerHTML = buildLeaderboard(
+      tableStats.crewEntries,
+      'poundsPerHour',
+      'lbs/hr',
+      crew => `${fmtNumber(crew.pounds, 0)} lbs | ${formatMoney(crew.revenue)} revenue | ${crew.revenuePerLb > 0 ? `${formatMoney(crew.revenuePerLb)}/lb` : 'No rev/lb'} | ${fmtNumber(crew.hours, 2)} hrs | ${fmtNumber(crew.reports, 0)} reports${crew.missingRevenue ? ` | ${fmtNumber(crew.missingRevenue, 0)} missing revenue` : ''}`
+    );
+
+    const trendBox = document.getElementById('trendMetrics');
+    if (trendBox) trendBox.innerHTML = renderTrendChart(docs);
+
+    const weekOverWeekTrendBox = document.getElementById('weekOverWeekTrendMetrics');
+    if (weekOverWeekTrendBox) weekOverWeekTrendBox.innerHTML = renderWeekOverWeekTrendChart(rawDocs || docs || []);
+
+    const sixMonthTrendBox = document.getElementById('sixMonthTrendMetrics');
+    if (sixMonthTrendBox) sixMonthTrendBox.innerHTML = renderSixMonthTrendChart(rawDocs || []);
+
+    document.getElementById('flaggedReports').innerHTML = flags.length ? flags.slice(0, 30).map(flag => `
+      <div class="flag-item">${escapeHtml(flag)}</div>
+    `).join('') : `<div class="empty-state">No flagged reports for selected period.</div>`;
+  }
+
+  function renderBarChart(dataObject, unitLabel, colorMap, sortMode = 'value') {
+    const entries = Object.entries(dataObject)
+      .map(([name, value]) => ({ name, value: Number(value) || 0 }))
+      .filter(item => item.value > 0)
+      .sort((a, b) => sortMode === 'name' ? a.name.localeCompare(b.name) : b.value - a.value);
+
+    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
+
+    const max = Math.max(...entries.map(item => item.value), 1);
+    return `<div class="chart-wrap">${entries.map(item => {
+      const width = Math.max(3, (item.value / max) * 100);
+      const color = getColor(item.name, colorMap);
+      return `
+        <div class="chart-row" style="--row-color:${color}; --bar-width:${width}%">
+          <div class="chart-label"><span class="color-dot"></span>${escapeHtml(item.name)}</div>
+          <div class="bar-bg"><div class="bar-fill"></div></div>
+          <div class="chart-value">${fmtNumber(item.value, unitLabel === 'lbs/hr' ? 0 : 0)} ${unitLabel}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function buildLeaderboard(entries, valueKey, unitLabel, subTextBuilder) {
+    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
+    return entries.map((item, index) => `
+      <div class="leaderboard-item">
+        <div class="rank-badge">${index + 1}</div>
+        <div>
+          <div style="font-weight:900; color:var(--dark);">${escapeHtml(item.name)}</div>
+          <div style="font-size:12px; color:var(--gray);">${subTextBuilder(item)}</div>
+        </div>
+        <div style="text-align:right; font-weight:900; color:var(--kke-dark-blue);">
+          ${fmtNumber(item[valueKey], 0)} ${unitLabel}
+        </div>
+      </div>
+    `).join('');
+  }
+
+
+  function getWorkAreaDisplay(report) {
+    const areaType = normalizeWorkAreaType(report.workAreaType || '');
+    if (areaType === 'Other' && report.workAreaOther) return titleCaseWords(report.workAreaOther);
+    return areaType || 'Not Listed';
+  }
+
+  function calculateLiftAreaSqFt(length, width) {
+    const l = Number(length || 0);
+    const w = Number(width || 0);
+    return l > 0 && w > 0 ? l * w : 0;
+  }
+
+  function toggleWorkAreaFields() {
+    const type = document.getElementById('workAreaType')?.value || '';
+    const otherWrap = document.getElementById('otherWorkAreaWrap');
+    const otherInput = document.getElementById('workAreaOther');
+    const profileCard = document.getElementById('roadProfileCard');
+    const isOther = type === 'Other';
+
+    if (otherWrap) otherWrap.style.display = isOther ? 'block' : 'none';
+    if (otherInput) otherInput.required = isOther;
+
+    if (profileCard) {
+      const note = profileCard.querySelector('.road-profile-guidance');
+      if (note) {
+        note.textContent = type === 'Street'
+          ? 'Street selected: use this station table for road profile before/after readings.'
+          : 'Non-street selected: use this section only if profile readings are needed. Otherwise use Work Area Dimensions above.';
+      }
+    }
+  }
+
+  function updateLiftAreaSqFtDisplay() {
+    const length = document.getElementById('liftAreaLength')?.value;
+    const width = document.getElementById('liftAreaWidth')?.value;
+    const display = document.getElementById('liftAreaSqFtDisplay');
+    const sqFt = calculateLiftAreaSqFt(length, width);
+    if (display) display.textContent = sqFt > 0 ? `${fmtNumber(sqFt, 2)} sq ft` : '—';
+  }
+
+  function renderSelectedPhotoNames() {
+    [['jobPhotos', 'photoFileList', 'Before/Site'], ['afterPhotos', 'afterPhotoFileList', 'After']].forEach(([inputId, listId, label]) => {
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+      if (!input || !list) return;
+      const files = Array.from(input.files || []);
+      list.innerHTML = files.map((file, index) => `
+        <div class="photo-file-pill">${label} ${index + 1}: ${escapeHtml(file.name)} (${fmtNumber(file.size / (1024 * 1024), 1)} MB before compression)</div>
+      `).join('');
+    });
+    updateCompletionChecklist();
+  }
+
+  function isReturnTripReport(report) {
+    return report?.returnTripRequired === 'Yes' || report?.completionStatus === 'Return Required';
+  }
+
+  function getCompletionRecordIssues(report) {
+    const issues = [];
+    if (report?.originalSettlement === '' || report?.originalSettlement === null || report?.originalSettlement === undefined) issues.push('Missing original settlement');
+    if (report?.finalSettlement === '' || report?.finalSettlement === null || report?.finalSettlement === undefined) issues.push('Missing final settlement');
+    if (!report?.targetLiftAchieved) issues.push('Missing target lift result');
+    if (String(report?.notes || '').trim().length < 30) issues.push('Missing complete Job Notes');
+    if (!report?.completionStatus) issues.push('Missing completion status');
+    if (isReturnTripReport(report) && !String(report?.returnTripReason || '').trim()) issues.push('Missing return-trip reason');
+    if (Number(report?.afterPhotoCount || 0) < 1) issues.push('Missing after photos');
+    return issues;
+  }
+
+  function hasCompletionRecordData(report) {
+    return [
+      'originalSettlement',
+      'finalSettlement',
+      'targetLiftAchieved',
+      'conditionObserved',
+      'conditionObservedOther',
+      'beforePhotoCount',
+      'afterPhotoCount',
+      'completionRecordStatus'
+    ].some(field => report?.[field] !== undefined);
+  }
+
+  function getCompletionRecordStatus(report) {
+    if (!hasCompletionRecordData(report)) return '';
+    const issues = getCompletionRecordIssues(report);
+    return issues.length ? issues.join('; ') : 'Complete';
+  }
+
+  function updateCompletionChecklist() {
+    const form = document.getElementById('crewForm');
+    if (!form) return;
+    const returnRequired = form.elements.returnTripRequired?.value === 'Yes' || form.elements.completionStatus?.value === 'Return Required';
+    const values = {
+      finalSettlement: String(form.elements.finalSettlement?.value || '').trim() !== '',
+      targetLift: Boolean(form.elements.targetLiftAchieved?.value),
+      notes: String(form.elements.notes?.value || '').trim().length >= 30,
+      completion: Boolean(form.elements.completionStatus?.value),
+      returnInfo: !returnRequired || String(form.elements.returnTripReason?.value || '').trim().length > 0,
+      afterPhotos: Number(document.getElementById('afterPhotos')?.files?.length || 0) > 0
+    };
+    document.querySelectorAll('#completionChecklist [data-check]').forEach(item => {
+      const done = Boolean(values[item.dataset.check]);
+      item.classList.toggle('done', done);
+      item.textContent = `${done ? '✓' : '○'} ${item.textContent.replace(/^[✓○]\s*/, '')}`;
+    });
+  }
+
+  function insertJobNoteTemplate() {
+    const notes = document.getElementById('jobNotes');
+    if (!notes) return;
+    const template = 'Original dip ___. Work area ___. Used ___ lbs at ___. Achieved ___ lift. Observed ___. Job is Complete/Partial/Returning because ___.';
+    if (!notes.value.trim() || window.confirm('Replace the current Job Notes with the guided template?')) notes.value = template;
+    notes.focus();
+    updateCompletionChecklist();
+  }
+
+  function safeFileName(name) {
+    return String(name || 'photo')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 80);
+  }
+
+  function renderPoundsRevenueChart(dataObject, colorMap, valueKey = 'pounds', unitLabel = 'lbs') {
+    const entries = Object.entries(dataObject)
+      .map(([name, raw]) => {
+        const item = raw && typeof raw === 'object' ? raw : { pounds: Number(raw) || 0 };
+        return {
+          ...item,
+          name: item.name || name,
+          pounds: Number(item.pounds) || 0,
+          revenue: Number(item.revenue) || 0,
+          missingRevenue: Number(item.missingRevenue) || 0,
+          value: Number(item[valueKey]) || 0
+        };
+      })
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    if (!entries.length) return `<div class="empty-state">No data yet.</div>`;
+
+    const max = Math.max(...entries.map(item => item.value), 1);
+    return `<div class="chart-wrap">${entries.map(item => {
+      const width = Math.max(3, (item.value / max) * 100);
+      const color = getColor(item.name, colorMap);
+      const revenuePerLb = item.pounds > 0 && item.revenue > 0 ? item.revenue / item.pounds : 0;
+      const revenueText = item.revenue > 0
+        ? `${formatMoney(item.revenue)} | ${formatMoney(revenuePerLb)}/lb`
+        : 'No revenue entered';
+      const missingText = item.missingRevenue
+        ? ` | ${fmtNumber(item.missingRevenue, 0)} report${item.missingRevenue === 1 ? '' : 's'} missing revenue`
+        : '';
+      return `
+        <div class="chart-row" style="--row-color:${color}; --bar-width:${width}%">
+          <div class="chart-label"><span class="color-dot"></span>${escapeHtml(item.name)}</div>
+          <div class="bar-bg"><div class="bar-fill"></div></div>
+          <div class="chart-value">
+            <div>${fmtNumber(item.value, 0)} ${unitLabel}</div>
+            <div style="font-size:11px; color:var(--gray); font-weight:800;">${escapeHtml(revenueText + missingText)}</div>
+          </div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function loadImageForCompression(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Photo could not be read for compression.'));
+      };
+      image.src = url;
+    });
+  }
+
+  async function compressImageFile(file, options = {}) {
+    if (!file || !String(file.type || '').startsWith('image/')) return file;
+
+    const maxDimension = Number(options.maxDimension || 1800);
+    const quality = Number(options.quality || 0.78);
+    const image = await loadImageForCompression(file);
+    const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
+    const width = Math.max(1, Math.round((image.width || 1) * scale));
+    const height = Math.max(1, Math.round((image.height || 1) * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob || blob.size >= file.size) return file;
+
+    const baseName = safeFileName(file.name || 'photo.jpg').replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  }
+
+  async function uploadReportPhotos(files, reportKey, category = '') {
+    const uploaded = [];
+    for (const [index, file] of files.entries()) {
+      const uploadFile = await compressImageFile(file, { maxDimension: 1800, quality: 0.78 });
+      const cleanName = safeFileName(uploadFile.name || file.name || `photo_${index + 1}.jpg`);
+      const path = `report-photos/${appId}/${auth.currentUser.uid}/${reportKey}/${Date.now()}_${index + 1}_${cleanName}`;
+      const fileRef = storageRef(storage, path);
+      const snapshot = await uploadBytes(fileRef, uploadFile, {
+        contentType: uploadFile.type || 'image/jpeg',
+        customMetadata: {
+          uploadedBy: auth.currentUser.email || '',
+          appId,
+          originalName: file.name || '',
+          originalSize: String(file.size || 0)
+        }
+      });
+      const url = await getDownloadURL(snapshot.ref);
+      uploaded.push({
+        name: file.name || cleanName,
+        type: uploadFile.type || file.type || '',
+        size: uploadFile.size || 0,
+        originalSize: file.size || 0,
+        compressed: uploadFile.size < file.size,
+        category,
+        path,
+        url,
+        uploadedAt: new Date().toISOString()
+      });
+    }
+    return uploaded;
+  }
+
+  function getPhotoUrl(photo) {
+    if (!photo) return '';
+
+    // New reports store photos as objects: { url, downloadURL, name, ... }.
+    // This also supports older/simple records that may store the URL as a plain string.
+    let url = '';
+    if (typeof photo === 'string') {
+      url = photo;
+    } else if (typeof photo === 'object') {
+      url = photo.url || photo.downloadURL || photo.downloadUrl || photo.href || photo.link || '';
+    }
+
+    // If a URL was copied through HTML at any point, undo common entity escaping
+    // so Firebase tokens like &token=... still load correctly in an <img>.
+    return String(url || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&#38;/g, '&')
+      .trim();
+  }
+
+  function getPhotoName(photo, fallback = 'Job photo') {
+    if (photo && typeof photo === 'object' && photo.name) return String(photo.name);
+    return fallback;
+  }
+
+  function renderPhotoLinks(report) {
+    const photos = Array.isArray(report.photos) ? report.photos : [];
+    const usablePhotos = photos
+      .map((photo, originalIndex) => ({ photo, originalIndex, url: getPhotoUrl(photo) }))
+      .filter(item => item.url);
+
+    if (!usablePhotos.length) return '';
+
+    const reportId = escapeHtml(report.id || '');
+
+    return `
+      <div class="photo-link-list">
+        ${usablePhotos.map((item, displayIndex) => `
+          <a
+            class="photo-link"
+            href="${escapeHtml(item.url)}"
+            data-gallery-report-id="${reportId}"
+            data-gallery-photo-index="${displayIndex}"
+            target="_blank"
+            rel="noopener"
+            title="Open photo gallery"
+          >${escapeHtml(item.photo?.category ? `${item.photo.category} Photo ${displayIndex + 1}` : `Photo ${displayIndex + 1}`)}</a>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  let photoGalleryPhotos = [];
+  let photoGalleryIndex = 0;
+  let photoGalleryReportTitle = '';
+  let photoGalleryTouchStartX = 0;
+  let photoGalleryTouchStartY = 0;
+  let photoGalleryZoom = 1;
+  let photoGalleryPinchStartDistance = 0;
+  let photoGalleryPinchStartZoom = 1;
+
+  function getReportPhotosForGallery(report) {
+    if (!Array.isArray(report?.photos)) return [];
+
+    return report.photos
+      .map((photo, index) => ({
+        url: getPhotoUrl(photo),
+        name: getPhotoName(photo, `Photo ${index + 1}`),
+        original: photo
+      }))
+      .filter(photo => photo.url);
+  }
+
+
+  function clampPhotoGalleryZoom(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 1;
+    return Math.max(1, Math.min(numericValue, 5));
+  }
+
+  function applyPhotoGalleryZoom() {
+    const image = document.getElementById('photoGalleryImage');
+    const resetBtn = document.getElementById('photoGalleryZoomReset');
+    if (!image) return;
+
+    image.style.transform = `scale(${photoGalleryZoom})`;
+    image.style.cursor = photoGalleryZoom > 1.05 ? 'zoom-out' : 'zoom-in';
+
+    if (resetBtn) {
+      resetBtn.textContent = photoGalleryZoom > 1.05 ? `${photoGalleryZoom.toFixed(1)}×` : '1×';
+      resetBtn.title = 'Reset zoom';
+    }
+  }
+
+  function setPhotoGalleryZoom(value) {
+    photoGalleryZoom = clampPhotoGalleryZoom(value);
+    applyPhotoGalleryZoom();
+  }
+
+  function zoomPhotoGalleryBy(delta) {
+    setPhotoGalleryZoom(photoGalleryZoom + delta);
+  }
+
+  function resetPhotoGalleryZoom() {
+    setPhotoGalleryZoom(1);
+  }
+
+  function getPhotoGalleryPinchDistance(touches) {
+    if (!touches || touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt((dx * dx) + (dy * dy));
+  }
+
+  function openPhotoGallery(reportId, startIndex = 0) {
+    const report = allReports.find(item => item.id === reportId) || currentEditReport;
+    const photos = getReportPhotosForGallery(report);
+    if (!photos.length) return;
+
+    photoGalleryPhotos = photos;
+    photoGalleryIndex = Math.max(0, Math.min(Number(startIndex) || 0, photos.length - 1));
+    photoGalleryReportTitle = `${getNormalizedCity(report)} - ${report.address || 'No Address'}`;
+
+    const modal = document.getElementById('photoGalleryModal');
+    if (!modal) return;
+
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    updatePhotoGallery();
+  }
+
+  function closePhotoGallery() {
+    const modal = document.getElementById('photoGalleryModal');
+    if (!modal) return;
+
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    resetPhotoGalleryZoom();
+  }
+
+  function updatePhotoGallery() {
+    if (!photoGalleryPhotos.length) return;
+
+    const currentPhoto = photoGalleryPhotos[photoGalleryIndex];
+    const image = document.getElementById('photoGalleryImage');
+    const counter = document.getElementById('photoGalleryCounter');
+    const caption = document.getElementById('photoGalleryCaption');
+
+    if (image) {
+      image.alt = currentPhoto.name || 'Job photo';
+      image.removeAttribute('src');
+      image.src = currentPhoto.url;
+    }
+    if (counter) counter.textContent = `${photoGalleryIndex + 1} of ${photoGalleryPhotos.length}`;
+    if (caption) caption.textContent = photoGalleryReportTitle;
+    resetPhotoGalleryZoom();
+  }
+
+  function showNextGalleryPhoto() {
+    if (!photoGalleryPhotos.length) return;
+    photoGalleryIndex = (photoGalleryIndex + 1) % photoGalleryPhotos.length;
+    updatePhotoGallery();
+  }
+
+  function showPreviousGalleryPhoto() {
+    if (!photoGalleryPhotos.length) return;
+    photoGalleryIndex = (photoGalleryIndex - 1 + photoGalleryPhotos.length) % photoGalleryPhotos.length;
+    updatePhotoGallery();
+  }
+
+  function wirePhotoGalleryControls() {
+    const modal = document.getElementById('photoGalleryModal');
+    const closeBtn = document.getElementById('photoGalleryClose');
+    const prevBtn = document.getElementById('photoGalleryPrev');
+    const nextBtn = document.getElementById('photoGalleryNext');
+    const image = document.getElementById('photoGalleryImage');
+    const zoomInBtn = document.getElementById('photoGalleryZoomIn');
+    const zoomOutBtn = document.getElementById('photoGalleryZoomOut');
+    const zoomResetBtn = document.getElementById('photoGalleryZoomReset');
+
+    closeBtn?.addEventListener('click', closePhotoGallery);
+    prevBtn?.addEventListener('click', showPreviousGalleryPhoto);
+    nextBtn?.addEventListener('click', showNextGalleryPhoto);
+
+    zoomInBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zoomPhotoGalleryBy(0.5);
+    });
+
+    zoomOutBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zoomPhotoGalleryBy(-0.5);
+    });
+
+    zoomResetBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      resetPhotoGalleryZoom();
+    });
+
+    image?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setPhotoGalleryZoom(photoGalleryZoom > 1.05 ? 1 : 2);
+    });
+
+    image?.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zoomPhotoGalleryBy(event.deltaY < 0 ? 0.25 : -0.25);
+    }, { passive: false });
+
+    image?.addEventListener('error', () => {
+      const caption = document.getElementById('photoGalleryCaption');
+      if (caption) caption.textContent = 'This photo link could not load. Use the Photo button link as a backup, or check Firebase Storage access for this image.';
+      console.warn('Photo gallery image failed to load:', photoGalleryPhotos[photoGalleryIndex]?.url);
+    });
+
+    modal?.addEventListener('click', (event) => {
+      if (event.target.id === 'photoGalleryModal') closePhotoGallery();
+    });
+
+    modal?.addEventListener('touchstart', (event) => {
+      if (event.touches?.length === 2) {
+        photoGalleryPinchStartDistance = getPhotoGalleryPinchDistance(event.touches);
+        photoGalleryPinchStartZoom = photoGalleryZoom;
+        return;
+      }
+
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+      photoGalleryTouchStartX = touch.clientX;
+      photoGalleryTouchStartY = touch.clientY;
+    }, { passive: true });
+
+    modal?.addEventListener('touchmove', (event) => {
+      if (event.touches?.length !== 2) return;
+      const distance = getPhotoGalleryPinchDistance(event.touches);
+      if (!distance || !photoGalleryPinchStartDistance) return;
+
+      event.preventDefault();
+      const scaleChange = distance / photoGalleryPinchStartDistance;
+      setPhotoGalleryZoom(photoGalleryPinchStartZoom * scaleChange);
+    }, { passive: false });
+
+    modal?.addEventListener('touchend', (event) => {
+      if (event.touches?.length) return;
+      if (photoGalleryZoom > 1.05) return;
+
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+
+      const deltaX = touch.clientX - photoGalleryTouchStartX;
+      const deltaY = touch.clientY - photoGalleryTouchStartY;
+
+      if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+      if (deltaX < 0) showNextGalleryPhoto();
+      if (deltaX > 0) showPreviousGalleryPhoto();
+    }, { passive: true });
+
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-gallery-report-id]');
+      if (!button) return;
+
+      event.preventDefault();
+      const reportId = button.dataset.galleryReportId || '';
+      const photoIndex = Number(button.dataset.galleryPhotoIndex || 0);
+      openPhotoGallery(reportId, photoIndex);
+    });
+
+    document.addEventListener('touchend', (event) => {
+      const button = event.target.closest('[data-gallery-report-id]');
+      if (!button) return;
+
+      event.preventDefault();
+      const reportId = button.dataset.galleryReportId || '';
+      const photoIndex = Number(button.dataset.galleryPhotoIndex || 0);
+      openPhotoGallery(reportId, photoIndex);
+    }, { passive: false });
+
+    document.addEventListener('keydown', (event) => {
+      const isOpen = modal?.classList.contains('active');
+      if (!isOpen) return;
+
+      if (event.key === 'Escape') closePhotoGallery();
+      if (event.key === 'ArrowRight' && photoGalleryZoom <= 1.05) showNextGalleryPhoto();
+      if (event.key === 'ArrowLeft' && photoGalleryZoom <= 1.05) showPreviousGalleryPhoto();
+      if (event.key === '+' || event.key === '=') zoomPhotoGalleryBy(0.5);
+      if (event.key === '-' || event.key === '_') zoomPhotoGalleryBy(-0.5);
+      if (event.key === '0') resetPhotoGalleryZoom();
+    });
+  }
+
+  wirePhotoGalleryControls();
+
+
+  // Time Calculations
+  // iPhone/Safari can be inconsistent about firing input events on time fields,
+  // so total hours are recalculated on input, change, blur, and again on submit.
+  function parseTimeToMinutes(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    let match = raw.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    if (!match) match = raw.match(/^(\d{1,2})(\d{2})(?:\s*(AM|PM))?$/i);
+    if (!match) return null;
+
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const period = match[3] ? match[3].toUpperCase() : "";
+
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || minutes < 0 || minutes > 59) return null;
+
+    if (period === "PM" && hours < 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    if (!period && (hours < 0 || hours > 23)) return null;
+    if (period && (hours < 0 || hours > 23)) return null;
+
+    return (hours * 60) + minutes;
+  }
+
+  function calculateHoursFromTimes(startValue, finishValue) {
+    const startMinutes = parseTimeToMinutes(startValue);
+    const finishMinutes = parseTimeToMinutes(finishValue);
+    if (startMinutes === null || finishMinutes === null) return null;
+
+    let diffMinutes = finishMinutes - startMinutes;
+    if (diffMinutes < 0) diffMinutes += 1440;
+    if (diffMinutes <= 0) return null;
+
+    return Number((diffMinutes / 60).toFixed(2));
+  }
+
+  function formatStandardTime(value) {
+    const minutesFromMidnight = parseTimeToMinutes(value);
+    if (minutesFromMidnight === null) return String(value || '');
+
+    const hours24 = Math.floor(minutesFromMidnight / 60) % 24;
+    const minutes = minutesFromMidnight % 60;
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    const hours12 = hours24 % 12 || 12;
+    return `${hours12}:${pad2(minutes)} ${period}`;
+  }
+
+  function runCalcs() {
+    const startVal = document.getElementById('startTime')?.value;
+    const finishVal = document.getElementById('finishTime')?.value;
+    const display = document.getElementById('totalHoursDisplay');
+    if (!display) return;
+
+    const hours = calculateHoursFromTimes(startVal, finishVal);
+    display.textContent = hours === null ? "—" : hours.toFixed(2);
+  }
+
+  ['input', 'change', 'blur', 'keyup'].forEach(eventName => {
+    document.getElementById('startTime')?.addEventListener(eventName, runCalcs);
+    document.getElementById('finishTime')?.addEventListener(eventName, runCalcs);
+  });
+
+
+  document.getElementById('workAreaType')?.addEventListener('change', toggleWorkAreaFields);
+  document.getElementById('liftAreaLength')?.addEventListener('input', updateLiftAreaSqFtDisplay);
+  document.getElementById('liftAreaWidth')?.addEventListener('input', updateLiftAreaSqFtDisplay);
+  document.getElementById('jobPhotos')?.addEventListener('change', renderSelectedPhotoNames);
+  document.getElementById('afterPhotos')?.addEventListener('change', renderSelectedPhotoNames);
+  document.getElementById('btnInsertNoteTemplate')?.addEventListener('click', insertJobNoteTemplate);
+  ['originalSettlement', 'finalSettlement', 'targetLiftAchieved', 'notes', 'completionStatus', 'returnTripRequired', 'returnTripReason'].forEach(name => {
+    document.getElementById('crewForm')?.elements?.[name]?.addEventListener('input', updateCompletionChecklist);
+    document.getElementById('crewForm')?.elements?.[name]?.addEventListener('change', updateCompletionChecklist);
+  });
+  updateCompletionChecklist();
+  toggleWorkAreaFields();
+  updateLiftAreaSqFtDisplay();
+
+
+  // GPS
+  document.getElementById('btnGPS')?.addEventListener('click', () => {
+    if (!navigator.geolocation) return showMessage("Geolocation not supported", "error");
+    showMessage("Pinning location...", "success");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = document.getElementById('gpsLatitude');
+        const lon = document.getElementById('gpsLongitude');
+        const conf = document.getElementById('locationConfirmed');
+        if (lat) lat.value = pos.coords.latitude.toFixed(6);
+        if (lon) lon.value = pos.coords.longitude.toFixed(6);
+        if (conf) conf.checked = true;
+        showMessage("Location pinned successfully", "success");
+      },
+      () => showMessage("Location access denied. Please enable GPS.", "error"),
+      { enableHighAccuracy: true }
+    );
+  });
+
+  // Road Profile Table Logic
+  const generateProfileRows = () => {
+    const lenInput = document.getElementById('profileLength');
+    const stepInput = document.getElementById('profileInterval');
+    const body = document.getElementById('profileRows');
+    
+    if (!body || !lenInput || !stepInput) return;
+    const len = parseInt(lenInput.value) || 0;
+    let step = parseInt(stepInput.value) || 10;
+    if (step <= 0) step = 10;
+    
+    body.innerHTML = '';
+    for (let i = 0; i <= len; i += step) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td class="station-cell">${i} ft</td>
+        <td><input type="number" step="0.01" placeholder="Before"></td>
+        <td><input type="number" step="0.01" placeholder="After"></td>
+        <td><input type="number" step="0.01" placeholder="Before"></td>
+        <td><input type="number" step="0.01" placeholder="After"></td>
+      `;
+      body.appendChild(row);
+    }
+  };
+
+  document.getElementById('btnBuildRows')?.addEventListener('click', generateProfileRows);
+  generateProfileRows();
+
+  initializeReportLink({
+    loadJob:async jobId=>{const snapshot=await getDoc(firestoreDoc(db,'artifacts',appId,'public','data','jobs',jobId));if(!snapshot.exists())throw Error('Job no longer exists.');return {...snapshot.data(),id:snapshot.id};},
+    switchToReport:()=>switchTab('new-form'),notify:showMessage,
+    recalculate:()=>{toggleWorkAreaFields();updateLiftAreaSqFtDisplay();updateCompletionChecklist();}
+  });
+
+  // --- SUBMISSION ---
+  const crewForm = document.getElementById('crewForm');
+
+  if (crewForm && !crewForm.dataset.submitListenerAttached) {
+    crewForm.dataset.submitListenerAttached = "true";
+
+    crewForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (isSubmittingReport) {
+        console.warn("Duplicate submit blocked: report is already being submitted.");
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+
+      try {
+        isSubmittingReport = true;
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Uploading Report...";
+        }
+
+        if (!auth.currentUser) {
+          showMessage("You must be logged in to submit.", "error");
+          return;
+        }
+
+        if (!document.getElementById('locationConfirmed')?.checked) {
+          showMessage("Please confirm the GPS location.", "error");
+          return;
+        }
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const beforePhotoFiles = Array.from(document.getElementById('jobPhotos')?.files || []);
+        const afterPhotoFiles = Array.from(document.getElementById('afterPhotos')?.files || []);
+
+        // Normalize typed/select values before saving to Firestore so dashboard totals do not split by capitalization.
+        data.city = normalizeCityName(data.city);
+        data.crewLead = normalizePersonName(data.crewLead);
+        data.helper1 = normalizePersonName(data.helper1);
+        data.helper2 = normalizePersonName(data.helper2);
+        data.helper3 = normalizePersonName(data.helper3);
+        data.helper4 = normalizePersonName(data.helper4);
+        data.workAreaType = normalizeWorkAreaType(data.workAreaType);
+        data.injectionType = normalizeInjectionType(data.injectionType);
+        data.notes = String(data.notes || '').trim();
+        data.originalSettlement = String(data.originalSettlement || '').trim();
+        data.finalSettlement = String(data.finalSettlement || '').trim();
+        data.targetLiftAchieved = ['Yes', 'Partially', 'No'].includes(data.targetLiftAchieved) ? data.targetLiftAchieved : '';
+        const selectedConditions = Array.from(document.querySelectorAll('input[name="conditionObservedOption"]:checked')).map(input => input.value);
+        data.conditionObserved = selectedConditions.join('; ');
+        data.conditionObservedOther = String(data.conditionObservedOther || '').trim();
+        data.returnTripRequired = data.returnTripRequired === 'Yes' ? 'Yes' : 'No';
+        data.returnTripReason = String(data.returnTripReason || '').trim();
+        data.preventableDelay = data.preventableDelay === 'Yes' ? 'Yes' : 'No';
+        data.completionStatus = ['Complete', 'Partial', 'Return Required'].includes(data.completionStatus) ? data.completionStatus : 'Complete';
+
+        delete data.jobPhotos;
+        delete data.afterPhotos;
+        delete data.conditionObservedOption;
+
+        if (isReturnTripReport(data) && !data.returnTripReason) {
+          showMessage('Return Trip Reason is required when a return trip is flagged.', 'error');
+          document.querySelector('[name="returnTripReason"]')?.focus();
+          return;
+        }
+
+        data.beforePhotoCount = beforePhotoFiles.length;
+        data.afterPhotoCount = afterPhotoFiles.length;
+        const completionWarnings = getCompletionRecordIssues(data);
+        if (completionWarnings.length && !window.confirm(`Completion record needs attention:\n\n• ${completionWarnings.join('\n• ')}\n\nSubmit this report anyway?`)) {
+          showMessage('Submission paused so the completion record can be finished.', 'error');
+          document.getElementById('completionRecordCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        data.completionRecordStatus = getCompletionRecordStatus(data);
+
+        const calculatedHours = calculateHoursFromTimes(data.startTime, data.finishTime);
+        if (calculatedHours === null) {
+          showMessage("Start Time and Finish Time did not calculate correctly. Please reselect both times before submitting.", "error");
+          return;
+        }
+
+        data.totalHours = calculatedHours.toFixed(2);
+        const totalHoursDisplay = document.getElementById('totalHoursDisplay');
+        if (totalHoursDisplay) totalHoursDisplay.textContent = data.totalHours;
+
+        data.linearFeet = document.getElementById('profileLength')?.value || data.linearFeet || "";
+        data.profileInterval = document.getElementById('profileInterval')?.value || "";
+        data.workAreaType = data.workAreaType || "";
+        data.workAreaOther = data.workAreaType === "Other" ? titleCaseWords(data.workAreaOther || "") : "";
+        data.workAreaDisplay = data.workAreaType === "Other" && data.workAreaOther ? data.workAreaOther : data.workAreaType;
+        data.liftAreaLength = data.liftAreaLength || "";
+        data.liftAreaWidth = data.liftAreaWidth || "";
+        data.liftAreaSqFt = calculateLiftAreaSqFt(data.liftAreaLength, data.liftAreaWidth);
+        data.liftAreaNotes = data.liftAreaNotes || "";
+        data.addressLatitude = data.addressLatitude || "";
+        data.addressLongitude = data.addressLongitude || "";
+        data.googlePlaceId = data.googlePlaceId || "";
+        data.routeMilesGenerated = await calculateRoundTripRouteMiles(data.address, costSettings, {
+          lat: data.addressLatitude || data.gpsLatitude,
+          lng: data.addressLongitude || data.gpsLongitude
+        }) || 0;
+        data.routeMilesSource = data.routeMilesGenerated > 0 ? (lastRouteMilesResult.source || 'Google route: shop-job-shop') : 'Not calculated';
+        data.routeMiles = data.routeMiles || "";
+
+        const aStart = Number(data.aMeterStart || 0);
+        const aFinish = Number(data.aMeterFinish || 0);
+        const bStart = Number(data.bMeterStart || 0);
+        const bFinish = Number(data.bMeterFinish || 0);
+
+        data.aPounds = Math.max(0, aFinish - aStart);
+        data.bPounds = Math.max(0, bFinish - bStart);
+        data.clicks = Number(data.clicks || 0);
+        data.jointGrindingLinearFeet = Number(data.jointGrindingLinearFeet || 0);
+        data.jointGrindingDepth = String(data.jointGrindingDepth || '').trim();
+        data.jointGrindingRatePerLinearFoot = Number(costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
+        data.smallEngineHours = Number(data.smallEngineHours || 0);
+        data.billableLbs = Number(data.billableLbs || 0);
+        data.billingRate = Number(data.billingRate || 0);
+        data.calculatedRevenue = calculateReportRevenue(data, costSettings).revenue;
+        data.estimatedPounds = data.clicks * 0.6;
+        data.flowMeterPounds = data.aPounds + data.bPounds;
+        data.differencePounds = data.estimatedPounds - data.flowMeterPounds;
+        data.differencePercent = data.flowMeterPounds > 0 ? (data.differencePounds / data.flowMeterPounds) * 100 : 0;
+        data.totalPounds = data.estimatedPounds;
+        data.poundsPerHour = Number(data.totalHours) > 0 ? data.estimatedPounds / Number(data.totalHours) : 0;
+
+        const profileData = [];
+        document.querySelectorAll('#profileRows tr').forEach(tr => {
+          const inputs = tr.querySelectorAll('input');
+          profileData.push({
+            station: tr.querySelector('.station-cell')?.textContent || "",
+            d1Before: inputs[0]?.value || "",
+            d1After: inputs[1]?.value || "",
+            d2Before: inputs[2]?.value || "",
+            d2After: inputs[3]?.value || ""
+          });
+        });
+        data.profile = profileData;
+        const linkedContext=readJobContext();
+        delete data.jobContext;
+        if(linkedContext){
+          const scope=await getDoc(firestoreDoc(db,'artifacts',appId,'public','data','jobs',linkedContext.jobId));
+          checkJobRevision(linkedContext,scope.exists()?scope.data():null);
+          Object.assign(data,linkedReportFields(linkedContext,profileData));
+        }
+
+
+        const reportPhotoKey = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        data.photos = [];
+        data.photoCount = 0;
+
+        data.clientSubmissionId = `${auth.currentUser.uid}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        data.timestamp = serverTimestamp();
+        data.userId = auth.currentUser.uid;
+        data.submittedBy = auth.currentUser.email;
+        data.approvalStatus = data.approvalStatus || "Needs Review";
+        data.managerNotes = "";
+        data.deleted = false;
+        data.auditTrail = [{
+          action: "Created",
+          by: auth.currentUser.email,
+          at: new Date().toISOString(),
+          note: "Report submitted from field form."
+        }];
+
+        const totalPhotoFiles = beforePhotoFiles.length + afterPhotoFiles.length;
+        if (totalPhotoFiles) {
+          showMessage(`Uploading ${totalPhotoFiles} photo${totalPhotoFiles === 1 ? '' : 's'}...`, "success");
+          const beforePhotos = await uploadReportPhotos(beforePhotoFiles, reportPhotoKey, 'Before/Site');
+          const afterPhotos = await uploadReportPhotos(afterPhotoFiles, reportPhotoKey, 'After');
+          data.photos = [...beforePhotos, ...afterPhotos];
+          data.photoCount = data.photos.length;
+        }
+
+        const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+        const docRef = await addDoc(collRef, data);
+
+        // --- SEND REPORT TO GOOGLE SHEETS ---
+        // This intentionally runs once, after Firestore save succeeds.
+        try {
+          await fetch("https://script.google.com/macros/s/AKfycbwWsh5VBAuy13ecYbWEuqaJu6awT2ZMzlobytoTfKx5IFs2Kx-6aWeUy1XqS7UfMEyTLw/exec", {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify({
+              submissionId: docRef.id,
+              clientSubmissionId: data.clientSubmissionId,
+              timestamp: new Date().toISOString(),
+
+              date: data.date || "",
+              city: data.city || "",
+              address: data.address || "",
+
+              truckNumber: data.truckNumber || "",
+              crewLead: data.crewLead || "",
+
+              workAreaType: data.workAreaType || "",
+              injectionType: data.injectionType || "",
+
+              aMeterStart: data.aMeterStart || "",
+              aMeterFinish: data.aMeterFinish || "",
+              bMeterStart: data.bMeterStart || "",
+              bMeterFinish: data.bMeterFinish || "",
+
+              aPounds: data.aPounds || "",
+              bPounds: data.bPounds || "",
+              clicks: Number(data.clicks || 0),
+
+              estimatedLbs: data.estimatedPounds,
+              flowMeterLbs: data.flowMeterPounds,
+              totalHours: Number(data.totalHours || 0),
+
+              notes: data.notes || "",
+              originalSettlement: data.originalSettlement || "",
+              finalSettlement: data.finalSettlement || "",
+              targetLiftAchieved: data.targetLiftAchieved || "",
+              conditionObserved: data.conditionObserved || "",
+              conditionObservedOther: data.conditionObservedOther || "",
+              returnTripRequired: data.returnTripRequired || "",
+              returnTripReason: data.returnTripReason || "",
+              preventableDelay: data.preventableDelay || "",
+              completionStatus: data.completionStatus || "",
+              beforePhotoCount: data.beforePhotoCount || 0,
+              afterPhotoCount: data.afterPhotoCount || 0,
+              completionRecordStatus: data.completionRecordStatus || ""
+            })
+          });
+
+          console.log("Google Sheet export request sent once.");
+        } catch (sheetError) {
+          console.error("Google Sheet export failed:", sheetError);
+        }
+
+        showMessage("Report saved to cloud successfully!");
+        clearLocalDraft();
+        e.target.reset();
+        clearJobContext();
+        document.getElementById('btnBuildRows').disabled=false;
+        document.getElementById('profileLength').readOnly=false;
+        document.getElementById('profileInterval').readOnly=false;
+
+        if (dateInput) dateInput.valueAsDate = new Date();
+
+        const aStartInput = document.getElementById('aMeterStart');
+        const bStartInput = document.getElementById('bMeterStart');
+        if (aStartInput) aStartInput.value = 0;
+        if (bStartInput) bStartInput.value = 0;
+
+        generateProfileRows();
+
+        const hrs = document.getElementById('totalHoursDisplay');
+        if (hrs) hrs.textContent = "—";
+
+        toggleWorkAreaFields();
+        updateLiftAreaSqFtDisplay();
+        renderSelectedPhotoNames();
+        updateCompletionChecklist();
+        switchTab('history');
+
+      } catch (err) {
+        console.error(err);
+        showMessage("Error saving to cloud. Ensure internet connection and Firebase permissions.", "error");
+      } finally {
+        isSubmittingReport = false;
+
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save & Submit Report";
+        }
+      }
+    });
+  }
+
+  function statusClass(status) {
+    if (status === 'Approved') return 'status-approved';
+    if (status === 'Rejected') return 'status-rejected';
+    if (status === 'Needs Revision') return 'status-revision';
+    return 'status-review';
+  }
+
+  function getInjectionInfo(report) {
+    const raw = normalizeInjectionType(report?.injectionType || '');
+    const normalized = raw.toLowerCase();
+
+    if (normalized === 'di' || normalized.includes('deep')) {
+      return {
+        key: 'di',
+        label: 'DI',
+        fullLabel: 'Deep Injection',
+        badgeClass: 'badge-di'
+      };
+    }
+
+    if (normalized.includes('method')) {
+      return {
+        key: 'method',
+        label: 'METHOD',
+        fullLabel: 'Method',
+        badgeClass: 'badge-method'
+      };
+    }
+
+    return {
+      key: 'unknown',
+      label: 'NO TYPE',
+      fullLabel: raw || 'Not Listed',
+      badgeClass: 'badge-unknown'
+    };
+  }
+
+  function renderInjectionBadge(report, size = '') {
+    const info = getInjectionInfo(report);
+    const sizeClass = size === 'small' ? ' small' : '';
+    return `<span class="injection-badge ${info.badgeClass}${sizeClass}" title="${escapeHtml(info.fullLabel)}">${escapeHtml(info.label)}</span>`;
+  }
+
+  function activeReportsOnly(docs) {
+    return docs.filter(report => report.deleted !== true);
+  }
+
+  function isReportMissingManagerRevenue(report) {
+    return report.deleted !== true && calculateReportRevenue(report, costSettings).revenue <= 0;
+  }
+
+  function updateMissingRevenueButton() {
+    const button = document.getElementById('btnMissingRevenue');
+    if (!button) return;
+    const count = allReports.filter(isReportMissingManagerRevenue).length;
+    button.textContent = historyMissingRevenueOnly ? `Show All Reports (${count} missing)` : `Missing Revenue (${count})`;
+    button.classList.toggle('btn-warning', !historyMissingRevenueOnly);
+    button.classList.toggle('btn-primary', historyMissingRevenueOnly);
+    button.setAttribute('aria-pressed', historyMissingRevenueOnly ? 'true' : 'false');
+  }
+
+  function updateReturnTripsButton() {
+    const button = document.getElementById('btnReturnTrips');
+    if (!button) return;
+    const count = allReports.filter(report => report.deleted !== true && isReturnTripReport(report)).length;
+    button.textContent = historyReturnTripsOnly ? `Show All Reports (${count} return trips)` : `Return Trips (${count})`;
+    button.classList.toggle('btn-danger', !historyReturnTripsOnly);
+    button.classList.toggle('btn-primary', historyReturnTripsOnly);
+    button.setAttribute('aria-pressed', historyReturnTripsOnly ? 'true' : 'false');
+  }
+
+  function populateHistoryFilters(docs) {
+    const activeDocs = activeReportsOnly(docs);
+    const citySelect = document.getElementById('historyCityFilter');
+    const truckSelect = document.getElementById('historyTruckFilter');
+    if (!citySelect || !truckSelect) return;
+
+    const currentCity = citySelect.value;
+    const currentTruck = truckSelect.value;
+    const cities = [...new Set(activeDocs.map(d => getNormalizedCity(d)).filter(Boolean))].sort();
+    const trucks = [...new Set(activeDocs.map(d => getNormalizedTruck(d)).filter(Boolean))].sort();
+
+    citySelect.innerHTML = '<option value="">All Cities</option>' + cities.map(city => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`).join('');
+    truckSelect.innerHTML = '<option value="">All Trucks</option>' + trucks.map(truck => `<option value="${escapeHtml(truck)}">${escapeHtml(truck)}</option>`).join('');
+
+    if (cities.includes(currentCity)) citySelect.value = currentCity;
+    if (trucks.includes(currentTruck)) truckSelect.value = currentTruck;
+  }
+
+  function getFilteredReports() {
+    const search = String(document.getElementById('historySearch')?.value || '').toLowerCase().trim();
+    const city = document.getElementById('historyCityFilter')?.value || '';
+    const truck = document.getElementById('historyTruckFilter')?.value || '';
+    const selectedDate = document.getElementById('historyDateFilter')?.value || '';
+    const injection = document.getElementById('historyInjectionFilter')?.value || '';
+    const status = document.getElementById('historyStatusFilter')?.value || '';
+
+    return allReports.filter(report => {
+      const isDeleted = report.deleted === true;
+      const approvalStatus = report.approvalStatus || 'Needs Review';
+
+      if (historyMissingRevenueOnly && !isReportMissingManagerRevenue(report)) return false;
+      if (historyReturnTripsOnly && !isReturnTripReport(report)) return false;
+
+      if (status === 'Deleted') {
+        if (!isDeleted) return false;
+      } else if (status === 'all') {
+        // Include everything.
+      } else {
+        if (isDeleted) return false;
+        if (status && approvalStatus !== status) return false;
+      }
+
+      if (city && getNormalizedCity(report) !== city) return false;
+      if (truck && getNormalizedTruck(report) !== truck) return false;
+      if (selectedDate && report.date !== selectedDate) return false;
+      if (injection && getInjectionInfo(report).key !== injection) return false;
+
+      if (search) {
+        const haystack = [
+          getNormalizedCity(report),
+          getNormalizedTruck(report),
+          getNormalizedCrew(report),
+          report.address,
+          report.date,
+          report.submittedBy,
+          report.notes,
+          report.returnTripRequired,
+          report.returnTripReason,
+          report.preventableDelay,
+          report.completionStatus,
+          report.originalSettlement,
+          report.finalSettlement,
+          report.targetLiftAchieved,
+          report.conditionObserved,
+          report.conditionObservedOther,
+          report.completionRecordStatus,
+          report.managerNotes,
+          report.approvalStatus,
+          report.workAreaType,
+          report.workAreaOther,
+          report.workAreaDisplay,
+          report.liftAreaNotes,
+          report.jointGrindingDepth,
+          report.jobGroupId,
+          report.injectionType,
+          getInjectionInfo(report).fullLabel,
+          getInjectionInfo(report).label
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+
+      return true;
+    });
+  }
+
+  function getHistoryPageSize() {
+    const value = Number(document.getElementById('historyPageSize')?.value || 25);
+    return [25, 50, 100].includes(value) ? value : 25;
+  }
+
+  function updateHistoryPagination(totalReports, pageSize) {
+    const totalPages = Math.max(1, Math.ceil(totalReports / pageSize));
+    historyPage = Math.min(Math.max(1, historyPage), totalPages);
+
+    const start = totalReports ? ((historyPage - 1) * pageSize) + 1 : 0;
+    const end = Math.min(totalReports, historyPage * pageSize);
+    const text = totalReports
+      ? `Showing ${fmtNumber(start, 0)}-${fmtNumber(end, 0)} of ${fmtNumber(totalReports, 0)} reports | Page ${fmtNumber(historyPage, 0)} of ${fmtNumber(totalPages, 0)}`
+      : 'Showing 0 reports';
+
+    ['historyPageInfoTop', 'historyPageInfoBottom'].forEach(id => setText(id, text));
+    ['historyPrevPage', 'historyPrevPageBottom'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = historyPage <= 1;
+    });
+    ['historyNextPage', 'historyNextPageBottom'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = historyPage >= totalPages;
+    });
+  }
+
+  function resetHistoryPage() {
+    historyPage = 1;
+    renderHistory();
+  }
+
+  function changeHistoryPage(direction) {
+    historyPage += direction;
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    if (!list) return;
+
+    updateMissingRevenueButton();
+    updateReturnTripsButton();
+
+    const docs = getFilteredReports();
+    const pageSize = getHistoryPageSize();
+    updateHistoryPagination(docs.length, pageSize);
+
+    if (!docs.length) {
+      list.innerHTML = `<p style="color:var(--gray); text-align:center; padding:20px;">No matching reports found.</p>`;
+      return;
+    }
+
+    const pageDocs = docs.slice((historyPage - 1) * pageSize, historyPage * pageSize);
+
+    list.innerHTML = pageDocs.map(report => {
+      const pounds = getReportPounds(report);
+      const hours = getReportHours(report);
+      const lbsPerHour = hours > 0 ? pounds / hours : 0;
+      const status = report.approvalStatus || 'Needs Review';
+      const deletedLabel = report.deleted === true ? `<span class="status-pill status-rejected">Deleted</span>` : '';
+      const statusPill = `<span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span>`;
+      const injectionInfo = getInjectionInfo(report);
+      const injectionBadge = renderInjectionBadge(report);
+      const injectionBadgeSmall = renderInjectionBadge(report, 'small');
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      const isProfit = pnl.profit >= 0;
+      const pnlToneClass = isProfit ? 'pnl-profit' : 'pnl-loss';
+      const pnlValueClass = isProfit ? 'history-pnl-profit' : 'history-pnl-loss';
+      const revenuePerLb = pounds > 0 ? pnl.revenue / pounds : 0;
+      const returnTripFlag = isReturnTripReport(report)
+        ? `<div class="return-trip-flag">⚠ RETURN TRIP REQUIRED${report.returnTripReason ? ` — ${escapeHtml(report.returnTripReason)}` : ''}</div>`
+        : '';
+      const groupMeta = pnl.isGroupedRevenue ? `
+        <div style="font-size:12px; color:#374151; margin-top:6px;">
+          <strong>Job Group:</strong> ${escapeHtml(pnl.groupId)} |
+          <strong>Day:</strong> ${fmtNumber(pnl.groupIndex || 1, 0)} of ${fmtNumber(pnl.groupSize || 1, 0)} |
+          <strong>Grouped Job Revenue:</strong> ${formatMoney(pnl.groupRevenue)} |
+          <strong>Allocated:</strong> ${formatMoney(pnl.allocatedRevenue)} (${fmtNumber((pnl.allocationShare || 0) * 100, 1)}% ${escapeHtml(formatRevenueAllocationMethod(pnl.allocationMethod))})
+        </div>
+      ` : '';
+      const managerActions = isCurrentUserManager ? `
+        <div class="history-actions">
+          ${report.deleted === true ? `
+            <button class="btn btn-success small-btn" type="button" onclick="restoreReport('${report.id}')">Restore</button>
+            <button class="btn btn-danger small-btn" type="button" onclick="permanentlyDeleteReport('${report.id}')">Permanent Delete</button>
+          ` : `
+            <button class="btn btn-success small-btn" type="button" onclick="reviewReport('${report.id}', 'Approved')">Approve</button>
+            <button class="btn btn-warning small-btn" type="button" onclick="reviewReport('${report.id}', 'Needs Revision')">Needs Revision</button>
+            <button class="btn btn-danger small-btn" type="button" onclick="reviewReport('${report.id}', 'Rejected')">Reject</button>
+            <button class="btn btn-outline small-btn" type="button" onclick="openEditReport('${report.id}')">Edit</button>
+            <button class="btn btn-outline small-btn" type="button" onclick="printReport('${report.id}')">PDF / Print</button>
+            <button class="btn btn-danger small-btn" type="button" onclick="softDeleteReport('${report.id}')">Delete</button>
+          `}
+        </div>
+      ` : '';
+
+      return `
+        <div class="history-item ${pnlToneClass} ${injectionInfo.key === 'di' ? 'di-report' : injectionInfo.key === 'method' ? 'method-report' : ''}">
+          <div style="flex:1;">
+            ${returnTripFlag}
+            <div style="font-weight:900; color:var(--kke-blue); font-size:16px;">
+              ${escapeHtml(getNormalizedCity(report))} - ${escapeHtml(report.address || 'No Address')}
+              ${injectionBadge}${statusPill}${deletedLabel}
+            </div>
+            <div style="font-size:13px; color:var(--gray); margin-top:2px;">
+              ${escapeHtml(report.date || 'No Date')} | Lead: ${escapeHtml(getNormalizedCrew(report))} | Truck: ${escapeHtml(getNormalizedTruck(report))} | Type: ${injectionBadgeSmall}
+            </div>
+            <div class="history-pnl-strip" aria-label="Estimated job P&L">
+              <div class="history-pnl-card">
+                <div class="history-pnl-label">Revenue</div>
+                <div class="history-pnl-value">${formatMoney(pnl.revenue)}</div>
+                <div class="history-pnl-sub">${pnl.isGroupedRevenue ? 'Allocated revenue' : (pnl.revenue > 0 ? 'Known revenue' : 'Needs revenue review')}</div>
+              </div>
+              <div class="history-pnl-card ${pnlValueClass}">
+                <div class="history-pnl-label">Profit</div>
+                <div class="history-pnl-value">${formatMoney(pnl.profit)}</div>
+                <div class="history-pnl-sub">${isProfit ? 'Estimated gain' : 'Estimated loss'}</div>
+              </div>
+              <div class="history-pnl-card ${pnlValueClass}">
+                <div class="history-pnl-label">Margin</div>
+                <div class="history-pnl-value">${fmtNumber(pnl.margin, 1)}%</div>
+                <div class="history-pnl-sub">${escapeHtml(pnl.confidence)}</div>
+              </div>
+              <div class="history-pnl-card">
+                <div class="history-pnl-label">Revenue / Lb</div>
+                <div class="history-pnl-value">${formatMoney(revenuePerLb)}</div>
+                <div class="history-pnl-sub">${fmtNumber(pounds, 0)} pumped lbs</div>
+              </div>
+            </div>
+            ${groupMeta}
+            <div style="font-size:12px; color:#374151; margin-top:6px;">
+              <strong>Area:</strong> ${escapeHtml(getWorkAreaDisplay(report))} | <strong>Injection:</strong> ${escapeHtml(injectionInfo.fullLabel)}
+              ${Number(report.liftAreaSqFt || 0) > 0 ? ` | <strong>Dimensions:</strong> ${escapeHtml(report.liftAreaLength || '')}' x ${escapeHtml(report.liftAreaWidth || '')}' (${fmtNumber(report.liftAreaSqFt, 2)} sq ft)` : ''}
+              ${report.photoCount ? ` | <strong>Photos:</strong> ${fmtNumber(report.photoCount, 0)}` : ''}
+            </div>
+            ${report.liftAreaNotes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Area Notes:</strong> ${escapeHtml(report.liftAreaNotes)}</div>` : ''}
+            ${report.notes ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Job Notes:</strong> ${escapeHtml(report.notes)}</div>` : ''}
+            ${report.jobId?`<div style="font-size:12px;margin-top:5px"><strong>Linked job:</strong> ${escapeHtml(report.jobScopeSnapshot?.address||report.jobId)} · ${escapeHtml(report.jobScopeSnapshot?.area?.label||'')} · Scope revision ${escapeHtml(report.jobRevision)}</div>`:''}
+            ${(report.originalSettlement || report.finalSettlement || report.targetLiftAchieved || report.conditionObserved || report.conditionObservedOther) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Lift Record:</strong> Original ${escapeHtml(report.originalSettlement || 'Not recorded')} in | Final ${escapeHtml(report.finalSettlement || 'Not recorded')} in | Target ${escapeHtml(report.targetLiftAchieved || 'Not recorded')}${report.conditionObserved ? ` | <strong>Conditions:</strong> ${escapeHtml(report.conditionObserved)}` : ''}${report.conditionObservedOther ? `; ${escapeHtml(report.conditionObservedOther)}` : ''}</div>` : ''}
+            ${(report.returnTripRequired || report.preventableDelay || report.completionStatus || report.returnTripReason) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Completion:</strong> ${escapeHtml(report.completionStatus || 'Not recorded')} | <strong>Return Trip:</strong> ${escapeHtml(report.returnTripRequired || 'Not recorded')} | <strong>Preventable Delay:</strong> ${escapeHtml(report.preventableDelay || 'Not recorded')}${report.returnTripReason ? ` | <strong>Reason:</strong> ${escapeHtml(report.returnTripReason)}` : ''}</div>` : ''}
+            ${hasCompletionRecordData(report) ? `<div style="font-size:12px; margin-top:5px; color:#374151;"><strong>Completion Record:</strong> ${escapeHtml(getCompletionRecordStatus(report))} | <strong>Before/Site Photos:</strong> ${fmtNumber(Number(report.beforePhotoCount || 0), 0)} | <strong>After Photos:</strong> ${fmtNumber(Number(report.afterPhotoCount || 0), 0)}</div>` : ''}
+            ${renderPhotoLinks(report)}
+            ${report.managerNotes ? `<div style="font-size:12px; margin-top:6px; color:#374151;"><strong>Manager Notes:</strong> ${escapeHtml(report.managerNotes)}</div>` : ''}
+            <div style="margin-top:8px;">${renderQualityPills(pnl)}</div>
+            ${managerActions}
+          </div>
+          <div style="text-align:right; min-width:150px;">
+            <div style="font-weight:700; font-size:18px;">${fmtNumber(pounds, 0)} lbs</div>
+            <div style="font-size:12px; color:var(--gray);">${fmtNumber(hours, 2)} hrs | ${fmtNumber(lbsPerHour, 0)} lbs/hr</div>
+            <div style="font-size:11px; color:var(--gray)">By: ${escapeHtml(report.submittedBy || 'N/A')}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function formatSyncTime(date) {
+    if (!date) return 'Not synced';
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function updateReportCacheStatus() {
+    const status = document.getElementById('reportCacheStatus');
+    const text = document.getElementById('reportCacheStatusText');
+    const refreshText = document.getElementById('reportCacheRefreshText');
+    if (!status || !text || !refreshText) return;
+    status.style.display = auth.currentUser ? 'flex' : 'none';
+    text.innerHTML = `Reports loaded: <strong>${fmtNumber(allReports.length, 0)}</strong> | Last sync: <strong>${escapeHtml(formatSyncTime(reportCacheLastSync))}</strong>`;
+    const waiting = [];
+    if (historyNeedsRender) waiting.push('History');
+    if (dashboardNeedsRender) waiting.push('Dashboard');
+    refreshText.textContent = waiting.length ? `${waiting.join(' and ')} will refresh when opened.` : 'Using shared report cache.';
+  }
+
+  function renderHistoryFromCache() {
+    populateHistoryFilters(allReports);
+    renderHistory();
+    historyNeedsRender = false;
+  }
+
+  function renderDashboardFromCache() {
+    dashboardReports = activeReportsOnly(allReports);
+    renderDashboardAnalytics(dashboardReports);
+    dashboardNeedsRender = false;
+  }
+
+  function refreshReportCacheConsumers() {
+    if (historyUsesReportCache) {
+      if (activeTabId === 'history') {
+        renderHistoryFromCache();
+      } else {
+        historyNeedsRender = true;
+      }
+    }
+    if (dashboardUsesReportCache && isCurrentUserManager) {
+      if (activeTabId === 'dashboard') {
+        renderDashboardFromCache();
+      } else {
+        dashboardReports = activeReportsOnly(allReports);
+        dashboardNeedsRender = true;
+      }
+    }
+    updateReportCacheStatus();
+  }
+
+  function refreshActiveReportTab(tabId = activeTabId) {
+    if (tabId === 'history' && historyUsesReportCache && reportCacheLoaded) {
+      renderHistoryFromCache();
+    }
+    if (tabId === 'dashboard' && dashboardUsesReportCache && reportCacheLoaded && isCurrentUserManager) {
+      renderDashboardFromCache();
+    }
+    updateReportCacheStatus();
+  }
+
+  function refreshAllReportCacheConsumers() {
+    if (historyUsesReportCache) {
+      populateHistoryFilters(allReports);
+      renderHistory();
+      historyNeedsRender = false;
+    }
+    if (dashboardUsesReportCache && isCurrentUserManager) {
+      dashboardReports = activeReportsOnly(allReports);
+      renderDashboardAnalytics(dashboardReports);
+      dashboardNeedsRender = false;
+    }
+    updateReportCacheStatus();
+  }
+
+  function ensureReportCache() {
+    if (!auth.currentUser || reportCacheUnsubscribe) {
+      if (reportCacheLoaded) refreshActiveReportTab();
+      return;
+    }
+    const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+
+    reportCacheUnsubscribe = onSnapshot(collRef, (snapshot) => {
+      allReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      allReports.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      dashboardReports = activeReportsOnly(allReports);
+      reportCacheLoaded = true;
+      reportCacheLastSync = new Date();
+      refreshReportCacheConsumers();
+    }, (err) => {
+      console.error(err);
+      reportCacheLoaded = false;
+      const list = document.getElementById('historyList');
+      if (historyUsesReportCache && list) list.innerHTML = 'Error loading history.';
+      if (dashboardUsesReportCache) showMessage('Error loading reports. Check manager access and Firebase rules.', 'error');
+    });
+  }
+
+  function loadHistory() {
+    if (!auth.currentUser) return;
+    historyUsesReportCache = true;
+    ensureReportCache();
+  }
+
+
+
+  function parseDateTimeMinutes(report, timeField) {
+    const date = report.date;
+    const time = report[timeField];
+    if (!date || !time || !/^\d{2}:\d{2}$/.test(String(time))) return null;
+    const [year, month, day] = String(date).split('-').map(Number);
+    const [hour, minute] = String(time).split(':').map(Number);
+    if (![year, month, day, hour, minute].every(Number.isFinite)) return null;
+    return new Date(year, month - 1, day, hour, minute).getTime();
+  }
+
+  function getGpsPoint(report) {
+    const lat = Number(report.gpsLatitude);
+    const lon = Number(report.gpsLongitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (lat === 0 && lon === 0) return null;
+    return { lat, lon };
+  }
+
+  function haversineMiles(a, b) {
+    if (!a || !b) return 0;
+    const radiusMiles = 3958.7613;
+    const toRad = degrees => degrees * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lon - a.lon);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * radiusMiles * Math.asin(Math.sqrt(h));
+  }
+
+  function calculateTransitions(reports) {
+    const byTruckDate = {};
+    activeReportsOnly(reports).forEach(report => {
+      const truck = getNormalizedTruck(report);
+      const date = report.date || '';
+      const startMs = parseDateTimeMinutes(report, 'startTime');
+      const finishMs = parseDateTimeMinutes(report, 'finishTime');
+      if (!truck || !date || startMs === null || finishMs === null) return;
+      const key = `${truck}__${date}`;
+      if (!byTruckDate[key]) byTruckDate[key] = [];
+      byTruckDate[key].push({ ...report, startMs, finishMs });
+    });
+
+    const transitions = [];
+    Object.values(byTruckDate).forEach(items => {
+      items.sort((a, b) => a.startMs - b.startMs);
+      for (let i = 0; i < items.length - 1; i++) {
+        const previous = items[i];
+        const next = items[i + 1];
+        const minutes = (next.startMs - previous.finishMs) / 60000;
+        if (!Number.isFinite(minutes) || minutes < 0 || minutes > 480) continue;
+        const prevPoint = getGpsPoint(previous);
+        const nextPoint = getGpsPoint(next);
+        const miles = haversineMiles(prevPoint, nextPoint);
+        const mph = minutes > 0 && miles > 0 ? miles / (minutes / 60) : 0;
+        transitions.push({
+          truck: previous.truckNumber || 'Unknown Truck',
+          date: previous.date || '',
+          crewLead: next.crewLead || previous.crewLead || 'Unknown Crew',
+          fromCity: previous.city || 'Unknown City',
+          toCity: next.city || 'Unknown City',
+          fromAddress: previous.address || 'Previous job',
+          toAddress: next.address || 'Next job',
+          minutes,
+          miles,
+          mph,
+          hasGps: Boolean(prevPoint && nextPoint)
+        });
+      }
+    });
+    return transitions;
+  }
+
+  function renderTransitionTable(transitions) {
+    if (!transitions.length) return `<div class="empty-state">No transition data yet. This appears after a truck submits at least two same-day jobs with start and finish times.</div>`;
+    const top = transitions.slice().sort((a, b) => b.minutes - a.minutes).slice(0, 12);
+    return `
+      <div class="transition-row header-row">
+        <div>Truck / Date</div><div>Transition</div><div>GPS Miles</div><div>MPH</div><div>Route</div>
+      </div>
+      ${top.map(item => `
+        <div class="transition-row">
+          <div><strong style="color:var(--kke-blue);">${escapeHtml(item.truck)}</strong><br><span style="color:var(--gray);">${escapeHtml(item.date)} | ${escapeHtml(item.crewLead)}</span></div>
+          <div><strong>${fmtNumber(item.minutes, 0)} min</strong></div>
+          <div>${item.hasGps ? `${fmtNumber(item.miles, 1)} mi` : 'No GPS'}</div>
+          <div>${item.hasGps && item.mph > 0 ? `${fmtNumber(item.mph, 0)} mph` : '—'}</div>
+          <div>${escapeHtml(item.fromCity)} → ${escapeHtml(item.toCity)}<br><span style="color:var(--gray);">${escapeHtml(item.fromAddress)} → ${escapeHtml(item.toAddress)}</span></div>
+        </div>
+      `).join('')}
+    `;
+  }
+
+
+  function groupTransitionByTruck(transitions) {
+    const byTruck = {};
+    transitions.forEach(item => {
+      const truck = item.truck || 'Unknown Truck';
+      if (!byTruck[truck]) byTruck[truck] = { truck, count: 0, totalMinutes: 0, gpsCount: 0, totalMiles: 0, longest: 0 };
+      byTruck[truck].count += 1;
+      byTruck[truck].totalMinutes += item.minutes || 0;
+      byTruck[truck].longest = Math.max(byTruck[truck].longest, item.minutes || 0);
+      if (item.hasGps) {
+        byTruck[truck].gpsCount += 1;
+        byTruck[truck].totalMiles += item.miles || 0;
+      }
+    });
+    return Object.values(byTruck).map(item => ({
+      ...item,
+      avgMinutes: item.count ? item.totalMinutes / item.count : 0,
+      avgMiles: item.gpsCount ? item.totalMiles / item.gpsCount : 0
+    }));
+  }
+
+  function renderMetricBars(entries, valueKey, suffix, colors, decimals = 0) {
+    const clean = entries.filter(item => Number.isFinite(item[valueKey]) && item[valueKey] > 0);
+    if (!clean.length) return `<div class="empty-state">No data yet.</div>`;
+    const max = Math.max(...clean.map(item => item[valueKey]), 1);
+    return clean.sort((a, b) => b[valueKey] - a[valueKey]).map(item => {
+      const label = item.truck || item.name || 'Unknown';
+      const color = colors[label] || '#0057a8';
+      const pct = Math.max(4, (item[valueKey] / max) * 100);
+      return `
+        <div class="metric-bar-row">
+          <div><strong>${escapeHtml(label)}</strong></div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+          <div style="text-align:right; font-weight:900; color:var(--kke-dark-blue);">${fmtNumber(item[valueKey], decimals)} ${suffix}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderLongestTransitions(transitions) {
+    if (!transitions.length) return `<div class="empty-state">No transition data yet.</div>`;
+    return transitions.slice().sort((a, b) => b.minutes - a.minutes).slice(0, 5).map(item => `
+      <div class="transition-route-card">
+        <div class="transition-route-title">Truck ${escapeHtml(item.truck)} — ${fmtNumber(item.minutes, 0)} min</div>
+        <div class="transition-route-meta">${escapeHtml(item.date)} | ${escapeHtml(item.fromCity)} → ${escapeHtml(item.toCity)}${item.hasGps ? ` | ${fmtNumber(item.miles, 1)} mi` : ' | no GPS distance'}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderRecentTransitionRoutes(transitions) {
+    if (!transitions.length) return `<div class="empty-state">No route data yet.</div>`;
+    return transitions.slice().sort((a, b) => `${b.date}`.localeCompare(`${a.date}`)).slice(0, 5).map(item => `
+      <div class="transition-route-card">
+        <div class="transition-route-title">${escapeHtml(item.fromCity)} → ${escapeHtml(item.toCity)}</div>
+        <div class="transition-route-meta">Truck ${escapeHtml(item.truck)} | ${escapeHtml(item.date)} | ${fmtNumber(item.minutes, 0)} min${item.hasGps ? ` | ${fmtNumber(item.miles, 1)} mi | ${fmtNumber(item.mph, 0)} mph` : ' | no GPS distance'}</div>
+      </div>
+    `).join('');
+  }
+
+  function buildTransitionStats(transitions) {
+    const gpsTransitions = transitions.filter(item => item.hasGps);
+    const totalMinutes = transitions.reduce((sum, item) => sum + item.minutes, 0);
+    const totalMiles = gpsTransitions.reduce((sum, item) => sum + item.miles, 0);
+    const avgMinutes = transitions.length ? totalMinutes / transitions.length : 0;
+    const avgMiles = gpsTransitions.length ? totalMiles / gpsTransitions.length : 0;
+    const avgMph = totalMinutes > 0 && totalMiles > 0 ? totalMiles / (totalMinutes / 60) : 0;
+    const longest = transitions.length ? Math.max(...transitions.map(item => item.minutes)) : 0;
+    return { avgMinutes, avgMiles, avgMph, longest };
+  }
+
+  function renderTrendChart(docs) {
+    const byDate = {};
+    activeReportsOnly(docs).forEach(report => {
+      if (!report.date) return;
+      if (!byDate[report.date]) {
+        byDate[report.date] = { date: report.date, pounds: 0, revenue: 0, reports: 0, missingRevenue: 0 };
+      }
+      const item = byDate[report.date];
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      item.pounds += getReportPounds(report);
+      item.revenue += pnl.revenue;
+      item.reports += 1;
+      if (pnl.revenue <= 0) item.missingRevenue += 1;
+    });
+
+    const entries = Object.values(byDate)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-7);
+
+    if (!entries.length) return `<div class="empty-state">No trend data yet.</div>`;
+
+    const maxPounds = Math.max(...entries.map(item => item.pounds), 1);
+    const maxRevenue = Math.max(...entries.map(item => item.revenue), 1);
+    return `<div class="trend-grid trend-dual-grid">${entries.map(item => {
+      const lbsHeight = Math.max(4, (item.pounds / maxPounds) * 70);
+      const revenueHeight = item.revenue > 0 ? Math.max(4, (item.revenue / maxRevenue) * 70) : 0;
+      const revenuePerLb = item.pounds > 0 && item.revenue > 0 ? item.revenue / item.pounds : 0;
+      const label = item.date.slice(5);
+      const missingText = item.missingRevenue ? `<div class="trend-missing-revenue">${fmtNumber(item.missingRevenue, 0)} missing revenue</div>` : '';
+      return `
+        <div class="trend-dual-card" title="${escapeAttr(item.date)}: ${fmtNumber(item.pounds, 0)} lbs, ${formatMoney(item.revenue)}, ${formatMoney(revenuePerLb)}/lb">
+          <div class="trend-period-label">${escapeHtml(label)}</div>
+          <div class="trend-money-main">${formatMoney(item.revenue)}</div>
+          <div class="trend-lbs-sub">${fmtNumber(item.pounds, 0)} lbs</div>
+          <div class="trend-dual-bars">
+            <div class="trend-mini-col">
+              <div class="trend-mini-bar trend-lbs-bar" style="height:${lbsHeight}px"></div>
+              <div class="trend-mini-key">lbs</div>
+            </div>
+            <div class="trend-mini-col">
+              <div class="trend-mini-bar trend-revenue-bar" style="height:${revenueHeight}px"></div>
+              <div class="trend-mini-key">rev</div>
+            </div>
+          </div>
+          <div class="trend-rate-value">${revenuePerLb > 0 ? `${formatMoney(revenuePerLb)}/lb` : 'No rev/lb'}</div>
+          ${missingText}
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function formatWeekLabel(start, end) {
+    const startLabel = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endLabel = new Date(end.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `${startLabel}-${endLabel}`;
+  }
+
+  function renderWeekOverWeekTrendChart(docs) {
+    const ranges = getPeriodRanges();
+    const weeks = [];
+
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const start = new Date(ranges.week.start);
+      start.setDate(start.getDate() - offset * 7);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 7);
+      weeks.push({
+        label: formatWeekLabel(start, end),
+        start,
+        end,
+        pounds: 0,
+        revenue: 0,
+        reports: 0,
+        hours: 0,
+        missingRevenue: 0
+      });
+    }
+
+    activeReportsOnly(docs || []).forEach(report => {
+      const date = parseReportDate(report.date);
+      if (!date) return;
+      const week = weeks.find(item => date >= item.start && date < item.end);
+      if (!week) return;
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      week.pounds += getReportPounds(report);
+      week.revenue += pnl.revenue;
+      week.reports += 1;
+      week.hours += getReportHours(report);
+      if (pnl.revenue <= 0) week.missingRevenue += 1;
+    });
+
+    const hasData = weeks.some(week => week.pounds > 0 || week.reports > 0);
+    if (!hasData) return `<div class="empty-state">No weekly trend data yet.</div>`;
+
+    const maxPounds = Math.max(...weeks.map(week => week.pounds), 1);
+    const maxRevenue = Math.max(...weeks.map(week => week.revenue), 1);
+    return `<div class="trend-grid six-month-trend-grid trend-dual-grid">${weeks.map((week, index) => {
+      const previous = index > 0 ? weeks[index - 1] : null;
+      const change = previous && previous.pounds > 0
+        ? ((week.pounds - previous.pounds) / previous.pounds) * 100
+        : null;
+      const changeText = change === null ? 'new baseline' : `${change >= 0 ? '+' : ''}${fmtNumber(change, 1)}% WoW`;
+      const lbsHeight = Math.max(4, (week.pounds / maxPounds) * 70);
+      const revenueHeight = week.revenue > 0 ? Math.max(4, (week.revenue / maxRevenue) * 70) : 0;
+      const revenuePerLb = week.pounds > 0 && week.revenue > 0 ? week.revenue / week.pounds : 0;
+      const missingText = week.missingRevenue ? `<div class="trend-missing-revenue">${fmtNumber(week.missingRevenue, 0)} missing revenue</div>` : '';
+      return `
+        <div class="trend-dual-card" title="${escapeAttr(week.label)}: ${fmtNumber(week.pounds, 0)} lbs, ${formatMoney(week.revenue)}, ${fmtNumber(week.reports, 0)} reports">
+          <div class="trend-period-label">${escapeHtml(week.label)}</div>
+          <div class="trend-money-main">${formatMoney(week.revenue)}</div>
+          <div class="trend-lbs-sub">${fmtNumber(week.pounds, 0)} lbs</div>
+          <div class="trend-dual-bars">
+            <div class="trend-mini-col">
+              <div class="trend-mini-bar trend-lbs-bar" style="height:${lbsHeight}px"></div>
+              <div class="trend-mini-key">lbs</div>
+            </div>
+            <div class="trend-mini-col">
+              <div class="trend-mini-bar trend-revenue-bar" style="height:${revenueHeight}px"></div>
+              <div class="trend-mini-key">rev</div>
+            </div>
+          </div>
+          <div class="trend-rate-value">${revenuePerLb > 0 ? `${formatMoney(revenuePerLb)}/lb` : 'No rev/lb'}</div>
+          <div class="trend-label">${escapeHtml(changeText)}</div>
+          <div class="trend-label">${fmtNumber(week.reports, 0)} reports</div>
+          ${missingText}
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+
+  function renderSixMonthTrendChart(docs) {
+    const now = new Date();
+    const months = [];
+
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+      months.push({
+        key: `${start.getFullYear()}-${pad2(start.getMonth() + 1)}`,
+        label: start.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+        start,
+        end,
+        pounds: 0,
+        revenue: 0,
+        reports: 0,
+        hours: 0,
+        missingRevenue: 0,
+        overrideApplied: false
+      });
+    }
+
+    const monthMap = Object.fromEntries(months.map(month => [month.key, month]));
+
+    activeReportsOnly(docs || []).forEach(report => {
+      const date = parseReportDate(report.date);
+      if (!date) return;
+      const key = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+      const month = monthMap[key];
+      if (!month) return;
+      const pnl = calculateReportPnl(report, allReports, costSettings);
+      month.pounds += getReportPounds(report);
+      month.revenue += pnl.revenue;
+      month.reports += 1;
+      month.hours += getReportHours(report);
+      if (pnl.revenue <= 0) month.missingRevenue += 1;
+    });
+
+    months.forEach(month => {
+      const adjustment = getMonthlyRevenueAdjustmentByKey(month.key, costSettings);
+      if (!adjustment) return;
+      month.revenue = adjustment.mode === 'add' ? month.revenue + adjustment.amount : adjustment.amount;
+      month.overrideApplied = true;
+    });
+
+    const hasData = months.some(month => month.pounds > 0 || month.reports > 0 || month.revenue > 0);
+    if (!hasData) return `<div class="empty-state">No monthly trend data yet.</div>`;
+
+    const maxPounds = Math.max(...months.map(month => month.pounds), 1);
+    const maxRevenue = Math.max(...months.map(month => month.revenue), 1);
+    return `<div class="trend-grid six-month-trend-grid trend-dual-grid">${months.map(month => {
+      const lbsHeight = Math.max(4, (month.pounds / maxPounds) * 70);
+      const revenueHeight = month.revenue > 0 ? Math.max(4, (month.revenue / maxRevenue) * 70) : 0;
+      const revenuePerLb = month.pounds > 0 && month.revenue > 0 ? month.revenue / month.pounds : 0;
+      const missingText = month.missingRevenue ? `<div class="trend-missing-revenue">${fmtNumber(month.missingRevenue, 0)} missing revenue</div>` : '';
+      const overrideText = month.overrideApplied ? `<div class="trend-missing-revenue" style="background:#dbeafe;color:#003f7d;">accounting override</div>` : '';
+      return `
+        <div class="trend-dual-card" title="${escapeAttr(month.label)}: ${fmtNumber(month.pounds, 0)} lbs, ${formatMoney(month.revenue)}, ${fmtNumber(month.reports, 0)} reports">
+          <div class="trend-period-label">${escapeHtml(month.label)}</div>
+          <div class="trend-money-main">${formatMoney(month.revenue)}</div>
+          <div class="trend-lbs-sub">${fmtNumber(month.pounds, 0)} lbs</div>
+          <div class="trend-dual-bars">
+            <div class="trend-mini-col">
+              <div class="trend-mini-bar trend-lbs-bar" style="height:${lbsHeight}px"></div>
+              <div class="trend-mini-key">lbs</div>
+            </div>
+            <div class="trend-mini-col">
+              <div class="trend-mini-bar trend-revenue-bar" style="height:${revenueHeight}px"></div>
+              <div class="trend-mini-key">rev</div>
+            </div>
+          </div>
+          <div class="trend-rate-value">${revenuePerLb > 0 ? `${formatMoney(revenuePerLb)}/lb` : 'No rev/lb'}</div>
+          <div class="trend-label">${fmtNumber(month.reports, 0)} reports</div>
+          ${overrideText || missingText}
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+
+  const FLEET_MAINTENANCE_DEFAULTS = {
+    serviceIntervalMiles: 5000,
+    serviceIntervalDays: 180,
+    generatorIntervalDays: 180
+  };
+
+  const TEXAS_GPS_BOUNDS = {
+    minLat: 25.7,
+    maxLat: 36.6,
+    minLng: -106.7,
+    maxLng: -93.4
+  };
+
+  const APPROVED_FLEET_BY_VIN = {
+    "1FT7W2A69CEA85715": { unitNumber: "104", displayName: "Unit #104 F-250 CAM" },
+    "1FD0W4HT5JEB72383": { unitNumber: "106", displayName: "Unit #106 Ford F450" },
+    "4V4W19EG5NN285696": { unitNumber: "112", displayName: "Unit #112 2022 Volvo CAM" },
+    "1FTER1EH9LLA73886": { unitNumber: "117", displayName: "Unit #117 Ranger" },
+    "3HAMMMML3JL342933": { unitNumber: "118", displayName: "Unit #118 Int. Box CAM" },
+    "1FDXE4FS0KDC34520": { unitNumber: "119", displayName: "Unit #119 Ford E-450 CAM" },
+    "3HAEUMML7LL704690": { unitNumber: "120", displayName: "Unit #120 Isaiah CAM" }
+  };
+
+  const APPROVED_FLEET_ROSTER = Object.entries(APPROVED_FLEET_BY_VIN).map(([vin, unit]) => ({ vin, ...unit }));
+  const APPROVED_FLEET_VINS = new Set(Object.keys(APPROVED_FLEET_BY_VIN));
+  const APPROVED_FLEET_BY_UNIT = Object.fromEntries(
+    Object.values(APPROVED_FLEET_BY_VIN).map(unit => [unit.unitNumber, unit])
+  );
+  const APPROVED_FLEET_UNIT_NUMBERS = new Set(Object.keys(APPROVED_FLEET_BY_UNIT));
+
+  function readNested(obj, path) {
+    if (!obj || !path) return undefined;
+    return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
+  }
+
+  function fleetField(item, paths, fallback = null) {
+    for (const path of paths) {
+      const direct = readNested(item, path);
+      if (direct !== undefined && direct !== null && direct !== '') return direct;
+      const raw = readNested(item.raw || {}, path);
+      if (raw !== undefined && raw !== null && raw !== '') return raw;
+      const rawValue = readNested(item.raw?.value || {}, path);
+      if (rawValue !== undefined && rawValue !== null && rawValue !== '') return rawValue;
+      const value = readNested(item.value || {}, path);
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return fallback;
+  }
+
+  function parseFleetTimestamp(value) {
+    if (!value) return null;
+    if (typeof value?.toDate === 'function') return value.toDate();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getFleetTimestamp(item) {
+    return fleetField(item, [
+      'lastSeen',
+      'lastSeenAt',
+      'gpsTime',
+      'gps_time',
+      'device_point_detail.gps_time',
+      'dt_tracker',
+      'deviceTimeUtc',
+      'device_time_utc',
+      'point_time_utc',
+      'timestamp_utc',
+      'timestamp',
+      'event_time_utc',
+      'alertTimeUtc',
+      'alert_time_utc',
+      'start_time_utc',
+      'stop_time_utc',
+      'created_at'
+    ]);
+  }
+
+  function formatFleetDateTime(value) {
+    const date = parseFleetTimestamp(value);
+    if (!date) return '—';
+    return date.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  }
+
+  function fleetMinutesAgo(value) {
+    const date = parseFleetTimestamp(value);
+    if (!date) return null;
+    return Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+  }
+
+  function formatFleetAge(value) {
+    const mins = fleetMinutesAgo(value);
+    if (mins === null) return 'No timestamp';
+    if (mins < 1) return 'Just now';
+    if (mins === 1) return '1 min ago';
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours === 1) return '1 hr ago';
+    if (hours < 24) return `${hours} hrs ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
+  function getFleetName(item) {
+    const name = fleetField(item, [
+      'deviceName', 'device_name', 'displayName', 'display_name', 'vehicleName', 'vehicle_name',
+      'name', 'device.name', 'vehicle.name', 'asset.name'
+    ]);
+    if (name) return String(name);
+    const id = fleetField(item, ['deviceId', 'device_id', 'device_point_id', 'id']);
+    return id ? `Device ${String(id).slice(0, 8)}` : 'Unknown Truck';
+  }
+
+
+  function getFleetVin(item) {
+    return String(fleetField(item, ['vin', 'vehicleVin', 'vehicle_vin', 'device.vin', 'vehicle.vin'], '') || '').trim().toUpperCase();
+  }
+
+  function isApprovedFleetItem(item) {
+    const vin = getFleetVin(item);
+    if (vin && APPROVED_FLEET_VINS.has(vin)) return true;
+    const truckNo = getFleetTruckNumber(item);
+    return !!truckNo && APPROVED_FLEET_UNIT_NUMBERS.has(truckNo);
+  }
+
+  function isTexasFleetCoordinate(pos) {
+    return Number.isFinite(pos?.lat) &&
+      Number.isFinite(pos?.lng) &&
+      pos.lat >= TEXAS_GPS_BOUNDS.minLat &&
+      pos.lat <= TEXAS_GPS_BOUNDS.maxLat &&
+      pos.lng >= TEXAS_GPS_BOUNDS.minLng &&
+      pos.lng <= TEXAS_GPS_BOUNDS.maxLng;
+  }
+
+  function getValidFleetLocations() {
+    return fleetLocations.filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
+  }
+
+  function createFleetRosterItem(unit) {
+    return {
+      id: `roster-${unit.unitNumber}`,
+      unitNumber: unit.unitNumber,
+      vin: unit.vin,
+      displayName: unit.displayName,
+      deviceName: unit.displayName,
+      rosterOnly: true
+    };
+  }
+
+  function getFleetRailItems() {
+    return APPROVED_FLEET_ROSTER.map(unit => {
+      const matches = fleetLocations.filter(item => {
+        const vin = getFleetVin(item);
+        const truckNo = getFleetTruckNumber(item);
+        return vin === unit.vin || truckNo === unit.unitNumber || String(item.id || '') === unit.unitNumber;
+      });
+
+      const withTexasGps = matches.find(item => isTexasFleetCoordinate(getFleetLatLng(item)));
+      return withTexasGps || matches[0] || createFleetRosterItem(unit);
+    });
+  }
+
+  function getFleetMaintenanceRecord(unitNumber) {
+    return fleetMaintenance.find(record => String(record.unitNumber || record.id || '') === String(unitNumber || '')) || null;
+  }
+
+  function getFleetShortLabel(item) {
+    const truckNo = getFleetTruckNumber(item);
+    return truckNo || String(getFleetDisplayName(item)).replace(/\D/g, '').slice(-3) || 'GPS';
+  }
+
+  function getFleetAddress(item) {
+    return fleetField(item, [
+      'address', 'locationAddress', 'location_address', 'formattedAddress', 'formatted_address',
+      'place', 'location.name', 'location.address', 'reverseGeocode', 'reverse_geocode'
+    ], 'Address unavailable');
+  }
+
+  function getFleetDriver(item) {
+    return fleetField(item, ['driver', 'driverName', 'driver_name', 'assignedDriver', 'assigned_driver', 'operator'], 'No assignment');
+  }
+
+  function getFleetTruckNumber(item) {
+    const vin = getFleetVin(item);
+    if (APPROVED_FLEET_BY_VIN[vin]?.unitNumber) return APPROVED_FLEET_BY_VIN[vin].unitNumber;
+    const explicit = fleetField(item, ['unitNumber', 'truckNumber', 'truck_number', 'vehicleNumber', 'vehicle_number', 'id']);
+    if (explicit && /^\d{3}$/.test(String(explicit).trim())) return String(explicit).trim();
+    const name = getFleetName(item);
+    const match = name.match(/\b(104|106|112|117|118|119|120)\b|truck\s*#?\s*(\d{3})/i);
+    return match ? (match[1] || match[2]) : null;
+  }
+
+  function getFleetDisplayName(item) {
+    const vin = getFleetVin(item);
+    if (APPROVED_FLEET_BY_VIN[vin]?.displayName) return APPROVED_FLEET_BY_VIN[vin].displayName;
+    const truckNo = getFleetTruckNumber(item);
+    if (APPROVED_FLEET_BY_UNIT[truckNo]?.displayName) return APPROVED_FLEET_BY_UNIT[truckNo].displayName;
+    return getFleetName(item);
+  }
+
+  function getFleetLatLng(item) {
+    const lat = Number(fleetField(item, [
+      'lat', 'latitude',
+      'location.lat', 'location.latitude', 'location._lat',
+      'gps.lat', 'gps.latitude',
+      'position.lat', 'position.latitude',
+      'coordinates.lat', 'coordinates.latitude',
+      'lastLocation.lat', 'lastLocation.latitude',
+      'geoPoint.latitude', 'geopoint.latitude'
+    ]));
+    const lng = Number(fleetField(item, [
+      'lng', 'lon', 'longitude',
+      'location.lng', 'location.lon', 'location.longitude', 'location._long', 'location._lng',
+      'gps.lng', 'gps.lon', 'gps.longitude',
+      'position.lng', 'position.lon', 'position.longitude',
+      'coordinates.lng', 'coordinates.lon', 'coordinates.longitude',
+      'lastLocation.lng', 'lastLocation.lon', 'lastLocation.longitude',
+      'geoPoint.longitude', 'geopoint.longitude'
+    ]));
+    return {
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null
+    };
+  }
+
+  function fleetNumber(value) {
+    if (value === null || value === undefined || value === '' || typeof value === 'object') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function fleetSpeedText(speed) { return speed === null ? 'Unavailable' : fmtNumber(speed, 0) + ' mph'; }
+  function fleetIgnitionText(value) { return value === null ? 'Unavailable' : value ? 'On' : 'Off'; }
+  function getFleetReceivedTimestamp(item) { return fleetField(item, ['lastUpdated', 'receivedAt', 'lastSeenAt']); }
+  function getOneStepUrl(item) {
+    const id = fleetField(item, ['deviceId', 'device_id', 'device.id']);
+    return id ? 'https://track.onestepgps.com/v3/ux/map/device/' + encodeURIComponent(String(id)) + '/info' : 'https://track.onestepgps.com/';
+  }
+
+  function getFleetSpeed(item) {
+    return fleetNumber(fleetField(item, ['speedMph', 'speed_mph', 'speedMPH', 'speed']));
+  }
+
+  function getFleetOdometer(item) {
+    const value = fleetNumber(fleetField(item, ['odometer', 'odometer_mi', 'odometerMiles', 'meter', 'mileage']));
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function getFleetIgnition(item) {
+    const value = fleetField(item, ['ignitionOn', 'ignition_on', 'ignition', 'engine_on', 'device_point_detail.acc'], null);
+    if (value === null) return null;
+    return value === true || value === 'true' || value === 'on' || value === 1;
+  }
+
+  function getFleetDriveStatus(item) {
+    return String(fleetField(item, ['driveStatus', 'drive_status', 'status', 'motionStatus'], '') || '').toLowerCase();
+  }
+
+  function getFleetStatus(item) {
+    if (item?.rosterOnly) return { label: 'No GPS', className: 'fleet-status-stale', mapColor: '#64748b' };
+    const mins = fleetMinutesAgo(getFleetTimestamp(item));
+    if (mins === null) return { label: 'No GPS', className: 'fleet-status-stale', mapColor: '#64748b' };
+    if (mins > 1440) return { label: 'Critical stale', className: 'fleet-status-critical', mapColor: '#7f1d1d' };
+    if (mins > 60) return { label: 'Offline', className: 'fleet-status-offline', mapColor: '#991b1b' };
+    if (mins >= 15) return { label: 'Stale', className: 'fleet-status-stale', mapColor: '#f97316' };
+    if (getFleetSpeed(item) > 2) return { label: 'Moving', className: 'fleet-status-fresh', mapColor: '#16a34a' };
+    if (getFleetIgnition(item) === true) return { label: 'Idling', className: 'fleet-status-idle', mapColor: '#d97706' };
+    if (getFleetIgnition(item) === false) return { label: 'Stopped', className: 'fleet-status-stopped', mapColor: '#2563eb' };
+    return { label: 'Fresh', className: 'fleet-status-fresh', mapColor: '#16a34a' };
+  }
+
+  function getFleetMaintenance(item) {
+    const truckNo = getFleetTruckNumber(item);
+    const config = truckNo ? (getFleetMaintenanceRecord(truckNo) || {}) : {};
+    const odometer = getFleetOdometer(item);
+    const intervalMiles = config.serviceIntervalMiles || FLEET_MAINTENANCE_DEFAULTS.serviceIntervalMiles;
+    const intervalDays = config.serviceIntervalDays || FLEET_MAINTENANCE_DEFAULTS.serviceIntervalDays;
+    const lastServiceOdometer = fleetNumber(config.lastServiceOdometer);
+    const lastServiceDateRaw = config.lastServiceDate || config.lastServiceAt || null;
+    const lastServiceDate = lastServiceDateRaw?.toDate ? lastServiceDateRaw.toDate() : (lastServiceDateRaw ? new Date(lastServiceDateRaw) : null);
+
+    let milesRemaining = null;
+    let mileageStatus = 'baseline';
+    if (Number.isFinite(odometer) && Number.isFinite(lastServiceOdometer)) {
+      const nextService = lastServiceOdometer + intervalMiles;
+      milesRemaining = Math.round(nextService - odometer);
+      mileageStatus = milesRemaining < 0 ? 'overdue' : milesRemaining <= 500 ? 'due-soon' : 'ok';
+    }
+
+    let daysRemaining = null;
+    let dateStatus = 'baseline';
+    if (lastServiceDate && !Number.isNaN(lastServiceDate.getTime())) {
+      const nextDate = new Date(lastServiceDate.getTime() + intervalDays * 86400000);
+      daysRemaining = Math.ceil((nextDate.getTime() - Date.now()) / 86400000);
+      dateStatus = daysRemaining < 0 ? 'overdue' : daysRemaining <= 30 ? 'due-soon' : 'ok';
+    }
+
+    const statusRank = { overdue: 3, 'due-soon': 2, baseline: 1, ok: 0 };
+    const status = statusRank[mileageStatus] >= statusRank[dateStatus] ? mileageStatus : dateStatus;
+
+    return {
+      truckNo,
+      odometer,
+      milesRemaining,
+      daysRemaining,
+      status,
+      needsBaseline: !config || status === 'baseline',
+      record: config
+    };
+  }
+
+  function updateFleetSummary(locations) {
+    const approved = getFleetRailItems();
+    const tracked = approved.length;
+    const moving = approved.filter(item => fleetMinutesAgo(getFleetTimestamp(item)) !== null && fleetMinutesAgo(getFleetTimestamp(item)) < 15 && ( getFleetSpeed(item) > 2 || getFleetDriveStatus(item).includes('driv') || getFleetDriveStatus(item).includes('mov'))).length;
+    const ignition = approved.filter(item => fleetMinutesAgo(getFleetTimestamp(item)) !== null && fleetMinutesAgo(getFleetTimestamp(item)) < 15 && getFleetIgnition(item)).length;
+    const stale = approved.filter(item => ['Stale', 'Offline', 'Critical stale', 'No GPS'].includes(getFleetStatus(item).label)).length;
+    const maintenanceDue = approved.filter(item => ['due-soon', 'overdue'].includes(getFleetMaintenance(item).status)).length;
+
+    const setText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+
+    setText('fleetTrackedCount', tracked);
+    setText('fleetMovingCount', moving);
+    setText('fleetIgnitionCount', ignition);
+    setText('fleetStaleCount', stale);
+    setText('fleetMaintenanceDueCount', maintenanceDue);
+    setText('fleetRailCount', APPROVED_FLEET_ROSTER.length);
+  }
+
+  function fleetStatusSortRank(item) {
+    const label = getFleetStatus(item).label;
+    return { Moving: 0, Idling: 0, Stopped: 0, Fresh: 0, Stale: 1, Offline: 2, 'Critical stale': 3, 'No GPS': 4 }[label] ?? 9;
+  }
+
+  function getFleetStatusSlug(item) {
+    return String(getFleetStatus(item).label || '').toLowerCase().replace(/\s+/g, '-');
+  }
+
+  function setFleetDataStatus(message, tone = 'neutral') {
+    const el = document.getElementById('fleetDataStatus');
+    if (!el) return;
+    el.textContent = message;
+    el.style.color = tone === 'error' ? '#b91c1c' : tone === 'ok' ? '#166534' : tone === 'warning' ? '#92400e' : '';
+  }
+
+  function getFleetErrorMessage(err, collectionName) {
+    const code = err?.code || '';
+    if (code.includes('permission-denied')) {
+      return `Cannot read ${collectionName}. Firestore rules need manager read access for ${collectionName}.`;
+    }
+    return `Error loading ${collectionName}: ${err?.message || 'unknown error'}`;
+  }
+
+  function getFleetItemKey(item) {
+    const truckNo = getFleetTruckNumber(item);
+    return truckNo ? `unit-${truckNo}` : String(item.id || getFleetName(item));
+  }
+
+  
+function ensureFleetMap() {
+    const mapEl = document.getElementById('fleetMap');
+    if (!mapEl || !window.google?.maps) return null;
+    if (!fleetMap) {
+      fleetMap = new google.maps.Map(mapEl, {
+        center: { lat: 32.7767, lng: -96.7970 },
+        zoom: 7,
+        mapTypeId: 'satellite',
+        fullscreenControl: true,
+        streetViewControl: false,
+        mapTypeControl: true
+      });
+    }
+    return fleetMap;
+  }
+
+  function renderFleetMap() {
+    const map = ensureFleetMap();
+    const empty = document.getElementById('fleetMapEmpty');
+    if (!map) return;
+
+    const withGps = getValidFleetLocations();
+
+    if (empty) empty.style.display = withGps.length ? 'none' : 'flex';
+
+    const currentIds = new Set();
+    const bounds = new google.maps.LatLngBounds();
+
+    withGps.forEach(item => {
+      const key = getFleetItemKey(item);
+      currentIds.add(key);
+      const pos = getFleetLatLng(item);
+      const name = getFleetDisplayName(item);
+      const status = getFleetStatus(item);
+      const markerLabel = getFleetShortLabel(item);
+      const position = { lat: pos.lat, lng: pos.lng };
+      bounds.extend(position);
+
+      const markerOptions = {
+        position,
+        map,
+        title: name,
+        label: {
+          text: markerLabel,
+          color: '#ffffff',
+          fontWeight: '900',
+          fontSize: '12px'
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 17,
+          fillColor: status.mapColor,
+          fillOpacity: 0.96,
+          strokeColor: '#ffffff',
+          strokeWeight: 3
+        }
+      };
+
+      if (!fleetMarkers[key]) {
+        const marker = new google.maps.Marker(markerOptions);
+        marker.addListener('click', () => selectFleetTruck(key, true));
+        fleetMarkers[key] = marker;
+      } else {
+        fleetMarkers[key].setOptions(markerOptions);
+      }
+    });
+
+    Object.keys(fleetMarkers).forEach(key => {
+      if (!currentIds.has(key)) {
+        fleetMarkers[key].setMap(null);
+        delete fleetMarkers[key];
+      }
+    });
+
+    if (map.__fleetFitted) return;
+    if (withGps.length) map.__fleetFitted = true;
+    if (withGps.length === 1) {
+      const pos = getFleetLatLng(withGps[0]);
+      map.setCenter({ lat: pos.lat, lng: pos.lng });
+      map.setZoom(15);
+    } else if (withGps.length > 1) {
+      map.fitBounds(bounds, 40);
+    } else {
+      map.setCenter({ lat: 32.7767, lng: -96.7970 });
+      map.setZoom(7);
+    }
+  }
+
+  
+function selectFleetTruck(key, centerMap = false) {
+    selectedFleetTruckId = key;
+    renderFleetTruckList();
+    renderFleetSelectedTruck();
+    renderFleetMaintenancePanel();
+
+    if (centerMap) {
+      const item = getFleetRailItems().find(t => getFleetItemKey(t) === key);
+      const pos = item ? getFleetLatLng(item) : null;
+      if (item && pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng)) {
+        const map = ensureFleetMap();
+        if (map) {
+          map.setCenter({ lat: pos.lat, lng: pos.lng });
+          map.setZoom(16);
+        }
+      }
+    }
+  }
+
+  window.focusFleetTruck = function(key) {
+    selectFleetTruck(key, true);
+  };
+
+  function renderFleetTruckList() {
+    const box = document.getElementById('fleetTruckList');
+    if (!box) return;
+
+    const approved = getFleetRailItems();
+    updateFleetSummary(fleetLocations);
+
+    if (!approved.length) {
+      box.className = 'fleet-list';
+      box.innerHTML = '<div class="empty-state">Waiting for approved KKE OneStep GPS truck data.</div>';
+      selectedFleetTruckId = null;
+      renderFleetSelectedTruck();
+      return;
+    }
+
+    const sorted = [...approved].sort((a, b) => {
+      const rank = fleetStatusSortRank(a) - fleetStatusSortRank(b);
+      if (rank) return rank;
+      return String(getFleetTruckNumber(a) || '').localeCompare(String(getFleetTruckNumber(b) || ''));
+    });
+
+    if (!selectedFleetTruckId || !sorted.some(item => getFleetItemKey(item) === selectedFleetTruckId)) {
+      selectedFleetTruckId = getFleetItemKey(sorted[0]);
+    }
+
+    box.className = 'fleet-list';
+    const railCount = document.getElementById('fleetRailCount');
+    if (railCount) railCount.textContent = sorted.length;
+    box.innerHTML = sorted.map(item => {
+      const key = getFleetItemKey(item);
+      const name = getFleetDisplayName(item);
+      const status = getFleetStatus(item);
+      const speed = getFleetSpeed(item);
+      const ignition = getFleetIgnition(item);
+      const timestamp = getFleetTimestamp(item);
+      const active = key === selectedFleetTruckId ? ' active' : '';
+      const statusSlug = getFleetStatusSlug(item);
+      const odometer = getFleetOdometer(item);
+      const driver = getFleetDriver(item);
+      return `
+        <button class="fleet-list-item status-${escapeAttr(statusSlug)}${active}" type="button" onclick="focusFleetTruck('${escapeAttr(key)}')">
+          <div class="fleet-list-top">
+            <div class="fleet-truck-name">${escapeHtml(name)}</div>
+            <span class="fleet-status-pill ${status.className}">${escapeHtml(status.label)}</span>
+          </div>
+          <div class="fleet-list-meta">Ignition ${fleetIgnitionText(ignition)} · ${fleetSpeedText(speed)} · ${odometer !== null ? `${fmtNumber(odometer, 0)} mi` : 'Mileage unavailable'}</div>
+          <div class="fleet-list-meta">${escapeHtml(driver)} · GPS ${escapeHtml(formatFleetAge(timestamp))}</div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  
+function renderFleetSelectedTruck() {
+    const box = document.getElementById('fleetSelectedTruck');
+    if (!box) return;
+    const approved = getFleetRailItems();
+    const item = approved.find(t => getFleetItemKey(t) === selectedFleetTruckId) || approved[0];
+    if (!item) {
+      box.innerHTML = '<div class="empty-state">Select a truck to view details.</div>';
+      return;
+    }
+
+    const key = getFleetItemKey(item);
+    selectedFleetTruckId = key;
+    const name = getFleetDisplayName(item);
+    const status = getFleetStatus(item);
+    const speed = getFleetSpeed(item);
+    const ignition = getFleetIgnition(item);
+    const pos = getFleetLatLng(item);
+    const timestamp = getFleetTimestamp(item);
+    const odometer = getFleetOdometer(item);
+    const driveStatus = getFleetDriveStatus(item) || 'Unavailable';
+    const duration = Number(fleetField(item, ['driveStatusDurationSeconds', 'drive_status_duration_s', 'drive_status_duration_seconds'], 0)) || 0;
+    const driver = getFleetDriver(item);
+    const address = getFleetAddress(item);
+    const mapsUrl = isTexasFleetCoordinate(pos)
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pos.lat},${pos.lng}`)}`
+      : '';
+
+    box.innerHTML = `
+      <div>
+        <div class="fleet-detail-title">${escapeHtml(name)}</div>
+        <span class="fleet-status-pill ${status.className}">${escapeHtml(status.label)}</span>
+        <div class="fleet-detail-address">${escapeHtml(address)}</div>
+        <p><a class="fleet-provider-link" href="${escapeAttr(getOneStepUrl(item))}" target="_blank" rel="noopener noreferrer">Open in OneStepGPS ↗</a></p>
+        <small>History, cameras and advanced tools open in OneStepGPS.</small>
+      </div>
+      <div class="fleet-mini-grid">
+        <div class="fleet-mini"><div class="fleet-mini-label">Ignition</div><div class="fleet-mini-value">${fleetIgnitionText(ignition)}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Speed</div><div class="fleet-mini-value">${fleetSpeedText(speed)}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Drive Status</div><div class="fleet-mini-value">${escapeHtml(driveStatus || '—')}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Duration</div><div class="fleet-mini-value">${duration ? fmtDuration(duration) : '—'}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Odometer</div><div class="fleet-mini-value">${odometer !== null ? `${fmtNumber(odometer, 0)} mi` : 'Unavailable'}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">GPS position time</div><div class="fleet-mini-value">${escapeHtml(formatFleetAge(timestamp))}<br><small>${escapeHtml(formatFleetDateTime(timestamp))}</small></div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Data received</div><div class="fleet-mini-value">${escapeHtml(formatFleetAge(getFleetReceivedTimestamp(item)))}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Driver</div><div class="fleet-mini-value">${escapeHtml(driver)}</div></div>
+        <div class="fleet-mini"><div class="fleet-mini-label">Map</div><div class="fleet-mini-value">${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener">Open Google Maps</a>` : '—'}</div></div>
+      </div>
+    `;
+  }
+
+  
+function fmtDuration(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    if (total < 60) return `${total}s`;
+    const mins = Math.floor(total / 60);
+    if (mins < 60) return `${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
+  }
+
+  function renderFleetMaintenancePanel() {
+    const box = document.getElementById('fleetMaintenancePanel');
+    if (!box) return;
+    const approved = getFleetRailItems();
+    if (!approved.length) {
+      box.innerHTML = '<div class="empty-state">Waiting for approved KKE fleet roster.</div>';
+      return;
+    }
+
+    const withMaintenanceRecords = approved.filter(item => getFleetMaintenanceRecord(getFleetTruckNumber(item)));
+    if (!withMaintenanceRecords.length) {
+      box.innerHTML = '<div class="empty-state">Waiting for fleetMaintenance records.</div>';
+      return;
+    }
+
+    const sorted = [...withMaintenanceRecords].sort((a, b) => {
+      const rank = { overdue: 0, 'due-soon': 1, baseline: 2, ok: 3 };
+      return (rank[getFleetMaintenance(a).status] ?? 9) - (rank[getFleetMaintenance(b).status] ?? 9);
+    });
+
+    box.innerHTML = sorted.map(item => {
+      const name = getFleetDisplayName(item);
+      const maint = getFleetMaintenance(item);
+      const status = getFleetStatus(item);
+      const record = maint.record || {};
+      let label = 'BASELINE NEEDED';
+      let detail = 'Maintenance schedule baseline not set yet.';
+      let cls = '';
+      if (maint.status === 'overdue') {
+        label = 'OVERDUE';
+        cls = 'overdue';
+        detail = maint.milesRemaining !== null
+          ? `${Math.abs(maint.milesRemaining)} miles past service target.`
+          : `${Math.abs(maint.daysRemaining || 0)} days past 6-month service target.`;
+      } else if (maint.status === 'due-soon') {
+        label = 'DUE SOON';
+        cls = 'due-soon';
+        detail = maint.milesRemaining !== null
+          ? `${maint.milesRemaining} miles remaining until next service.`
+          : `${maint.daysRemaining} days remaining until 6-month service.`;
+      } else if (maint.status === 'ok') {
+        label = 'OK';
+        detail = maint.milesRemaining !== null
+          ? `${maint.milesRemaining} miles remaining until next service.`
+          : `${maint.daysRemaining} days remaining until 6-month service.`;
+      }
+
+      return `
+        <div class="fleet-maintenance-card ${cls}">
+          <div class="fleet-maintenance-top">
+            <div class="fleet-maintenance-title">${escapeHtml(name)}</div>
+            <span class="fleet-status-pill ${maint.status === 'overdue' ? 'fleet-status-offline' : maint.status === 'due-soon' ? 'fleet-status-idle' : 'fleet-status-stopped'}">${escapeHtml(label)}</span>
+          </div>
+          <div class="fleet-maintenance-meta">${escapeHtml(status.label)} · ${escapeHtml(detail)}</div>
+          <div class="fleet-maintenance-meta">Last service: ${record.lastServiceDate ? escapeHtml(formatFleetDateTime(record.lastServiceDate)) : 'Not recorded'} Â· Odometer: ${maint.odometer !== null ? `${fmtNumber(maint.odometer, 0)} mi` : 'No odometer from GPS yet'}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  
+function renderFleetTruckCards() {
+    renderFleetTruckList();
+    renderFleetSelectedTruck();
+    renderFleetMaintenancePanel();
+    renderFleetMap();
+  }
+
+  function renderFleetRecentEvents() {
+    const box = document.getElementById('fleetRecentEvents');
+    if (!box) return;
+
+    const approvedEvents = fleetEvents.filter(item => isApprovedFleetItem(item) && isTexasFleetCoordinate(getFleetLatLng(item)));
+    if (!approvedEvents.length) {
+      box.className = 'empty-state';
+      box.innerHTML = 'Waiting for approved KKE OneStep GPS events.';
+      return;
+    }
+
+    const sorted = [...approvedEvents].sort((a, b) => {
+      const aDate = parseFleetTimestamp(getFleetTimestamp(a))?.getTime() || 0;
+      const bDate = parseFleetTimestamp(getFleetTimestamp(b))?.getTime() || 0;
+      return bDate - aDate;
+    }).slice(0, 20);
+
+    box.className = 'fleet-event-list';
+    box.innerHTML = sorted.map(item => {
+      const name = getFleetDisplayName(item);
+      const schema = fleetField(item, ['schema'], 'GPS Event');
+      const speed = getFleetSpeed(item);
+      const ignition = getFleetIgnition(item);
+      const timestamp = getFleetTimestamp(item);
+      const status = getFleetStatus(item);
+
+      return `
+        <div class="fleet-event-item">
+          <div class="fleet-event-main">${escapeHtml(name)}</div>
+          <div class="fleet-event-detail"><span class="fleet-status-pill ${status.className}">${escapeHtml(status.label)}</span></div>
+          <div class="fleet-event-detail">${escapeHtml(schema || 'GPS Event')} · Ignition ${fleetIgnitionText(ignition)} · ${fleetSpeedText(speed)}</div>
+          <div class="fleet-event-detail">${escapeHtml(formatFleetAge(timestamp))}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  
+function loadFleetGPS() {
+    if (!auth.currentUser || !isCurrentUserManager) return;
+    if (fleetLocationsUnsubscribe || fleetEventsUnsubscribe || fleetMaintenanceUnsubscribe) return;
+
+    setFleetDataStatus('Connecting to fleetUnits. Existing truckLocations will be used as a fallback if needed.', 'neutral');
+
+    const useFleetLocations = (items, sourceLabel) => {
+      fleetLocations = items;
+      fleetLocationSource = sourceLabel;
+      renderFleetTruckCards();
+      const validCount = getValidFleetLocations().length;
+      setFleetDataStatus(validCount
+        ? `Fleet GPS loaded from ${sourceLabel}: ${validCount} unit${validCount === 1 ? '' : 's'} with valid Texas GPS.`
+        : `${sourceLabel} loaded, but no approved units currently have valid Texas GPS.`,
+        validCount ? 'ok' : 'warning'
+      );
+    };
+
+    const startTruckLocationsFallback = (reason = '') => {
+      if (fleetFallbackLocationsUnsubscribe) return;
+      setFleetDataStatus(`${reason ? `${reason} ` : ''}Using truckLocations fallback while fleetUnits is waiting for OneStep polling.`, 'warning');
+      const fallbackRef = collection(db, 'truckLocations');
+      fleetFallbackLocationsUnsubscribe = onSnapshot(fallbackRef, (snapshot) => {
+        if (fleetLocationSource === 'fleetUnits' && fleetLocations.length) return;
+        useFleetLocations(snapshot.docs.map(d => ({ id: d.id, ...d.data(), fallbackSource: 'truckLocations' })), 'truckLocations fallback');
+      }, (err) => {
+        console.error(err);
+        setFleetDataStatus(getFleetErrorMessage(err, 'truckLocations'), 'error');
+        const box = document.getElementById('fleetTruckList');
+        if (box) box.innerHTML = `<div class="empty-state">${escapeHtml(getFleetErrorMessage(err, 'truckLocations'))}</div>`;
+      });
+    };
+
+    const locationsRef = collection(db, 'fleetUnits');
+    fleetLocationsUnsubscribe = onSnapshot(locationsRef, (snapshot) => {
+      if (snapshot.empty) {
+        startTruckLocationsFallback('fleetUnits is empty.');
+        return;
+      }
+      if (fleetFallbackLocationsUnsubscribe) {
+        fleetFallbackLocationsUnsubscribe();
+        fleetFallbackLocationsUnsubscribe = null;
+      }
+      useFleetLocations(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'fleetUnits');
+    }, (err) => {
+      console.error(err);
+      startTruckLocationsFallback(getFleetErrorMessage(err, 'fleetUnits'));
+    });
+
+    const eventsRef = query(collection(db, 'gpsEvents'), orderBy('lastSeen', 'desc'), limit(40));
+    fleetEventsUnsubscribe = onSnapshot(eventsRef, (snapshot) => {
+      fleetEvents = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderFleetRecentEvents();
+    }, (err) => {
+      console.error(err);
+      const box = document.getElementById('fleetRecentEvents');
+      if (box) {
+        box.className = 'empty-state';
+        box.innerHTML = escapeHtml(getFleetErrorMessage(err, 'gpsEvents'));
+      }
+    });
+
+    const maintenanceRef = collection(db, 'fleetMaintenance');
+    fleetMaintenanceUnsubscribe = onSnapshot(maintenanceRef, (snapshot) => {
+      fleetMaintenance = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderFleetTruckCards();
+    }, (err) => {
+      console.error(err);
+      const box = document.getElementById('fleetMaintenancePanel');
+      if (box) box.innerHTML = `<div class="empty-state">${escapeHtml(getFleetErrorMessage(err, 'fleetMaintenance'))}</div>`;
+    });
+  }
+
+
+  function loadDashboard() {
+    if (!auth.currentUser || !isCurrentUserManager) return;
+    dashboardUsesReportCache = true;
+    ensureReportCache();
+  }
+
+  function makeAuditEntry(action, note = '') {
+    return {
+      action,
+      note,
+      by: auth.currentUser?.email || 'unknown',
+      at: new Date().toISOString()
+    };
+  }
+
+  function reportRef(reportId) {
+    return firestoreDoc(db, 'artifacts', appId, 'public', 'data', 'submissions', reportId);
+  }
+
+  window.reviewReport = async function(reportId, status) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+
+    const allowedStatuses = ['Approved', 'Needs Revision', 'Rejected', 'Needs Review'];
+    if (!allowedStatuses.includes(status)) return showMessage('Invalid review status.', 'error');
+
+    const report = allReports.find(item => item.id === reportId);
+    if (!report) return showMessage('Report not found.', 'error');
+
+    let note = '';
+    if (status === 'Needs Revision' || status === 'Rejected') {
+      note = prompt(`Add a manager note for ${status}:`, report.managerNotes || '') || '';
+    }
+
+    try {
+      await updateDoc(reportRef(reportId), {
+        approvalStatus: status,
+        managerNotes: note || report.managerNotes || '',
+        reviewedBy: auth.currentUser.email,
+        reviewedAt: serverTimestamp(),
+        lastModifiedBy: auth.currentUser.email,
+        lastModifiedAt: serverTimestamp(),
+        auditTrail: arrayUnion(makeAuditEntry('Review Status Updated', `Status changed to ${status}${note ? ': ' + note : '.'}`))
+      });
+      showMessage(`Report marked as ${status}.`);
+    } catch (err) {
+      console.error(err);
+      showMessage('Review update failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  function recalcReportFields(patch) {
+    patch.city = normalizeCityName(patch.city);
+    patch.crewLead = normalizePersonName(patch.crewLead);
+    patch.workAreaType = normalizeWorkAreaType(patch.workAreaType);
+    patch.injectionType = normalizeInjectionType(patch.injectionType);
+
+    const aStart = Number(patch.aMeterStart || 0);
+    const aFinish = Number(patch.aMeterFinish || 0);
+    const bStart = Number(patch.bMeterStart || 0);
+    const bFinish = Number(patch.bMeterFinish || 0);
+    patch.aPounds = Math.max(0, aFinish - aStart);
+    patch.bPounds = Math.max(0, bFinish - bStart);
+    patch.clicks = Number(patch.clicks || 0);
+    patch.billableLbs = Number(patch.billableLbs || 0);
+    patch.billingRate = Number(patch.billingRate || 0);
+    patch.freeChemicalUsed = Boolean(patch.freeChemicalUsed);
+    patch.jointGrindingLinearFeet = Number(patch.jointGrindingLinearFeet || 0);
+    patch.jointGrindingDepth = String(patch.jointGrindingDepth || '').trim();
+    patch.jointGrindingRatePerLinearFoot = Number(patch.jointGrindingRatePerLinearFoot || costSettings.jointGrindingRatePerLinearFoot || DEFAULT_COST_SETTINGS.jointGrindingRatePerLinearFoot);
+    patch.jobGroupId = String(patch.jobGroupId || '').trim();
+    patch.revenueAllocationMethod = ['laborHours', 'pumpedLbs', 'evenly', 'allOnThisReport'].includes(patch.revenueAllocationMethod) ? patch.revenueAllocationMethod : 'laborHours';
+    patch.finalRevenueReport = Boolean(patch.finalRevenueReport);
+    patch.calculatedRevenue = calculateReportRevenue(patch, costSettings).revenue;
+    patch.superintendentCount = patch.superintendentCount === '' || patch.superintendentCount === null || typeof patch.superintendentCount === 'undefined' ? '' : Number(patch.superintendentCount || 0);
+    patch.technicianCount = patch.technicianCount === '' || patch.technicianCount === null || typeof patch.technicianCount === 'undefined' ? '' : Number(patch.technicianCount || 0);
+    patch.routeMiles = Number(patch.routeMiles || 0);
+    patch.routeMilesGenerated = Number(patch.routeMilesGenerated || 0);
+    patch.routeMilesSource = patch.routeMilesSource || '';
+    patch.unitMpg = Number(patch.unitMpg || 0);
+    patch.fuelPricePerGallon = Number(patch.fuelPricePerGallon || 0);
+    patch.smallEngineHours = Number(patch.smallEngineHours || 0);
+    patch.estimatedPounds = patch.clicks * 0.6;
+    patch.flowMeterPounds = patch.aPounds + patch.bPounds;
+    patch.differencePounds = patch.estimatedPounds - patch.flowMeterPounds;
+    patch.differencePercent = patch.flowMeterPounds > 0 ? (patch.differencePounds / patch.flowMeterPounds) * 100 : 0;
+    patch.totalPounds = patch.estimatedPounds;
+    patch.poundsPerHour = Number(patch.totalHours || 0) > 0 ? patch.estimatedPounds / Number(patch.totalHours || 0) : 0;
+    patch.workAreaOther = patch.workAreaType === 'Other' ? titleCaseWords(patch.workAreaOther || '') : '';
+    patch.workAreaDisplay = patch.workAreaType === 'Other' && patch.workAreaOther ? patch.workAreaOther : (patch.workAreaType || '');
+    patch.liftAreaSqFt = calculateLiftAreaSqFt(patch.liftAreaLength, patch.liftAreaWidth);
+    return patch;
+  }
+
+  function renderAuditTrail(report) {
+    const box = document.getElementById('auditTrailBox');
+    if (!box) return;
+    const entries = Array.isArray(report.auditTrail) ? report.auditTrail.slice().reverse() : [];
+    if (!entries.length) {
+      box.innerHTML = 'No audit entries yet.';
+      return;
+    }
+    box.innerHTML = entries.map(entry => `
+      <div class="audit-line">
+        <strong>${escapeHtml(entry.action || 'Update')}</strong>
+        <div>${escapeHtml(entry.note || '')}</div>
+        <div style="color:var(--gray); margin-top:2px;">${escapeHtml(entry.by || 'unknown')} | ${escapeHtml(entry.at || '')}</div>
+      </div>
+    `).join('');
+  }
+
+  window.openEditReport = function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const report = allReports.find(item => item.id === reportId);
+    if (!report) return showMessage('Report not found.', 'error');
+
+    currentEditReport = report;
+    document.getElementById('editDocId').value = report.id;
+    document.getElementById('editModalSub').textContent = `${report.date || 'No Date'} | ${getNormalizedCity(report)} | ${report.address || 'No Address'}`;
+    document.getElementById('editDate').value = report.date || '';
+    document.getElementById('editCity').value = report.city || '';
+    document.getElementById('editTruckNumber').value = report.truckNumber || '';
+    document.getElementById('editCrewLead').value = report.crewLead || '';
+    document.getElementById('editAddress').value = report.address || '';
+    window.setKKEAddressAutocompleteValue?.('editAddress', report.address || '');
+    document.getElementById('editWorkAreaType').value = report.workAreaType || '';
+    const editInjectionType = document.getElementById('editInjectionType');
+    if (editInjectionType) editInjectionType.value = report.injectionType || '';
+    document.getElementById('editWorkAreaOther').value = report.workAreaOther || '';
+    document.getElementById('editLiftAreaLength').value = report.liftAreaLength || '';
+    document.getElementById('editLiftAreaWidth').value = report.liftAreaWidth || '';
+    document.getElementById('editLiftAreaNotes').value = report.liftAreaNotes || '';
+    const editPhotoLinks = document.getElementById('editPhotoLinks');
+    if (editPhotoLinks) editPhotoLinks.innerHTML = renderPhotoLinks(report) || '<div class="empty-state">No photos attached.</div>';
+    document.getElementById('editAMeterStart').value = report.aMeterStart || '';
+    document.getElementById('editAMeterFinish').value = report.aMeterFinish || '';
+    document.getElementById('editBMeterStart').value = report.bMeterStart || '';
+    document.getElementById('editBMeterFinish').value = report.bMeterFinish || '';
+    document.getElementById('editClicks').value = report.clicks || '';
+    document.getElementById('editTotalHours').value = getReportHours(report) || '';
+    document.getElementById('editLinearFeet').value = report.linearFeet || '';
+    document.getElementById('editJointGrindingLinearFeet').value = report.jointGrindingLinearFeet || '';
+    document.getElementById('editJointGrindingDepth').value = report.jointGrindingDepth || '';
+    document.getElementById('editBillableLbs').value = report.billableLbs || '';
+    document.getElementById('editBillingRate').value = report.billingRate || '';
+    document.getElementById('editFreeChemicalUsed').checked = Boolean(report.freeChemicalUsed);
+    document.getElementById('editJobGroupId').value = report.jobGroupId || getSuggestedJobGroupId(report);
+    document.getElementById('editRevenueAllocationMethod').value = report.revenueAllocationMethod || 'laborHours';
+    document.getElementById('editFinalRevenueReport').checked = Boolean(report.finalRevenueReport);
+    const editCrewCounts = getCrewCountsForManagerEdit(report);
+    document.getElementById('editSuperintendentCount').value = editCrewCounts.superintendentCount;
+    document.getElementById('editTechnicianCount').value = editCrewCounts.technicianCount;
+    document.getElementById('editRouteMiles').value = report.routeMiles || '';
+    document.getElementById('editUnitMpg').value = report.unitMpg || '';
+    document.getElementById('editFuelPricePerGallon').value = report.fuelPricePerGallon || '';
+    document.getElementById('editSmallEngineHours').value = report.smallEngineHours || '';
+    currentEditGeneratedRouteMiles = Number(report.routeMilesGenerated || report.appRouteMiles || 0);
+    currentEditGeneratedRouteSource = report.routeMilesSource || (currentEditGeneratedRouteMiles > 0 ? 'Saved generated route' : '');
+    updateEditRouteMilesStatus();
+    document.getElementById('editGpsLatitude').value = report.gpsLatitude || '';
+    document.getElementById('editGpsLongitude').value = report.gpsLongitude || '';
+    document.getElementById('editApprovalStatus').value = report.approvalStatus || 'Needs Review';
+    document.getElementById('editManagerInitials').value = '';
+    document.getElementById('editNotes').value = report.notes || '';
+    document.getElementById('editOriginalSettlement').value = report.originalSettlement || '';
+    document.getElementById('editFinalSettlement').value = report.finalSettlement || '';
+    document.getElementById('editTargetLiftAchieved').value = report.targetLiftAchieved || '';
+    document.getElementById('editConditionObserved').value = report.conditionObserved || '';
+    document.getElementById('editConditionObservedOther').value = report.conditionObservedOther || '';
+    document.getElementById('editReturnTripRequired').value = report.returnTripRequired || '';
+    document.getElementById('editReturnTripReason').value = report.returnTripReason || '';
+    document.getElementById('editPreventableDelay').value = report.preventableDelay || '';
+    document.getElementById('editCompletionStatus').value = report.completionStatus || '';
+    document.getElementById('editManagerNotes').value = report.managerNotes || '';
+    renderAuditTrail(report);
+    document.getElementById('editModal').style.display = 'flex';
+  };
+
+  function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    currentEditReport = null;
+    currentEditGeneratedRouteMiles = 0;
+    currentEditGeneratedRouteSource = '';
+  }
+
+  function updateEditRouteMilesStatus(message = '') {
+    const status = document.getElementById('editRouteMilesStatus');
+    if (!status) return;
+    if (message) {
+      status.textContent = message;
+      return;
+    }
+    if (currentEditGeneratedRouteMiles > 0) {
+      status.textContent = `Generated Route Miles: ${fmtNumber(currentEditGeneratedRouteMiles, 1)} mi | ${currentEditGeneratedRouteSource || 'Google route: shop-job-shop'}`;
+    } else {
+      status.textContent = 'No generated route miles saved yet.';
+    }
+  }
+
+  async function calculateEditRouteMiles() {
+    if (!currentEditReport) return showMessage('Open a report before calculating route miles.', 'error');
+    const address = document.getElementById('editAddress')?.value?.trim();
+    if (!address) return showMessage('Enter a job address before calculating route miles.', 'error');
+    const button = document.getElementById('btnCalculateEditRouteMiles');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Calculating...';
+    }
+    updateEditRouteMilesStatus('Calculating shop-job-shop route miles...');
+    try {
+      const generatedRouteMiles = await calculateRoundTripRouteMiles(address, costSettings, {
+        lat: document.getElementById('editGpsLatitude')?.value || currentEditReport.gpsLatitude || currentEditReport.addressLatitude,
+        lng: document.getElementById('editGpsLongitude')?.value || currentEditReport.gpsLongitude || currentEditReport.addressLongitude
+      });
+      if (!generatedRouteMiles) {
+        currentEditGeneratedRouteMiles = 0;
+        currentEditGeneratedRouteSource = lastRouteMilesResult.source || 'Not calculated';
+        updateEditRouteMilesStatus(`Route miles could not be calculated. ${lastRouteMilesResult.status || 'Check the address or Google Maps availability.'}`);
+        showMessage(`Route miles could not be calculated. ${lastRouteMilesResult.status || 'Check the address and try again.'}`, 'error');
+        return;
+      }
+      currentEditGeneratedRouteMiles = generatedRouteMiles;
+      currentEditGeneratedRouteSource = lastRouteMilesResult.source || 'Google route: shop-job-shop';
+      currentEditReport.routeMilesGenerated = generatedRouteMiles;
+      currentEditReport.routeMilesSource = currentEditGeneratedRouteSource;
+      updateEditRouteMilesStatus();
+      showMessage(`Generated route miles: ${fmtNumber(generatedRouteMiles, 1)} mi. Source: ${currentEditGeneratedRouteSource}.`);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Calculate Route Miles';
+      }
+    }
+  }
+
+  async function saveEditedReport() {
+    if (!isCurrentUserManager || !currentEditReport) return showMessage('Manager access required.', 'error');
+    const docId = document.getElementById('editDocId').value;
+    const editPatchInput = {
+      date: document.getElementById('editDate').value,
+      city: document.getElementById('editCity').value.trim(),
+      truckNumber: document.getElementById('editTruckNumber').value.trim(),
+      crewLead: document.getElementById('editCrewLead').value.trim(),
+      address: document.getElementById('editAddress').value.trim(),
+      workAreaType: document.getElementById('editWorkAreaType').value,
+      injectionType: document.getElementById('editInjectionType')?.value || '',
+      workAreaOther: document.getElementById('editWorkAreaOther').value.trim(),
+      liftAreaLength: document.getElementById('editLiftAreaLength').value,
+      liftAreaWidth: document.getElementById('editLiftAreaWidth').value,
+      liftAreaNotes: document.getElementById('editLiftAreaNotes').value.trim(),
+      aMeterStart: document.getElementById('editAMeterStart').value,
+      aMeterFinish: document.getElementById('editAMeterFinish').value,
+      bMeterStart: document.getElementById('editBMeterStart').value,
+      bMeterFinish: document.getElementById('editBMeterFinish').value,
+      clicks: document.getElementById('editClicks').value,
+      totalHours: document.getElementById('editTotalHours').value,
+      linearFeet: document.getElementById('editLinearFeet').value,
+      jointGrindingLinearFeet: document.getElementById('editJointGrindingLinearFeet').value,
+      jointGrindingDepth: document.getElementById('editJointGrindingDepth').value,
+      jointGrindingRatePerLinearFoot: costSettings.jointGrindingRatePerLinearFoot,
+      billableLbs: document.getElementById('editBillableLbs').value,
+      billingRate: document.getElementById('editBillingRate').value,
+      freeChemicalUsed: document.getElementById('editFreeChemicalUsed').checked,
+      jobGroupId: document.getElementById('editJobGroupId').value,
+      revenueAllocationMethod: document.getElementById('editRevenueAllocationMethod').value,
+      finalRevenueReport: document.getElementById('editFinalRevenueReport').checked,
+      superintendentCount: document.getElementById('editSuperintendentCount').value,
+      technicianCount: document.getElementById('editTechnicianCount').value,
+      routeMiles: document.getElementById('editRouteMiles').value,
+      unitMpg: document.getElementById('editUnitMpg').value,
+      fuelPricePerGallon: document.getElementById('editFuelPricePerGallon').value,
+      smallEngineHours: document.getElementById('editSmallEngineHours').value,
+      gpsLatitude: document.getElementById('editGpsLatitude').value,
+      gpsLongitude: document.getElementById('editGpsLongitude').value,
+      approvalStatus: document.getElementById('editApprovalStatus').value,
+      managerNotes: document.getElementById('editManagerNotes').value.trim(),
+      notes: document.getElementById('editNotes').value.trim(),
+      originalSettlement: document.getElementById('editOriginalSettlement').value,
+      finalSettlement: document.getElementById('editFinalSettlement').value,
+      targetLiftAchieved: document.getElementById('editTargetLiftAchieved').value,
+      conditionObserved: document.getElementById('editConditionObserved').value.trim(),
+      conditionObservedOther: document.getElementById('editConditionObservedOther').value.trim(),
+      returnTripRequired: document.getElementById('editReturnTripRequired').value,
+      returnTripReason: document.getElementById('editReturnTripReason').value.trim(),
+      preventableDelay: document.getElementById('editPreventableDelay').value,
+      completionStatus: document.getElementById('editCompletionStatus').value,
+      lastModifiedAt: serverTimestamp(),
+      lastModifiedBy: auth.currentUser.email
+    };
+
+    if (isReturnTripReport(editPatchInput) && !editPatchInput.returnTripReason) {
+      showMessage('Return Trip Reason is required when a return trip is flagged.', 'error');
+      document.getElementById('editReturnTripReason')?.focus();
+      return;
+    }
+    const currentReport = allReports.find(report => report.id === docId) || {};
+    editPatchInput.completionRecordStatus = getCompletionRecordStatus({ ...currentReport, ...editPatchInput });
+
+    if (!Number(editPatchInput.routeMiles || 0)) {
+      const generatedRouteMiles = await calculateRoundTripRouteMiles(editPatchInput.address, costSettings, {
+        lat: editPatchInput.gpsLatitude || currentEditReport.gpsLatitude || currentEditReport.addressLatitude,
+        lng: editPatchInput.gpsLongitude || currentEditReport.gpsLongitude || currentEditReport.addressLongitude
+      });
+      editPatchInput.routeMilesGenerated = generatedRouteMiles || currentEditGeneratedRouteMiles || currentEditReport.routeMilesGenerated || 0;
+      editPatchInput.routeMilesSource = generatedRouteMiles ? (lastRouteMilesResult.source || 'Google route: shop-job-shop') : (currentEditGeneratedRouteSource || currentEditReport.routeMilesSource || 'Not calculated');
+    } else {
+      editPatchInput.routeMilesGenerated = currentEditGeneratedRouteMiles || currentEditReport.routeMilesGenerated || 0;
+      editPatchInput.routeMilesSource = currentEditGeneratedRouteSource || currentEditReport.routeMilesSource || '';
+    }
+
+    const patch = recalcReportFields(editPatchInput);
+
+    const initials = document.getElementById('editManagerInitials').value.trim();
+    const auditNote = initials ? `Edited by manager initials: ${initials}` : 'Manager edited report fields.';
+
+    try {
+      await updateDoc(reportRef(docId), {
+        ...patch,
+        auditTrail: arrayUnion(makeAuditEntry('Manager Edit', auditNote))
+      });
+      closeEditModal();
+      showMessage('Report updated successfully.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Update failed. Check Firebase manager permissions.', 'error');
+    }
+  }
+
+  window.softDeleteReport = async function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const report = allReports.find(item => item.id === reportId);
+    const label = report ? `${report.date || ''} ${getNormalizedCity(report)} ${report.address || ''}` : reportId;
+    const typed = prompt(`Type DELETE to move this report to recovery:\n${label}`);
+    if (typed !== 'DELETE') return;
+
+    try {
+      await updateDoc(reportRef(reportId), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: auth.currentUser.email,
+        auditTrail: arrayUnion(makeAuditEntry('Soft Delete', 'Moved to deleted report recovery.'))
+      });
+      showMessage('Report moved to recovery.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Delete failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  window.restoreReport = async function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    try {
+      await updateDoc(reportRef(reportId), {
+        deleted: false,
+        restoredAt: serverTimestamp(),
+        restoredBy: auth.currentUser.email,
+        auditTrail: arrayUnion(makeAuditEntry('Restored', 'Recovered from deleted reports.'))
+      });
+      showMessage('Report restored successfully.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Restore failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  window.permanentlyDeleteReport = async function(reportId) {
+    if (!isCurrentUserManager) return showMessage('Manager access required.', 'error');
+    const typed = prompt('Permanent delete cannot be recovered. Type PERMANENT DELETE to continue.');
+    if (typed !== 'PERMANENT DELETE') return;
+    try {
+      await deleteDoc(reportRef(reportId));
+      showMessage('Report permanently deleted.');
+    } catch (err) {
+      console.error(err);
+      showMessage('Permanent delete failed. Check Firebase manager permissions.', 'error');
+    }
+  };
+
+  window.printReport = function(reportId) {
+    const report = allReports.find(item => item.id === reportId) || currentEditReport;
+    if (!report) return showMessage('Report not found.', 'error');
+
+    const safe = value => escapeHtml(value ?? '');
+    const metricBox = (label, value) => `
+      <div class="box">
+        <div class="label">${safe(label)}</div>
+        <div class="value">${safe(value)}</div>
+      </div>
+    `;
+
+    const totalPounds = getReportPounds(report);
+    const totalHours = getReportHours(report);
+    const aPounds = Number.isFinite(Number(report.aPounds)) ? Number(report.aPounds) : Math.max(0, Number(report.aMeterFinish || 0) - Number(report.aMeterStart || 0));
+    const bPounds = Number.isFinite(Number(report.bPounds)) ? Number(report.bPounds) : Math.max(0, Number(report.bMeterFinish || 0) - Number(report.bMeterStart || 0));
+    const poundComparison = getPoundComparison(report);
+    const efficiency = totalHours > 0 ? totalPounds / totalHours : 0;
+    const liftAreaSqFt = Number.isFinite(Number(report.liftAreaSqFt)) ? Number(report.liftAreaSqFt) : calculateLiftAreaSqFt(report.liftAreaLength, report.liftAreaWidth);
+    const pnl = calculateReportPnl(report, allReports, costSettings);
+
+    const profileRows = Array.isArray(report.profile) && report.profile.length ? report.profile.map(row => `
+      <tr>
+        <td>${safe(row.station)}</td>
+        <td>${safe(row.d1Before)}</td>
+        <td>${safe(row.d1Target)}</td><td>${safe(row.d1After)}</td>
+        <td>${safe(row.d2Before)}</td>
+        <td>${safe(row.d2Target)}</td><td>${safe(row.d2After)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="7">No road profile readings recorded.</td></tr>';
+
+    const photoLinks = Array.isArray(report.photos) && report.photos.length ? `
+      <div class="photo-links">
+        ${report.photos.map((photo, index) => `
+          <a href="${safe(photo.url || photo.downloadURL || '')}" target="_blank" rel="noopener">Photo ${index + 1}${photo.name ? ` - ${safe(photo.name)}` : ''}</a>
+        `).join('')}
+      </div>
+    ` : '<p>No photos attached.</p>';
+
+    const auditRows = Array.isArray(report.auditTrail) && report.auditTrail.length ? report.auditTrail.map(entry => `
+      <tr>
+        <td>${safe(entry.action || '')}</td>
+        <td>${safe(entry.by || '')}</td>
+        <td>${safe(entry.at || '')}</td>
+        <td>${safe(entry.note || '')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4">No audit entries recorded.</td></tr>';
+
+    const popup = window.open('', '_blank');
+    if (!popup) return showMessage('Popup blocked. Allow popups to export PDF.', 'error');
+    popup.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>KKE Report ${safe(report.date || '')}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
+          .top { text-align:center; border-bottom: 4px solid #0057a8; padding-bottom: 14px; margin-bottom: 20px; }
+          .logo { max-width: 260px; max-height: 120px; object-fit: contain; }
+          h1 { color:#003f7d; margin: 10px 0 0; }
+          h2 { color:#003f7d; border-left:4px solid #0057a8; padding-left:10px; margin-top:24px; }
+          .section-note { color:#6b7280; font-size:12px; margin-top:-8px; }
+          .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+          .box { border:1px solid #d1d5db; border-radius: 10px; padding: 10px; break-inside: avoid; }
+          .label { font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:bold; }
+          .value { font-size:16px; font-weight:bold; margin-top:4px; overflow-wrap:anywhere; }
+          .full { grid-column: 1 / -1; }
+          table { width:100%; border-collapse:collapse; margin-top:12px; }
+          th, td { border:1px solid #d1d5db; padding:7px; font-size:12px; vertical-align:top; }
+          th { background:#f3f4f6; color:#003f7d; }
+          .photo-links { display:grid; gap:6px; }
+          .photo-links a { color:#0057a8; font-weight:bold; overflow-wrap:anywhere; }
+          .print-button { margin-top:20px; padding:12px 18px; background:#0057a8; color:white; border:0; border-radius:8px; font-weight:bold; }
+          @media print {
+            button { display:none; }
+            body { margin: 18px; }
+            .box, table { break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="top">
+          <img src="logo.png" class="logo" onerror="this.src='logo.jpg'">
+          <h1>Crew Profile Report</h1>
+          <div style="color:#6b7280; font-weight:bold; margin-top:6px;">${safe(getNormalizedCity(report))} ${report.date ? '| ' + safe(report.date) : ''}</div>
+        </div>
+
+        <h2>Job Summary</h2>
+        <div class="grid">
+          ${metricBox('Date', report.date || '')}
+          ${metricBox('City', getNormalizedCity(report))}
+          ${metricBox('Truck #', report.truckNumber || '')}
+          ${metricBox('Crew Lead / Truck Boss', getNormalizedCrew(report))}
+          ${metricBox('Helper 1', report.helper1 || '')}
+          ${metricBox('Helper 2', report.helper2 || '')}
+          ${metricBox('Helper 3', report.helper3 || '')}
+          ${metricBox('Helper 4', report.helper4 || '')}
+          ${metricBox('Start Time', formatStandardTime(report.startTime))}
+          ${metricBox('Finish Time', formatStandardTime(report.finishTime))}
+          ${metricBox('Total Hours', fmtNumber(totalHours, 2))}
+          ${metricBox('Approval Status', report.approvalStatus || 'Needs Review')}
+          ${metricBox('Injection Type', getInjectionInfo(report).fullLabel)}
+          ${metricBox('Submitted By', report.submittedBy || '')}
+          ${metricBox('Last Modified By', report.lastModifiedBy || '')}
+          <div class="box full"><div class="label">Address / Location</div><div class="value">${safe(report.address || '')}</div></div>
+        </div>
+
+        <h2>Production Metrics</h2>
+        <p class="section-note">Includes meter readings, pounds, efficiency, clicks, lift height, and generator runtime.</p>
+        <div class="grid-3">
+          ${metricBox('A Lbs Start', report.aMeterStart || '0')}
+          ${metricBox('A Lbs Finish', report.aMeterFinish || '0')}
+          ${metricBox('A Pounds Used', `${fmtNumber(aPounds, 0)} lbs`)}
+          ${metricBox('B Lbs Start', report.bMeterStart || '0')}
+          ${metricBox('B Lbs Finish', report.bMeterFinish || '0')}
+          ${metricBox('B Pounds Used', `${fmtNumber(bPounds, 0)} lbs`)}
+          ${metricBox('Clicks', fmtNumber(poundComparison.clicks, 0))}
+          ${metricBox('Estimated Lbs', `${fmtNumber(poundComparison.estimatedPounds, 0)} lbs`)}
+          ${metricBox('Flow Meter Lbs', `${fmtNumber(poundComparison.flowMeterPounds, 0)} lbs`)}
+          ${metricBox('Flux', `${fmtNumber(poundComparison.differencePercent, 1)}%`)}
+          ${metricBox('Flux Lbs', `${fmtNumber(poundComparison.differencePounds, 0)} lbs`)}
+          ${metricBox('Lbs / Hour', `${fmtNumber(efficiency, 0)} lbs/hr`)}
+          ${metricBox('Lift Height', report.lift || '')}
+          ${metricBox('Small Engine Run Time', report.smallEngineHours ? `${fmtNumber(report.smallEngineHours, 1)} hr` : '')}
+          ${metricBox('Generator Run Time', report.generatorRunTime || '')}
+          ${metricBox('Linear Feet', report.linearFeet || '')}
+          ${metricBox('Joint Grinding LF', fmtNumber(pnl.jointGrindingLinearFeet, 2))}
+          ${metricBox('Grind Depth', report.jointGrindingDepth || '')}
+        </div>
+
+        <h2>Estimated Job P&amp;L</h2>
+        <p class="section-note">Management estimate using editable app settings. Overhead is ${fmtNumber(costSettings.overheadPercentOfRevenue, 1)}% of revenue.</p>
+        <div class="grid-3">
+          ${metricBox('Revenue', formatMoney(pnl.revenue))}
+          ${metricBox('Revenue Source', pnl.isGroupedRevenue ? 'Allocated from job group' : 'Direct report revenue')}
+          ${metricBox('Job Group ID', pnl.groupId || '')}
+          ${metricBox('Group Day', pnl.isGroupedRevenue ? `${fmtNumber(pnl.groupIndex || 1, 0)} of ${fmtNumber(pnl.groupSize || 1, 0)}` : '')}
+          ${metricBox('Grouped Job Revenue', pnl.isGroupedRevenue ? formatMoney(pnl.groupRevenue) : '')}
+          ${metricBox('Allocation Method', pnl.isGroupedRevenue ? formatRevenueAllocationMethod(pnl.allocationMethod) : '')}
+          ${metricBox('Allocation Share', pnl.isGroupedRevenue ? `${fmtNumber((pnl.allocationShare || 0) * 100, 1)}%` : '')}
+          ${metricBox('Direct Report Revenue', formatMoney(pnl.directRevenue))}
+          ${metricBox('Billable Lb Revenue', formatMoney(pnl.billableLbRevenue))}
+          ${metricBox('Joint Grinding Revenue', formatMoney(pnl.jointGrindingRevenue))}
+          ${metricBox('Labor', formatMoney(pnl.laborCost))}
+          ${metricBox('Chemical Lbs From Clicks', `${fmtNumber(pnl.chemicalLbs, 0)} lbs`)}
+          ${metricBox('Free Chemical Used', pnl.freeChemicalUsed ? 'Yes' : 'No')}
+          ${metricBox('Chemical Rate', formatMoney(pnl.chemicalRate))}
+          ${metricBox('Chemical', formatMoney(pnl.chemicalCost))}
+          ${metricBox('Fuel', formatMoney(pnl.fuelCost))}
+          ${metricBox('Disposables', formatMoney(pnl.disposablesCost))}
+          ${metricBox('Overhead', formatMoney(pnl.overheadCost))}
+          ${metricBox('Fuel Gallons', fmtNumber(pnl.fuelGallons, 2))}
+          ${metricBox('Vehicle Fuel Gal', fmtNumber(pnl.vehicleFuelGallons, 2))}
+          ${metricBox('Small Engine Fuel Gal', fmtNumber(pnl.smallEngineGallons, 2))}
+          ${metricBox('Generator Fuel Gal', fmtNumber(pnl.generatorGallons, 2))}
+          ${metricBox('MPG Used', fmtNumber(pnl.mpg, 1))}
+          ${metricBox('Route Miles', fmtNumber(pnl.routeMiles, 1))}
+          ${metricBox('Generated Route Miles', report.routeMilesGenerated ? `${fmtNumber(report.routeMilesGenerated, 1)} mi` : '')}
+          ${metricBox('Route Miles Source', report.routeMilesSource || '')}
+          ${metricBox('Direct Costs', formatMoney(pnl.directCost))}
+          ${metricBox('Estimated Profit', formatMoney(pnl.profit))}
+          ${metricBox('Estimated Margin', `${fmtNumber(pnl.margin, 1)}%`)}
+          ${metricBox('Cost Rule Date', pnl.costRuleEffectiveDate || '')}
+        </div>
+        <div class="box" style="margin-top:10px;"><div class="label">Cost Quality</div><div class="value">${safe(Object.values(pnl.quality).join(' | '))} | ${safe(pnl.confidence)}</div></div>
+
+        <h2>Work Area Details</h2>
+        <div class="grid">
+          ${metricBox('Work Area Type', report.workAreaDisplay || report.workAreaType || '')}
+          ${metricBox('Other Area Type', report.workAreaOther || '')}
+          ${metricBox('Lift Area Length', report.liftAreaLength ? `${report.liftAreaLength} ft` : '')}
+          ${metricBox('Lift Area Width', report.liftAreaWidth ? `${report.liftAreaWidth} ft` : '')}
+          ${metricBox('Calculated Work Area', liftAreaSqFt ? `${fmtNumber(liftAreaSqFt, 2)} sq ft` : '')}
+          ${metricBox('Profile Interval', report.profileInterval ? `${report.profileInterval} ft` : '')}
+          <div class="box full"><div class="label">Area / Dimension Notes</div><div class="value">${safe(report.liftAreaNotes || '')}</div></div>
+        </div>
+
+        <h2>GPS Verification</h2>
+        <div class="grid">
+          ${metricBox('Latitude', report.gpsLatitude || '')}
+          ${metricBox('Longitude', report.gpsLongitude || '')}
+          ${metricBox('Location Confirmed', report.locationConfirmed ? 'Yes' : 'No')}
+          ${metricBox('Photo Count', report.photoCount || (Array.isArray(report.photos) ? report.photos.length : 0))}
+        </div>
+
+        <h2>Photos</h2>
+        ${photoLinks}
+
+        ${isReturnTripReport(report) ? `<div style="border:2px solid #dc2626; background:#fee2e2; color:#991b1b; padding:10px 12px; margin:12px 0; border-radius:8px; font-weight:900;">RETURN TRIP REQUIRED${report.returnTripReason ? ` — ${safe(report.returnTripReason)}` : ''}</div>` : ''}
+
+        ${hasCompletionRecordData(report) ? `
+          <h2>Completion Record</h2>
+          <div class="metric-grid">
+            ${metricBox('Original Settlement', report.originalSettlement === '' || report.originalSettlement == null ? '' : `${report.originalSettlement} in`)}
+            ${metricBox('Final Settlement', report.finalSettlement === '' || report.finalSettlement == null ? '' : `${report.finalSettlement} in`)}
+            ${metricBox('Target Lift Achieved', report.targetLiftAchieved || '')}
+            ${metricBox('Completion Record Status', getCompletionRecordStatus(report))}
+            ${metricBox('Before/Site Photo Count', report.beforePhotoCount ?? '')}
+            ${metricBox('After Photo Count', report.afterPhotoCount ?? '')}
+          </div>
+          <div class="box" style="margin-top:10px;"><div class="label">Condition Observed</div><div class="value">${safe([report.conditionObserved, report.conditionObservedOther].filter(Boolean).join('; '))}</div></div>
+        ` : ''}
+
+        <h2>Notes</h2>
+        <div class="box"><div class="label">Crew Notes</div><div class="value">${safe(report.notes || '')}</div></div>
+        <div class="metric-grid" style="margin-top:10px;">
+          ${metricBox('Return Trip Required', report.returnTripRequired || '')}
+          ${metricBox('Preventable Delay', report.preventableDelay || '')}
+          ${metricBox('Completion Status', report.completionStatus || '')}
+        </div>
+        <div class="box" style="margin-top:10px;"><div class="label">Return Trip Reason</div><div class="value">${safe(report.returnTripReason || '')}</div></div>
+        <div class="box" style="margin-top:10px;"><div class="label">Manager Notes</div><div class="value">${safe(report.managerNotes || '')}</div></div>
+
+        ${report.jobId?`<h2>Authorized Job Reference</h2><p>${safe(report.jobScopeSnapshot?.address)} · ${safe(report.jobScopeSnapshot?.area?.label)} · Scope revision ${safe(report.jobRevision)}</p><p>Customer approval: ${safe(report.jobScopeSnapshot?.authorization?.customer)} · ${safe(report.jobScopeSnapshot?.authorization?.date)}</p><p>Profile reading units: ${safe(report.jobScopeSnapshot?.area?.profile?.units)}</p>`:''}
+        <h2>Road Profile</h2>
+        <table>
+          <thead><tr><th>Station</th><th>NE Before</th><th>NE Target</th><th>NE Actual after</th><th>SW Before</th><th>SW Target</th><th>SW Actual after</th></tr></thead>
+          <tbody>${profileRows}</tbody>
+        </table>
+
+        <h2>Audit Trail</h2>
+        <table>
+          <thead><tr><th>Action</th><th>By</th><th>At</th><th>Note</th></tr></thead>
+          <tbody>${auditRows}</tbody>
+        </table>
+
+        <button onclick="window.print()" class="print-button">Print / Save PDF</button>
+      </body>
+      </html>
+    `);
+    popup.document.close();
+    setTimeout(() => popup.focus(), 250);
+  };
+
+  document.getElementById('historySearch')?.addEventListener('input', resetHistoryPage);
+  document.getElementById('historyCityFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyTruckFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyDateFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyInjectionFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyStatusFilter')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyPageSize')?.addEventListener('change', resetHistoryPage);
+  document.getElementById('historyPrevPage')?.addEventListener('click', () => changeHistoryPage(-1));
+  document.getElementById('historyPrevPageBottom')?.addEventListener('click', () => changeHistoryPage(-1));
+  document.getElementById('historyNextPage')?.addEventListener('click', () => changeHistoryPage(1));
+  document.getElementById('historyNextPageBottom')?.addEventListener('click', () => changeHistoryPage(1));
+  document.getElementById('btnMissingRevenue')?.addEventListener('click', () => {
+    historyMissingRevenueOnly = !historyMissingRevenueOnly;
+    resetHistoryPage();
+  });
+  document.getElementById('btnReturnTrips')?.addEventListener('click', () => {
+    historyReturnTripsOnly = !historyReturnTripsOnly;
+    resetHistoryPage();
+  });
+  document.getElementById('btnClearFilters')?.addEventListener('click', () => {
+    historyMissingRevenueOnly = false;
+    historyReturnTripsOnly = false;
+    document.getElementById('historySearch').value = '';
+    document.getElementById('historyCityFilter').value = '';
+    document.getElementById('historyTruckFilter').value = '';
+    document.getElementById('historyDateFilter').value = '';
+    document.getElementById('historyInjectionFilter').value = '';
+    document.getElementById('historyStatusFilter').value = '';
+    resetHistoryPage();
+  });
+  document.getElementById('btnCloseEditModal')?.addEventListener('click', closeEditModal);
+  document.getElementById('btnCancelEdit')?.addEventListener('click', closeEditModal);
+  document.getElementById('btnCalculateEditRouteMiles')?.addEventListener('click', calculateEditRouteMiles);
+  document.getElementById('btnSaveEdit')?.addEventListener('click', saveEditedReport);
+  document.getElementById('btnPrintReport')?.addEventListener('click', () => {
+    const id = document.getElementById('editDocId')?.value;
+    if (id) window.printReport(id);
+  });
+  document.getElementById('editModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'editModal') closeEditModal();
+  });
+
+
+
